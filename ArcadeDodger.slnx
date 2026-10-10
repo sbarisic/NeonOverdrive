@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ArcadeDodger/ArcadeDodger.csproj" />
+    <Project Path="src/ArcadeDodger/Web/ArcadeDodger.Browser.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArcadeDodger.Tests/ArcadeDodger.Tests.csproj" />
+  </Folder>
+</Solution>
