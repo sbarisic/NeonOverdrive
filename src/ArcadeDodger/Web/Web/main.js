@@ -22,7 +22,7 @@ try {
     if (!running) return;
     try {
       const bounds = canvas.getBoundingClientRect();
-      if (!host.UpdateFrame(bounds.width, bounds.height)) { running = false; host.Close(); return; }
+      if (!host.UpdateFrame(bounds.width, bounds.height, window.devicePixelRatio || 1)) { running = false; host.Close(); return; }
     } catch (error) {
       running = false;
       status.hidden = false;

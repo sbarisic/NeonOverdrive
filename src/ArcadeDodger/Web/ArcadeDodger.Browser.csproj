@@ -25,5 +25,10 @@
     <WasmExtraFilesToDeploy Include="Web/index.html" TargetPath="index.html" />
     <WasmExtraFilesToDeploy Include="Web/main.js" TargetPath="main.js" />
     <WasmExtraFilesToDeploy Include="Web/network.js" TargetPath="network.js" />
+    <WasmExtraFilesToDeploy Include="Web/weapons.js" TargetPath="weapons.js" />
+    <WasmExtraFilesToDeploy Include="Web/friends.js" TargetPath="friends.js" />
+    <WasmExtraFilesToDeploy Include="Web/audio.js" TargetPath="audio.js" />
+    <WasmExtraFilesToDeploy Include="Web/skills.js" TargetPath="skills.js" />
+    <WasmExtraFilesToDeploy Include="Web/skill-definitions.js" TargetPath="skill-definitions.js" />
   </ItemGroup>
 </Project>

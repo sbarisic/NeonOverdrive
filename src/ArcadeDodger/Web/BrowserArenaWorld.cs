@@ -12,6 +12,7 @@ internal sealed class BrowserArenaWorld
     private static readonly Color Rival = new(255, 65, 130, 255);
     private static readonly Color Hostile = new(255, 75, 180, 255);
     private static readonly Color Rammer = new(255, 100, 95, 255);
+    private static readonly Color MutedMine = new(115,125,145,255);
     private static readonly Color Gold = new(255, 210, 80, 255);
     private static readonly Color Shield = new(70, 150, 240, 255);
     private const int EffectCapacity = 160;
@@ -24,12 +25,14 @@ internal sealed class BrowserArenaWorld
     private long tick = -1;
     private bool shotTransitions;
     private float lastTime;
+    private Vector2 view = new(960, 540);
     private enum EffectKind { Trail, Muzzle, Hit, Death }
     private readonly record struct Effect(Vector2 Position, Vector2 Direction, Color Color,
         float Born, float Duration, EffectKind Kind, int Seed);
 
-    public void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, float time, bool reducedEffects)
+    public void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 viewport, float time, bool reducedEffects)
     {
+        view = viewport;
         if (time < lastTime || snapshot is null || (snapshot is not null && snapshot.Tick < tick)) Reset();
         lastTime = time;
         effects.RemoveAll(e => time - e.Born >= e.Duration);
@@ -39,7 +42,7 @@ internal sealed class BrowserArenaWorld
             foreach (var id in enemyHitFlashes.Where(pair => time >= pair.Value).Select(pair => pair.Key).ToArray())
                 enemyHitFlashes.Remove(id);
         // Static backdrop animation in low FX mode, but retain the native grid and boundary.
-        NeonRendering.DrawBackdrop(reducedEffects ? 0 : time, origin, (int)Room.Width, (int)Room.Height);
+        NeonRendering.DrawBackdrop(reducedEffects ? 0 : time, origin, (int)Room.Width, (int)Room.Height, view);
         if (snapshot is null) return;
         if (snapshot.Tick > tick) Observe(snapshot, ownId, origin, time, reducedEffects);
         ObserveShots(snapshot, ownId, origin, time, reducedEffects);
@@ -57,18 +60,50 @@ internal sealed class BrowserArenaWorld
             Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
             Raylib.DrawText("ENERGY", (int)p.X - 18, (int)p.Y - 30, 10, Cyan);
         }
+        foreach(var credit in snapshot.Credits ?? [])
+        {
+            Vector2 p=new(credit.X,credit.Y);if(!Visible(p,origin,30))continue;
+            Raylib.DrawPoly(p,6,9,time*30,Raylib.Fade(Gold,.3f));Raylib.DrawPolyLinesEx(p,6,9,time*30,2,Gold);
+            Raylib.DrawText("$",(int)p.X-4,(int)p.Y-5,10,Gold);
+        }
+        foreach(var mine in snapshot.Mines ?? [])
+        {
+            Vector2 p=new(mine.X,mine.Y);if(!Visible(p,origin,30))continue;
+            var c=mine.Armed?Gold:MutedMine;
+            Raylib.DrawPoly(p,4,8,45,c);Raylib.DrawCircleLines((int)p.X,(int)p.Y,mine.Armed?14:10,c);
+        }
         foreach (var enemy in snapshot.Enemies ?? []) DrawEnemy(enemy, origin, time, reducedEffects);
-        foreach (var player in snapshot.Players) DrawPlayer(player, ownId, origin, time, reducedEffects);
+        foreach (var player in snapshot.Players) DrawPlayer(player, ownId, origin, time, reducedEffects, snapshot.Social?.Friends.Any(n => FriendBook.Key(n) == FriendBook.Key(player.Name)) == true);
         foreach (var shot in snapshot.Shots)
         {
             Vector2 p = new(shot.X, shot.Y);
             if (!Visible(p, origin, 35)) continue;
-            Color color = ShotColor(shot.Owner, ownId);
+            var size=Math.Clamp(MathF.Sqrt(shot.Power),.65f,4);
+            if(size>1)Raylib.DrawCircleV(p,5*size,Raylib.Fade(ProjectileColor(shot),.5f));
+            Color color = shot.Owner < 0 ? Hostile : ProjectileColor(shot);
             if (shot.Owner < 0)
             {
                 // Alien rounds have a solid circular silhouette, unlike pilot tracer rounds.
                 Raylib.DrawCircleV(p, 7, new Color(30, 0, 28, 255));
                 Raylib.DrawCircleV(p, 5, Hostile);
+                Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
+            }
+            else if (shot.Kind == 2)
+            {
+                var direction = Direction(new(shot.Dx, shot.Dy));
+                Raylib.DrawLineEx(p - direction * 42, p, reducedEffects ? 3 : 7, Raylib.Fade(color, .35f));
+                Raylib.DrawLineEx(p - direction * 38, p, 2, color);
+            }
+            else if (shot.Kind == 3)
+            {
+                var direction = Direction(new(shot.Dx, shot.Dy));
+                Raylib.DrawLineEx(p - direction * 22, p, 5, Gold);
+                Raylib.DrawPoly(p, 3, 7, MathF.Atan2(shot.Dy, shot.Dx) * 180 / MathF.PI, color);
+            }
+            else if (shot.Kind == 4)
+            {
+                Raylib.DrawCircleV(p, 11, Raylib.Fade(color, .25f));
+                Raylib.DrawCircleV(p, 6, color);
                 Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
             }
             else if (!reducedEffects) NeonRendering.DrawProjectile(p, new(shot.Dx, shot.Dy), color);
@@ -78,6 +113,26 @@ internal sealed class BrowserArenaWorld
                 Raylib.DrawLineEx(p - d * 12, p, 3, color);
                 Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
             }
+        }
+        foreach (var beam in snapshot.Beams ?? [])
+        {
+            var owner = snapshot.Players.FirstOrDefault(p => p.Id == beam.Owner);
+            if (owner is null || owner.Hull <= 0 || owner.Editing) continue;
+            Vector2 start = new(beam.X, beam.Y), end = new(beam.EndX, beam.EndY);
+            if (!SegmentVisible(start, end, origin)) continue;
+            var color = ProjectileColor(new(0, beam.Owner, beam.X, beam.Y, Kind: 2, Effects: beam.Effects));
+            var thickness=Math.Clamp(MathF.Sqrt(beam.Power),.5f,5);
+            if (!reducedEffects) Raylib.DrawLineEx(start, end, 11*thickness, Raylib.Fade(color, .15f));
+            Raylib.DrawLineEx(start, end, (reducedEffects ? 3 : 5)*thickness, Raylib.Fade(color, .8f));
+            Raylib.DrawLineEx(start, end, 1.5f*thickness, NeonRendering.Ink);
+            Raylib.DrawCircleV(end, reducedEffects ? 3 : 4 + MathF.Sin(time * 31) * 1.2f, color);
+        }
+        foreach (var blast in snapshot.Explosions ?? [])
+        {
+            var age = Math.Clamp((snapshot.Tick - blast.Born) / 10f, 0, 1);
+            if (!Visible(new(blast.X, blast.Y), origin, blast.Radius)) continue;
+            Raylib.DrawCircleLines((int)blast.X, (int)blast.Y, blast.Radius * (.3f + age * .7f), Raylib.Fade(Gold, 1 - age));
+            if (!reducedEffects) Raylib.DrawCircleV(new(blast.X, blast.Y), blast.Radius * .7f, Raylib.Fade(Gold, (1 - age) * .12f));
         }
         DrawThreatWarnings(snapshot, ownId, origin);
     }
@@ -94,7 +149,7 @@ internal sealed class BrowserArenaWorld
             {
                 if (!players.TryGetValue(p.Id, out var old)) continue;
                 Vector2 position = new(p.X, p.Y);
-                Color color = p.Id == ownId ? Cyan : Rival;
+                Color color = PlayerColor(p);
                 if (old.Hull > 0 && p.Hull <= 0)
                     Add(position, Vector2.Zero, color, time, .6f, EffectKind.Death, p.Id, origin);
                 else if (p.Hull > 0)
@@ -143,7 +198,7 @@ internal sealed class BrowserArenaWorld
         {
             foreach (var s in frame.Shots.Take(256))
             {
-                if (shots.Contains(s.Id) || low) continue;
+                if (shots.Contains(s.Id) || low || s.Parent > 0) continue;
                 Vector2 muzzle = new(s.X, s.Y);
                 if (s.Owner > 0)
                 {
@@ -163,11 +218,12 @@ internal sealed class BrowserArenaWorld
         foreach (var s in frame.Shots.Take(256)) shots.Add(s.Id);
     }
 
-    private void DrawPlayer(PlayerSnapshot p, int ownId, Vector2 origin, float time, bool low)
+    private void DrawPlayer(PlayerSnapshot p, int ownId, Vector2 origin, float time, bool low, bool friendly)
     {
         Vector2 position = new(p.X, p.Y);
         if (p.Hull <= 0 || !Visible(position, origin, 65)) return;
-        Color color = p.Id == ownId ? Cyan : Rival;
+        Color color = PlayerColor(p);
+        if (p.Editing) color = Raylib.Fade(color, .35f);
         Box box = new(p.X - 14, p.Y - 14, 28, 28);
         if (!low) NeonRendering.GlowBox(box, color);
         else
@@ -188,15 +244,24 @@ internal sealed class BrowserArenaWorld
         {
             // Always visible, including reduced FX: protection is gameplay information.
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, 26, NeonRendering.Ink);
-            Raylib.DrawText("SAFE", (int)p.X - 12, (int)p.Y - 49, 10, NeonRendering.Ink);
+            Raylib.DrawText(p.Editing ? "CLOAKED" : "SAFE", (int)p.X - 12, (int)p.Y - 49, 10, NeonRendering.Ink);
         }
         string name = p.Name.Length > 18 ? p.Name[..18] : p.Name;
+        name += $" L{p.Level}";
+        if (friendly) { name += " [ALLY]"; Raylib.DrawCircleLines((int)p.X, (int)p.Y, 30, new Color(120, 245, 170, 255)); }
         if (!p.Connected) name += " [LINK]";
         Raylib.DrawText(name, (int)p.X - Raylib.MeasureText(name, 10) / 2, (int)p.Y - 36, 10, color);
         for (int i = 0; i < 3; i++)
             Raylib.DrawRectangle((int)p.X - 14 + i * 10, (int)p.Y + 29, 8, 3,
                 i < p.Hull ? color : new Color(35, 42, 55, 255));
     }
+
+    private static Color PlayerColor(PlayerSnapshot p) => p.Level switch
+    { < 3 => Cyan, < 5 => new(90, 165, 255, 255), < 7 => new(178, 110, 255, 255),
+      < 10 => new(255, 100, 185, 255), < 15 => Gold, _ => new(240, 255, 220, 255) };
+    private static Color ProjectileColor(ShotSnapshot s) => (s.Effects & 16) != 0 ? new(190,135,255,255) : (s.Effects & 8) != 0 ? new(185,255,85,255) : (s.Effects & 2) != 0 ? new(150, 255, 70, 255)
+        : (s.Effects & 1) != 0 ? new(255, 130, 45, 255) : (s.Effects & 4) != 0 ? new(125, 200, 255, 255)
+        : s.Kind switch { 2 => Cyan, 3 => new(255, 135, 70, 255), 4 => new(195, 110, 255, 255), _ => Gold };
 
     private void DrawEnemy(EnemySnapshot e, Vector2 origin, float time, bool low)
     {
@@ -210,6 +275,9 @@ internal sealed class BrowserArenaWorld
         if (e.Telegraph && gunner && SegmentVisible(p, p + d * 650, origin))
             Raylib.DrawLineEx(p, p + d * 650, 1, Raylib.Fade(Hostile, .65f));
         if (!Visible(p, origin, 80)) return;
+        if (e.Effects != 0)
+            Raylib.DrawCircleLines((int)e.X, (int)e.Y, 27, (e.Effects & 16) != 0 ? new Color(190,135,255,255) : (e.Effects & 8) != 0 ? new Color(185,255,85,255) : (e.Effects & 32) != 0 ? Gold : (e.Effects & 2) != 0 ? new Color(150,255,70,255)
+                : (e.Effects & 1) != 0 ? new Color(255,130,45,255) : new Color(125,200,255,255));
         if (!low)
         {
             Raylib.DrawCircleV(p, 29, Raylib.Fade(color, .10f));
@@ -236,7 +304,7 @@ internal sealed class BrowserArenaWorld
         }
     }
 
-    private static void DrawThreatWarnings(RoomSnapshot frame, int ownId, Vector2 origin)
+    private void DrawThreatWarnings(RoomSnapshot frame, int ownId, Vector2 origin)
     {
         var self = frame.Players.FirstOrDefault(p => p.Id == ownId && p.Hull > 0);
         if (self is null) return;
@@ -249,7 +317,7 @@ internal sealed class BrowserArenaWorld
             Vector2 screen = p - origin;
             // Keep the entire marker (12-unit ring/stroke) clear of telemetry through
             // y=105 and the bottom console starting at y=466, in logical canvas units.
-            Vector2 edge = Vector2.Clamp(screen, new(24, 122), new(936, 448));
+            Vector2 edge = Vector2.Clamp(screen, new(24, 122), new(view.X - 24, view.Y - 92));
             Vector2 marker = origin + edge; // This pass is inside the world camera.
             Vector2 direction = Direction(screen - edge);
             Raylib.DrawCircleLines((int)marker.X, (int)marker.Y, e.Telegraph ? 12 : 7, Hostile);
@@ -319,10 +387,10 @@ internal sealed class BrowserArenaWorld
     private static Color ShotColor(int owner, int ownId) => owner < 0 ? Hostile : owner == ownId ? Gold : Rival;
     private static Color EnemyColor(EnemySnapshot e) => e.Kind == "gunner" ? Hostile : Rammer;
     private static Vector2 Direction(Vector2 d) => d.LengthSquared() < .001f ? -Vector2.UnitY : Vector2.Normalize(d);
-    private static bool Visible(Vector2 p, Vector2 origin, float margin) =>
-        p.X >= origin.X - margin && p.X <= origin.X + 960 + margin &&
-        p.Y >= origin.Y - margin && p.Y <= origin.Y + 540 + margin;
-    private static bool SegmentVisible(Vector2 a, Vector2 b, Vector2 origin) =>
-        Math.Max(a.X, b.X) >= origin.X && Math.Min(a.X, b.X) <= origin.X + 960 &&
-        Math.Max(a.Y, b.Y) >= origin.Y && Math.Min(a.Y, b.Y) <= origin.Y + 540;
+    private bool Visible(Vector2 p, Vector2 origin, float margin) =>
+        p.X >= origin.X - margin && p.X <= origin.X + view.X + margin &&
+        p.Y >= origin.Y - margin && p.Y <= origin.Y + view.Y + margin;
+    private bool SegmentVisible(Vector2 a, Vector2 b, Vector2 origin) =>
+        Math.Max(a.X, b.X) >= origin.X && Math.Min(a.X, b.X) <= origin.X + view.X &&
+        Math.Max(a.Y, b.Y) >= origin.Y && Math.Min(a.Y, b.Y) <= origin.Y + view.Y;
 }

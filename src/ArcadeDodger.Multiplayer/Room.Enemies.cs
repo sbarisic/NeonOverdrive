@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace ArcadeDodger.Multiplayer;
 
-public sealed record EnemySnapshot(int Id, string Kind, float X, float Y, float Aim, int Hull, bool Telegraph);
+public sealed record EnemySnapshot(int Id, string Kind, float X, float Y, float Aim, int Hull, bool Telegraph, int Effects = 0);
 
 public sealed partial class Room
 {
@@ -12,7 +12,8 @@ public sealed partial class Room
 
     private void StepEnemies()
     {
-        var alive = players.Values.Where(p => p.Hull > 0).ToArray();
+        var alive = players.Values.Where(p => p.Hull > 0 && p.Connected && !p.Editing).ToArray();
+        foreach (var e in enemies) e.Previous = e.Position;
         if (alive.Length == 0) return;
         if (Tick % 90 == 0 && enemies.Count < EnemyCapacity)
         {
@@ -27,6 +28,7 @@ public sealed partial class Room
         foreach (var enemy in enemies)
         {
             enemy.Previous = enemy.Position;
+            if (enemy.Hull <= 0 || Tick < enemy.StunUntil) continue;
             var target = alive.Where(p => p.Hull > 0).OrderBy(p => Vector2.DistanceSquared(p.Position, enemy.Position)).FirstOrDefault();
             if (target is null) break;
             var delta = target.Position - enemy.Position;
@@ -34,7 +36,7 @@ public sealed partial class Room
             var direction = distance > 0.001f ? delta / distance : Vector2.UnitX;
             enemy.Aim = MathF.Atan2(direction.Y, direction.X);
             var movement = enemy.Gunner ? (distance > 320 ? 1 : distance < 220 ? -1 : 0) : 1;
-            enemy.Position = Vector2.Clamp(enemy.Position + direction * (enemy.Gunner ? 100 : 145) / TickRate * movement,
+            enemy.Position = Vector2.Clamp(enemy.Position + direction * (enemy.Gunner ? 100 : 145) / TickRate * movement * (Tick < enemy.SlowUntil ? enemy.SlowFactor : 1),
                 new Vector2(20), new Vector2(Width - 20, Height - 20));
             if (enemy.Gunner && distance < 650 && Tick >= enemy.FireAt)
             {
@@ -58,6 +60,9 @@ public sealed partial class Room
         public bool Gunner;
         public Vector2 Position, Previous;
         public float Aim;
-        public long FireAt;
+        public long FireAt, BurnUntil, RadiationUntil, SlowUntil;
+        public Shot? BurnSource, RadiationSource;
+        public float DamageFraction, Charge, BurnPower, RadPower, Corrosion, SlowFactor = 1;
+        public long CorrosionUntil, StunUntil, StunReady, MarkUntil;
     }
 }

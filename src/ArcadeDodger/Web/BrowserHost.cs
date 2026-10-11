@@ -23,6 +23,15 @@ public partial class BrowserHost
     [JSExport]
     public static void ArenaPresentation(bool menuOpen, bool reducedEffects) => arena?.Presentation(menuOpen, reducedEffects);
 
+    [JSExport]
+    public static void ArenaInput(double x, double y, double aim, bool dash) => arena?.Input(x, y, aim, dash);
+
+    [JSExport]
+    public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);
+
+    [JSExport]
+    public static string ArenaPosition() => arena?.Position() ?? "";
+
     public static void Main()
     {
         app = new GameApp();
@@ -30,11 +39,19 @@ public partial class BrowserHost
     }
 
     [JSExport]
-    public static bool UpdateFrame(double displayWidth, double displayHeight)
+    public static bool UpdateFrame(double displayWidth, double displayHeight, double pixelRatio)
     {
         // Web mouse events are canvas-relative CSS pixels, not backing-buffer pixels.
         // Refresh on every frame so resizing/zooming also remaps a stationary cursor.
         if (displayWidth <= 0 || displayHeight <= 0) return app is not null;
+        if (arena is not null)
+        {
+            var density = Math.Clamp(pixelRatio, 1, 2);
+            var width = Math.Max(1, (int)Math.Round(displayWidth * density));
+            var height = Math.Max(1, (int)Math.Round(displayHeight * density));
+            if (width != Raylib.GetScreenWidth() || height != Raylib.GetScreenHeight())
+                Raylib.SetWindowSize(width, height);
+        }
         Raylib.SetMouseScale((float)(Raylib.GetScreenWidth() / displayWidth),
             (float)(Raylib.GetScreenHeight() / displayHeight));
         return arena?.Frame() ?? app?.UpdateFrame() ?? false;

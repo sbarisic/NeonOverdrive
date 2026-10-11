@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "Multiplayer browser",
+    "Projects": [
+      {
+        "Path": "src\\ArcadeDodger.Server\\ArcadeDodger.Server.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

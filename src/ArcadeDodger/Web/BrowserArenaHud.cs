@@ -6,7 +6,7 @@ using Raylib_cs;
 namespace ArcadeDodger.Web;
 
 // Screen-space presentation only. The host owns input, menus and respawn requests.
-// Draw inside the unshaken 960 x 540 logical Camera2D pass (Zoom = 2).
+// Uniformly scaled logical HUD, anchored to the current viewport edges.
 internal static class BrowserArenaHud
 {
     private static readonly Color Cyan = new(65, 245, 235, 255);
@@ -17,7 +17,7 @@ internal static class BrowserArenaHud
     private static readonly Color Enemy = new(255, 100, 95, 255);
     private static readonly Color Ink = NeonRendering.Ink;
 
-    public static void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, float time,
+    public static void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 view, float scale, float time,
         bool menuOpen, bool reducedEffects)
     {
         PlayerSnapshot? self = null;
@@ -29,16 +29,19 @@ internal static class BrowserArenaHud
                 if (player.Connected) connected++;
             }
 
-        Panel(12, 8, 936, 36, Cyan);
+        var extra = view - new Vector2(960, 540);
+        Raylib.BeginMode2D(new Camera2D { Zoom = scale });
+        Panel(12, 8, (int)view.X - 24, 36, Cyan);
         Text("LIVE ARENA", 24, 14, 10, Muted);
         Text(snapshot is null ? "AWAITING SNAPSHOT" : $"PILOTS {connected}/{Room.Capacity}", 24, 28, 10, Ink);
         Raylib.DrawLine(310, 14, 310, 37, Border);
-        Center("NEON OVERDRIVE", 19, 16, Cyan);
-        Raylib.DrawLine(648, 14, 648, 37, Border);
-        Text("PvPvE / SERVER AUTHORITATIVE", 666, 14, 10, Muted);
-        Text("LIVE ROOM - NEVER PAUSED", 666, 28, 10, Amber);
+        Center("NEON OVERDRIVE", 19, 16, Cyan, (int)view.X);
+        Raylib.DrawLine((int)view.X - 312, 14, (int)view.X - 312, 37, Border);
+        Text("PvPvE / SERVER AUTHORITATIVE", (int)view.X - 294, 14, 10, Muted);
+        Text("LIVE ROOM - NEVER PAUSED", (int)view.X - 294, 28, 10, Amber);
 
         Panel(12, 50, 340, 55, Cyan);
+        if(snapshot?.Workshop is {} workshop) Text($"CREDITS {workshop.Credits}",24,112,10,Amber);
         if (self is null)
         {
             Text("PILOT TELEMETRY / WAITING", 24, 61, 10, Muted);
@@ -46,11 +49,11 @@ internal static class BrowserArenaHud
         }
         else
         {
-            Text($"HULL {self.Hull}/3", 24, 59, 10, self.Hull > 0 ? Ink : Pink);
-            Pips(94, 61, self.Hull, 3, Cyan);
-            Text($"SHIELD {self.Shield}/2", 139, 59, 10, Ink);
-            Pips(229, 61, self.Shield, 2, new Color(100, 165, 255, 255));
-            Text(self.Protected ? "PROTECTED" : self.Connected ? "ONLINE" : "DISCONNECTED", 271, 59, 10,
+            Text($"HULL {self.Hull}/{self.MaxHull}", 24, 59, 10, self.Hull > 0 ? Ink : Pink);
+            Meter(94, 61, 36, 4, self.Hull / (float)self.MaxHull, Cyan);
+            Text($"SHIELD {self.Shield}/{self.MaxShield}", 139, 59, 10, Ink);
+            Meter(229, 61, 68, 4, self.Shield / (float)self.MaxShield, new Color(100, 165, 255, 255));
+            Text(self.Protected ? "SAFE" : self.Connected ? "ON" : "OFF", 308, 59, 10,
                 self.Protected ? Amber : self.Connected ? Cyan : Pink);
             var level = Math.Clamp(self.Level, 1, 100);
             var floor = Room.ExperienceForLevel(level);
@@ -61,35 +64,45 @@ internal static class BrowserArenaHud
             Meter(24, 94, 316, 3, progress, Cyan);
         }
 
-        Panel(12, 466, 936, 66, Cyan);
+        Raylib.EndMode2D();
+        // Keep the compact console contents centered, with its frame spanning the window.
+        Raylib.BeginMode2D(new Camera2D { Zoom = scale, Offset = new Vector2(extra.X / 2, extra.Y) * scale });
+        Panel(12 - (int)(extra.X / 2), 466, (int)view.X - 24, 66, Cyan);
         // Leave the former primary-control section blank.
         Raylib.DrawLine(151, 476, 151, 522, Border);
-        Text("SHIFT / DASH", 165, 477, 10, Muted);
+        Text(self?.Ability is "phase" or "long-phase" ? "SHIFT / PHASE" : "SHIFT / DASH", 165, 477, 10, Muted);
         var cooldown = self?.DashCooldown ?? 0;
         Text(self is null ? "WAITING" : self.Hull <= 0 ? "OFFLINE" : cooldown > 0
             ? $"{cooldown / (float)Room.TickRate:0.0}s" : "READY", 165, 491, 16,
             self?.Hull > 0 && cooldown == 0 ? Cyan : Ink);
-        Meter(165, 513, 112, 4, self?.Hull > 0 ? 1 - Math.Clamp(cooldown / (float)Room.DashCooldownTicks, 0, 1) : 0, Cyan);
+        Meter(165, 513, 112, 4, self?.Hull > 0 ? 1 - Math.Clamp(cooldown / (float)self.DashCooldownMax, 0, 1) : 0, Cyan);
         Raylib.DrawLine(294, 476, 294, 522, Border);
-        DrawRadar(snapshot, ownId, origin, time, reducedEffects);
+        DrawRadar(snapshot, ownId, origin, view, time, reducedEffects);
         Raylib.DrawLine(570, 476, 570, 522, Border);
-        // Reserve the remaining console space for future information.
+        Text($"WEAPON / {self?.Weapon.ToUpperInvariant() ?? "BLASTER"}", 590, 480, 10, Cyan);
+        Text(self?.SkillPoints > 0 ? $"TAB / {self.SkillPoints} SKILL POINTS" : "TAB / SKILLS   I / WEAPONS", 590, 501, 10,
+            self?.SkillPoints > 0 ? Amber : Muted);
 
+        Raylib.EndMode2D();
+        Raylib.BeginMode2D(new Camera2D { Zoom = scale });
+        if (menuOpen || self is null || self.Hull <= 0)
+            Raylib.DrawRectangle(0, 108, (int)view.X, (int)view.Y - 186, new Color(4, 12, 22, 165));
+        Raylib.EndMode2D();
+        Raylib.BeginMode2D(new Camera2D { Zoom = scale, Offset = extra / 2 * scale });
         // The accessible DOM shell owns menu text and controls; do not draw a
         // second panel underneath it. Keep only world dimming in the canvas.
-        if (menuOpen)
-            Raylib.DrawRectangle(0, 108, 960, 354, new Color(4, 12, 22, 165));
-        else if (self is null)
+        if (!menuOpen && self is null)
             DrawOverlay("JOINING ARENA", "Waiting for your pilot in the room snapshot.",
                 "Connection and join controls are in the browser.",
                 "ESC menu / R effects toggle", Cyan);
-        else if (self.Hull <= 0)
+        else if (!menuOpen && self?.Hull <= 0)
             DrawOverlay("RUN ENDED", $"LEVEL {self.Level} / ENERGY XP {self.Experience}",
                 "Use the browser Respawn button to retry.",
                 "A new run resets hull, shield and energy. The room stays live.", Pink);
+        Raylib.EndMode2D();
     }
 
-    private static void DrawRadar(RoomSnapshot? snapshot, int ownId, Vector2 origin, float time, bool reducedEffects)
+    private static void DrawRadar(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 view, float time, bool reducedEffects)
     {
         var map = new Rectangle(307, 477, 160, 45);
         Raylib.DrawRectangleRec(map, new Color(5, 12, 17, 255));
@@ -98,7 +111,7 @@ internal static class BrowserArenaHud
         Raylib.DrawLine(307, 499, 467, 499, Raylib.Fade(Border, .4f));
         Raylib.DrawRectangleLinesEx(map, 1, Border);
         var top = Map(origin, map);
-        var bottom = Map(origin + new Vector2(960, 540), map);
+        var bottom = Map(origin + view, map);
         Raylib.DrawRectangleLinesEx(new Rectangle(top.X, top.Y, bottom.X - top.X, bottom.Y - top.Y), 1, Muted);
         if (snapshot is not null)
         {
@@ -137,7 +150,6 @@ internal static class BrowserArenaHud
 
     private static void DrawOverlay(string title, string summary, string action, string hint, Color accent)
     {
-        Raylib.DrawRectangle(0, 108, 960, 354, new Color(4, 12, 22, 165));
         Panel(180, 167, 600, 205, accent);
         Center(title, 190, 28, accent);
         Raylib.DrawLine(204, 232, 756, 232, Border);
@@ -169,6 +181,6 @@ internal static class BrowserArenaHud
         Raylib.DrawText(text, x, y, size, color);
     private static void Right(string text, int x, int y, int size, Color color) =>
         Text(text, x - Raylib.MeasureText(text, size), y, size, color);
-    private static void Center(string text, int y, int size, Color color) =>
-        Text(text, (960 - Raylib.MeasureText(text, size)) / 2, y, size, color);
+    private static void Center(string text, int y, int size, Color color, int width = 960) =>
+        Text(text, (width - Raylib.MeasureText(text, size)) / 2, y, size, color);
 }

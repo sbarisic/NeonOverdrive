@@ -181,7 +181,7 @@ async function effectsState(control) {
           const clearOfLoadout = await page.evaluate(() => {
             const canvas = document.querySelector('#canvas').getBoundingClientRect();
             const info = document.querySelector('#network-info').getBoundingClientRect();
-            return info.bottom <= canvas.top + canvas.height * 466 / 540 + 1;
+            return info.bottom <= canvas.bottom - Math.min(canvas.width / 960, canvas.height / 540) * 74 + 1;
           });
           assert(clearOfLoadout, 'transport controls must not overlap canvas loadout');
           await page.screenshot({ path: path.join(output, `menu-${width}x${height}-dpr${deviceScaleFactor}.png`) });

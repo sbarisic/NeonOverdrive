@@ -1,11 +1,15 @@
 using System.Numerics;
+using System.Collections.Immutable;
 
 namespace ArcadeDodger.Multiplayer;
 
 public sealed record PlayerSnapshot(int Id, string Name, float X, float Y, float Aim,
-    int Hull, int Shield, int Ack, bool Protected, bool Connected, int DashCooldown = 0, int Experience = 0, int Level = 1);
-public sealed record ShotSnapshot(int Id, int Owner, float X, float Y, float Dx = 0, float Dy = -1, long Born = 0);
-public sealed record RoomSnapshot(int V, string Type, long Tick, PlayerSnapshot[] Players, ShotSnapshot[] Shots, EnemySnapshot[]? Enemies = null, EnergySnapshot[]? Energy = null);
+    int Hull, int Shield, int Ack, bool Protected, bool Connected, int DashCooldown = 0, int Experience = 0, int Level = 1,
+    int DashTicks = 0, float DashX = 0, float DashY = 0, int Life = 0,
+    int SkillPoints = 0, ImmutableArray<string> Skills = default, int MaxShield = 2, string Weapon = "blaster", string Ability = "dash",
+    int MaxHull = 3, float MoveSpeed = 300, float DashMultiplier = 3, int DashCooldownMax = 90, bool Editing = false, ImmutableArray<WeaponConfig> Weapons = default, int EquipSequence = 0, bool EquipAccepted = false, bool[]? UnlockedWeapons = null, WeaponStats[]? WeaponStats = null);
+public sealed record ShotSnapshot(int Id, int Owner, float X, float Y, float Dx = 0, float Dy = -1, long Born = 0, int Kind = 1, int Effects = 0, bool Modular = false, int Parent = 0, float BirthX = 0, float BirthY = 0, int[]? Ancestors = null, int Weapon = 0, int Stage = 0, float Power = 1);
+public sealed record RoomSnapshot(int V, string Type, long Tick, PlayerSnapshot[] Players, ShotSnapshot[] Shots, EnemySnapshot[]? Enemies = null, EnergySnapshot[]? Energy = null, ExplosionSnapshot[]? Explosions = null, BeamSnapshot[]? Beams = null, SocialSnapshot? Social = null, WorkshopSnapshot? Workshop = null, CreditSnapshot[]? Credits = null, MineSnapshot[]? Mines = null, SkillReceipt? SkillReceipt = null, CreditReward? CreditReward = null);
 
 /// <summary>Single-writer fixed-step network-slice simulation; no renderer or wall-clock dependency.</summary>
 public sealed partial class Room
@@ -22,14 +26,15 @@ public sealed partial class Room
     private readonly bool enemiesEnabled;
 
     // Server rooms always use the default; isolated combat checks can disable AI.
-    public Room(bool enemiesEnabled = true) => this.enemiesEnabled = enemiesEnabled;
+    public Room(bool enemiesEnabled = true, FriendBook? friends = null, ProfileStore? profiles = null)
+    { this.enemiesEnabled = enemiesEnabled; this.friends = friends ?? new(); this.profiles = profiles ?? new(); }
 
     public int? Join(string name)
     {
-        if (players.Count >= Capacity) return null;
+        if (players.Count >= Capacity || players.Values.Any(p=>p.Connected && FriendBook.Key(p.Name)==FriendBook.Key(name)) || this.profiles.Ensure(name)!="ok") return null;
         var spawn = SelectSpawn();
         var id = ++nextPlayer;
-        players.Add(id, new Player { Id = id, Name = name, Position = spawn, Previous = spawn,
+        players.Add(id, new Player { Id = id, Name = name, Weapons = profiles.Get(name).Weapons.ToImmutableArray(), Position = spawn, Previous = spawn,
             ProtectedUntil = Tick + 60, LastInputTick = Tick });
         return id;
     }
@@ -51,8 +56,9 @@ public sealed partial class Room
         p.LastReceived = request.Sequence;
         if (p.Hull > 0) return false;
         var spawn = SelectSpawn();
-        players[id] = new Player { Id = id, Name = p.Name, Position = spawn, Previous = spawn,
-            ProtectedUntil = Tick + 60, LastInputTick = Tick, LastReceived = request.Sequence, Ack = request.Sequence };
+        players[id] = new Player { Id = id, Name = p.Name, Weapons = profiles.Get(p.Name).Weapons.ToImmutableArray(), Position = spawn, Previous = spawn,
+            ProtectedUntil = Tick + 60, LastInputTick = Tick, LastReceived = request.Sequence, Ack = request.Sequence,
+            Life = p.Life + 1 };
         return true;
     }
     public bool Input(int id, InputMessage input)
@@ -73,6 +79,7 @@ public sealed partial class Room
         p.RemoveAt = Tick + 150;
         p.Pending = null;
         p.Held = null;
+        p.Editing = false;
     }
 
     public void Step()
@@ -84,16 +91,26 @@ public sealed partial class Room
             if (p.Pending is { } pending)
             {
                 p.Held = pending;
+                p.Editing = pending.Editing && p.Hull > 0;
+                if (p.Editing) p.DashUntil = 0;
                 p.Ack = pending.Sequence;
                 p.Pending = null;
             }
             if (Tick - p.LastInputTick > 7) p.Held = null;
-            if (p.Hull > 0 && p.Shield < 2 && Tick >= p.ShieldAt)
+            if (Tick - p.LastInputTick > 90) p.Editing = false;
+            if (p.Hull > 0 && (p.Shield < MaxShieldFor(p) || p.ShieldFraction > 0) && Tick >= p.ShieldAt)
             {
-                p.Shield++;
-                p.ShieldAt = Tick + TickRate;
+                p.Shield = Math.Min(MaxShieldFor(p),p.Shield+1);
+                if(p.Shield==MaxShieldFor(p))p.ShieldFraction=0;
+                p.ShieldAt = Tick + (int)(TickRate / Value(p,"flux",1));
             }
-            if (p.Hull <= 0 || p.Held is not { } input) continue;
+            if (p.Hull > 0 && (p.Hull < MaxHullFor(p) || p.HullFraction > 0) && Rank(p,"repair")>0 && Tick >= p.HullAt)
+            {
+                p.Hull = Math.Min(MaxHullFor(p),p.Hull+1);
+                if(p.Hull==MaxHullFor(p))p.HullFraction=0;
+                p.HullAt = Tick + (int)(Value(p,"repair",10) * TickRate);
+            }
+            if (p.Hull <= 0 || p.Editing || p.Held is not { } input) continue;
             p.Aim = input.Aim;
             var direction = new Vector2(input.X, input.Y);
             if (direction.LengthSquared() > 1) direction = Vector2.Normalize(direction);
@@ -101,57 +118,28 @@ public sealed partial class Room
             {
                 p.DashDirection = direction.LengthSquared() > 0 ? Vector2.Normalize(direction)
                     : new Vector2(MathF.Cos(p.Aim), MathF.Sin(p.Aim));
-                p.DashUntil = Tick + DashDuration;
-                p.DashReadyAt = Tick + DashCooldownTicks;
+                p.DashUntil = Tick + DashDurationForAbility(AbilityFor(p));
+                p.DashReadyAt = Tick + DashCooldownFor(p);
+                DashNova(p);
             }
-            var movement = Tick < p.DashUntil ? p.DashDirection * 3 : direction;
-            p.Position = Vector2.Clamp(p.Position + movement * (Speed / TickRate),
+            var movement = Tick < p.DashUntil ? p.DashDirection * DashMultiplierFor(p) : direction;
+            p.Position = Vector2.Clamp(p.Position + movement * (MoveSpeedFor(p) / TickRate),
                 new Vector2(Radius), new Vector2(Width - Radius, Height - Radius));
             if (input.Fire)
             {
                 p.ProtectedUntil = 0;
-                if (Tick >= p.FireAt && shots.Count < 256)
-                {
-                    p.FireAt = Tick + 7;
-                    shots.Add(new Shot { Id = ++nextShot, Owner = p.Id, Position = p.Position,
-                        Velocity = new Vector2(MathF.Cos(p.Aim), MathF.Sin(p.Aim)) * (650f / TickRate),
-                        Born = Tick, Expires = Tick + 60 });
-                }
+                Fire(p);
             }
         }
+        StepStatuses();
         if (enemiesEnabled) StepEnemies();
-        foreach (var shot in shots)
-        {
-            var end = shot.Position + shot.Velocity;
-            Player? target = null;
-            Enemy? enemyTarget = null;
-            var closest = float.MaxValue;
-            foreach (var p in players.Values)
-            {
-                if (p.Id == shot.Owner || p.Hull <= 0 || Tick < p.ProtectedUntil) continue;
-                var time = Intersection(shot.Position - p.Previous, end - p.Position, Radius + 3);
-                if (time.HasValue && time.Value < closest) { closest = time.Value; target = p; }
-            }
-            if (shot.Owner > 0)
-                foreach (var enemy in enemies)
-                {
-                    if (enemy.Hull <= 0) continue;
-                    var time = Intersection(shot.Position - enemy.Previous, end - enemy.Position, 23);
-                    if (time.HasValue && time.Value < closest)
-                    { closest = time.Value; enemyTarget = enemy; target = null; }
-                }
-            if (enemyTarget is not null)
-            { enemyTarget.Hull--; shot.Expires = Tick; }
-            if (target is not null)
-            {
-                Damage(target);
-                shot.Expires = Tick;
-            }
-            shot.Position = end;
-        }
-        foreach (var enemy in enemies.Where(e => e.Hull <= 0)) DropEnergy(enemy);
+        StepBeams();
+        StepProjectiles();
+        StepMines();
+        foreach (var enemy in enemies.Where(e => e.Hull <= 0)) { DropEnergy(enemy); DropCredits(enemy); }
         enemies.RemoveAll(e => e.Hull <= 0);
         StepEnergy();
+        StepCredits();
         shots.RemoveAll(s => s.Expires <= Tick || s.Position.X < 0 || s.Position.X > Width ||
             s.Position.Y < 0 || s.Position.Y > Height);
         foreach (var id in players.Values.Where(p => !p.Connected && Tick >= p.RemoveAt).Select(p => p.Id).ToArray())
@@ -160,12 +148,15 @@ public sealed partial class Room
 
     public RoomSnapshot Snapshot() => new(ClientProtocol.Version, "snapshot", Tick,
         players.Values.Select(p => new PlayerSnapshot(p.Id, p.Name, p.Position.X, p.Position.Y,
-            p.Aim, p.Hull, p.Shield, p.Ack, Tick < p.ProtectedUntil, p.Connected,
-            (int)Math.Max(0, p.DashReadyAt - Tick), p.Experience, LevelForExperience(p.Experience))).ToArray(),
-        shots.Select(s => new ShotSnapshot(s.Id, s.Owner, s.Position.X, s.Position.Y, s.Velocity.X, s.Velocity.Y, s.Born)).ToArray(),
+            p.Aim, p.Hull, p.Shield, p.Ack, p.Editing || Tick < p.ProtectedUntil, p.Connected,
+            (int)Math.Max(0, p.DashReadyAt - Tick), p.Experience, LevelForExperience(p.Experience),
+            (int)Math.Max(0, p.DashUntil - Tick), p.DashDirection.X, p.DashDirection.Y, p.Life,
+            SkillPointsFor(p), p.Skills.Order().ToImmutableArray(), MaxShieldFor(p), WeaponFor(p), AbilityFor(p),
+            MaxHullFor(p), MoveSpeedFor(p), DashMultiplierFor(p), DashCooldownFor(p), p.Editing, p.Weapons, p.EquipSequence, p.EquipAccepted, Enumerable.Range(0,4).Select(i=>Unlocked(p,i)).ToArray(), Enumerable.Range(1,4).Select(e=>CalculateWeaponStats(p.Skills,e)).ToArray())).ToArray(),
+        shots.Select(s => new ShotSnapshot(s.Id, s.Owner, s.Position.X, s.Position.Y, s.Velocity.X, s.Velocity.Y, s.Born, s.Kind, Effects(s), s.Program is not null, s.Parent, s.BirthPosition.X, s.BirthPosition.Y, s.Ancestors.Length > 0 ? s.Ancestors : null, s.Weapon, s.Cursor, s.VisualPower)).ToArray(),
         enemies.Select(e => new EnemySnapshot(e.Id, e.Gunner ? "gunner" : "rammer", e.Position.X, e.Position.Y,
-            e.Aim, e.Hull, e.Gunner && e.FireAt - Tick <= 15)).ToArray(),
-        energy.Select(e => new EnergySnapshot(e.Id, e.Position.X, e.Position.Y, e.Value)).ToArray());
+            e.Aim, e.Hull, e.Gunner && e.FireAt - Tick <= 15, (Tick < e.BurnUntil ? 1 : 0) | (Tick < e.RadiationUntil ? 2 : 0) | (Tick < e.SlowUntil ? 4 : 0) | (Tick < e.CorrosionUntil ? 8 : 0) | (Tick < e.StunUntil ? 16 : 0) | (Tick < e.MarkUntil ? 32 : 0))).ToArray(),
+        energy.Select(e => new EnergySnapshot(e.Id, e.Position.X, e.Position.Y, e.Value)).ToArray(), explosions.ToArray(), beams.ToArray(), Credits: credits.Select(c=>new CreditSnapshot(c.Id,c.Position.X,c.Position.Y,c.Value)).ToArray(), Mines: mines.Select(m=>new MineSnapshot(m.Id,m.Payload.Owner,m.Payload.Position.X,m.Payload.Position.Y,Tick>=m.ArmedAt,m.Payload.VisualPower)).ToArray());
 
     private static float? Intersection(Vector2 start, Vector2 end, float radius)
     {
@@ -183,24 +174,55 @@ public sealed partial class Room
 
     private void Damage(Player target)
     {
+        if (target.Hull <= 0 || target.Editing || (HasSkill(target, PhaseDash) && Tick < target.DashUntil)) return;
         if (target.Shield > 0) target.Shield--; else target.Hull--;
-        target.ShieldAt = Tick + 5 * TickRate;
+        target.ShieldAt = Tick + ShieldDelay(target);
+        target.HullAt = Tick + 10 * TickRate;
     }
 
     private sealed class Player
     {
-        public int Id, Hull = 3, Shield = 2, Ack, LastReceived, Experience;
+        public int Id, Hull = 3, Shield = 2, Ack, LastReceived, Experience, Life;
+        public HashSet<string> Skills = new();
+        public SkillReceipt? SkillReceipt;
+        public CreditReward? CreditReward;
+        public int CreditSequence;
         public string Name = "Pilot";
         public Vector2 Position, Previous, DashDirection;
         public float Aim;
-        public bool Connected = true;
-        public long ProtectedUntil, FireAt, RemoveAt, LastInputTick, DashUntil, DashReadyAt, ShieldAt;
+        public bool Connected = true, Editing, EquipAccepted;
+        public int EquipSequence, SocialSequence;
+        public string SocialResult = "";
+        public ImmutableArray<WeaponConfig> Weapons = PilotProfile.Starter().Weapons.ToImmutableArray();
+        public double[] WeaponReady = new double[4];
+        public long[] PlasmaReady = new long[4], MineReady = new long[4];
+        public int WorkshopSequence; public string WorkshopResult = "";
+        public float ShieldFraction, HullFraction, LeechFraction;
+        public long ProtectedUntil, RemoveAt, LastInputTick, DashUntil, DashReadyAt, ShieldAt, HullAt;
         public InputMessage? Held, Pending;
     }
     private sealed class Shot
     {
-        public int Id, Owner;
+        public int Id, Owner, Parent, Weapon;
+        public float Damage = 1, InitialRange, VisualPower = 1, Spread = 1, ShieldMultiplier = 1;
+        public int Bounces, Relays, Burns, Freezes, Rads, Corrodes, Teslas, Gravity, Blasts, Leeches;
+        public bool Proximity, SalvageMark, IsBeam, Secondary, EmitPlasma, EmitMine;
+        public string OwnerName = "";
+        public Vector2 BirthPosition;
         public Vector2 Position, Velocity;
         public long Expires, Born;
+        public int Kind = 1, Cursor, Pierce;
+        public float SpeedMultiplier = 1, StatusPower = 1, SplashMultiplier = 1, RadiusMultiplier = 1;
+        public int[]? Program;
+        public int[] Ancestors = [];
+        public float Distance, Range, Blast;
+        public bool Burning, Radiation, Cryo, Homing;
+        public HashSet<int> HitEnemies = new(), HitPlayers = new();
+        public Shot Copy()
+        {
+            var copy = (Shot)MemberwiseClone();
+            copy.HitEnemies = new(HitEnemies); copy.HitPlayers = new(HitPlayers);
+            return copy;
+        }
     }
 }

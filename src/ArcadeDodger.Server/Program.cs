@@ -12,6 +12,8 @@ public static class Program
     public static WebApplication Build(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddSingleton(new FriendBook(builder.Configuration["FriendsFile"] ?? Path.Combine(AppContext.BaseDirectory, "data", "friends.json")));
+        builder.Services.AddSingleton(new ProfileStore(builder.Configuration["ProfilesFile"] ?? Path.Combine(AppContext.BaseDirectory,"data","profiles.json")));
         builder.Services.AddSingleton<ArenaService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ArenaService>());
         var app = builder.Build();
@@ -31,12 +33,30 @@ public static class Program
         }
         if (!string.IsNullOrWhiteSpace(browserRoot))
         {
+            browserRoot = Path.GetFullPath(browserRoot);
+            app.Use(async (context, next) =>
+            {
+                if ((HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)) &&
+                    context.Request.Path.Value is "/" or "/index.html")
+                {
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    context.Response.Headers.CacheControl = "no-store";
+                    if (!HttpMethods.IsHead(context.Request.Method))
+                        await context.Response.WriteAsync(BrowserAssets.Index(browserRoot));
+                    return;
+                }
+                await next(context);
+            });
             var files = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.GetFullPath(browserRoot));
             app.Lifetime.ApplicationStopped.Register(files.Dispose);
             app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
             var types = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
             types.Mappings[".pdb"] = "application/octet-stream";
-            app.UseStaticFiles(new StaticFileOptions { FileProvider = files, ContentTypeProvider = types });
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = files, ContentTypeProvider = types,
+                OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "no-cache"
+            });
         }
         app.MapGet("/health", () => Results.Json(new { status = "ok", protocol = ClientProtocol.Version }));
         var admission = new ConnectionAdmission();
@@ -68,20 +88,22 @@ public static class Program
         {
             var session = new ClientSession();
             var first = await Receive(socket, TimeSpan.FromSeconds(5), lifetime.Token);
+            if(first is IncompatibleMessage)
+            {await Send(socket,JsonSerializer.SerializeToUtf8Bytes(new {v=ClientProtocol.Version,type="error",code="refresh_required"}),lifetime.Token);return;}
             if (first is not JoinMessage join || !session.TryAccept(first)) return;
             using var joinTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
             joinTimeout.CancelAfter(TimeSpan.FromSeconds(5));
             var error = await service.JoinAsync(join, peer, joinTimeout.Token);
             if (error is not null)
             {
-                await Send(socket, JsonSerializer.SerializeToUtf8Bytes(new { v = 1, type = "error", code = error }), lifetime.Token);
+                await Send(socket, JsonSerializer.SerializeToUtf8Bytes(new { v = ClientProtocol.Version, type = "error", code = error }), lifetime.Token);
                 using var closeTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 closeTimeout.CancelAfter(TimeSpan.FromSeconds(2));
                 await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, error, closeTimeout.Token);
                 return;
             }
             await Send(socket, JsonSerializer.SerializeToUtf8Bytes(new
-            { v = 1, type = "welcome", id = peer.PlayerId, room = peer.RoomId, tickRate = Room.TickRate }), lifetime.Token);
+            { v = ClientProtocol.Version, type = "welcome", id = peer.PlayerId, room = peer.RoomId, tickRate = Room.TickRate, skills=SkillCatalog.Items, catalog=ModuleCatalog.Items, unlockLevels=ModuleCatalog.UnlockLevels }, ArenaService.Json), lifetime.Token);
             sender = SendSnapshots(socket, peer, lifetime);
             var tokens = 90d;
             var last = Stopwatch.GetTimestamp();
@@ -93,7 +115,10 @@ public static class Program
                 last = now;
                 if (tokens < 1 || message is null || !session.TryAccept(message)) break;
                 tokens--;
-                // Keep unsupported upgrade choices explicit until progression is implemented.
+                if (message is BuyMessage buy) { peer.Submit(buy); continue; }
+                if (message is FriendMessage friendship) { peer.Submit(friendship); continue; }
+                if (message is EquipMessage equip) { peer.Submit(equip); continue; }
+                if (message is ChoiceMessage choice) { peer.Submit(choice); continue; }
                 if (message is RespawnMessage respawn) { peer.Submit(respawn); continue; }
                 if (message is not InputMessage input) break;
                 peer.Submit(input);
@@ -123,7 +148,12 @@ public static class Program
             count += result.Count;
             if (count > ClientProtocol.MaxMessageBytes) return null;
             if (result.EndOfMessage)
+            {
+                try { using var doc=JsonDocument.Parse(bytes.AsMemory(0,count));
+                    if(doc.RootElement.ValueKind==JsonValueKind.Object&&doc.RootElement.TryGetProperty("v",out var v)&&v.TryGetInt32(out var version)&&version!=ClientProtocol.Version)return new IncompatibleMessage(); }
+                catch(JsonException) { return null; }
                 return ClientProtocol.TryParse(bytes.AsMemory(0, count), out var message) ? message : null;
+            }
         }
         return null;
     }

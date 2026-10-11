@@ -9,13 +9,15 @@ internal static class NeonRendering
     internal static readonly Color Ink = new(235,240,250,255);
     private static readonly Color ConsoleFill = new(4,14,22,238);
     private static readonly Color ConsoleBorder = new(40,112,132,255);
-    internal static void DrawBackdrop(float clock, Vector2 cameraOrigin, int width, int height)
+    internal static void DrawBackdrop(float clock, Vector2 cameraOrigin, int width, int height, Vector2? viewport = null)
     {
+        var view = viewport ?? new Vector2(GameModel.Width, GameModel.Height);
         for (int i = 0; i < 600; i++)
         {
             float x = (i * 137 + 31) % width;
             float y = (i * 83 + clock * (8 + i % 4 * 7)) % height;
-            if (!ArenaView.Visible(new(x, y), cameraOrigin)) continue;
+            if (x < cameraOrigin.X - 40 || x > cameraOrigin.X + view.X + 40 ||
+                y < cameraOrigin.Y - 40 || y > cameraOrigin.Y + view.Y + 40) continue;
             float brightness = 0.25f + 0.3f * (1 + MathF.Sin(clock * 2 + i));
             Raylib.DrawCircleV(new Vector2(x, y), i % 5 == 0 ? 1.5f : 0.7f,
                 Raylib.Fade(PlayerColor, brightness));

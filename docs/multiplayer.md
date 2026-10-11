@@ -1,6 +1,6 @@
 # Multiplayer MVP implementation contract
 
-Status: implementation in progress, not a playable multiplayer release. The existing native and browser single-player modes remain independent. Values below are initial tuning values, not measured balance or capacity claims.
+This document records the initial MVP contract and subsequent implementation slices. Earlier progression and weapon rules are historical; see [the current skills and workshop guide](multiplayer-skills.md) for the collectible-module system. The existing native and browser single-player modes remain independent. Values below are initial tuning values, not measured balance or capacity claims.
 
 ## Architecture and implementation gate
 
@@ -38,16 +38,20 @@ Use integer ticks for cooldowns/lifetimes, rounding durations up. Fixed-step mov
 - Mark the highest-scoring living player once level >= 4 and score >= 100. One bounty at a time. Award its defeat bonus only once, to an enemy killing that marked player. Clear/re-evaluate on death/disconnect cleanup.
 - Every 90 sec, announce a central salvage location 10 sec before spawning 12 energy pickups worth 10 XP each; expire after 20 sec. No pause, shop, cargo banking, boss or convoy.
 
-## Version 1 input protocol
+## Version 3 input protocol
 
-UTF-8 JSON text WebSocket messages, maximum 1024 bytes per client message including all fragments, maximum JSON depth 8. Reject binary, unknown fields, duplicate fields, invalid types, non-finite numbers and malformed messages. Protocol version mismatch requires reconnect with a compatible client. Never trust a query parameter as player identity.
+UTF-8 JSON text WebSocket messages, maximum 4096 bytes per client message including all fragments, maximum JSON depth 8. Reject binary, unknown fields, duplicate fields, invalid types, non-finite numbers and malformed messages. Old clients receive `refresh_required`. Never trust a query parameter as player identity. One connected session is allowed per normalized player name; disconnected sessions do not prevent rejoining.
 
 Messages:
 
-- `{"v":1,"type":"join","name":"Pilot","room":""}`: exactly once before input. Name max 16 ASCII letters/digits/spaces/underscore/hyphen; trim, empty defaults to Pilot. Empty room requests automatic placement; explicit room is a server-generated 8-character lowercase hex ID. Full/missing explicit room reports an error rather than silently splitting friends.
-- `{"v":1,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"dash":false}`: sequence 1..2147483647 strictly increasing per connection; axes -1..1; aim radians -pi..pi. No client delta, position, player ID, damage or score. Sequence acknowledged only when simulation applies the command. Dash is edge-triggered in simulation, not one dash per packet.
-- `{"v":1,"type":"choice","seq":2,"choice":0}`: choice 0..2; validate against server-owned pending choice, not merely syntax. Shares the connection sequence with input and respawn.
-- `{"v":1,"type":"respawn","seq":3}`: valid only after death delay. Duplicate/stale sequence cannot re-trigger rewards.
+- `{"v":3,"type":"join","name":"Pilot","room":""}`: exactly once before input. Name max 16 ASCII letters/digits/spaces/underscore/hyphen; trim, empty defaults to Pilot. Empty room requests automatic placement; explicit room is a server-generated 8-character lowercase hex ID. Full/missing explicit room reports an error rather than silently splitting friends.
+- `{"v":3,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"dash":false,"editing":false}`: sequence 1..2147483647 strictly increasing per connection; axes -1..1; aim radians -pi..pi. No client delta, position, player ID, damage or score. Sequence acknowledged only when simulation applies the command. Dash is edge-triggered in simulation, not one dash per packet. Editing requests the equipment cloak and neutral gameplay input.
+- `{"v":3,"type":"choice","seq":2,"choice":"shield.1"}`: validate the skill ID, prerequisites and available points on the server. Shares the connection sequence with other actions.
+- `{"v":3,"type":"respawn","seq":3}`: valid only after death delay. Duplicate/stale sequence cannot re-trigger rewards.
+- `{"v":3,"type":"buy","seq":4,"module":6}`: purchase one catalog item while editing. Ownership and credits change only after persistence succeeds.
+- `equip` includes `v`, `type`, `seq` and exactly four `weapons`, each with `emitter`, eight `attachments`, and `enabled`. Validate reserved copies across every row and save the complete loadout atomically.
+
+Welcome supplies the authoritative skill and module catalogs and weapon level guards. Additional weapons also require their bay skills. Learned skills are string ID arrays; private skill receipts and credit payout notifications accompany snapshots. Private workshop snapshots report wallet, owned copies, saved weapons and the latest action receipt. Public snapshots carry weapon configurations, credit pickups, mines and weapon/branch presentation data. See the workshop guide for persistence and execution rules.
 
 Transport must additionally enforce join timeout (5 sec), token bucket limits (60 messages/sec, burst 90), one queued latest movement input and bounded action queue, send timeout, per-IP connection limits and a global room cap. These are not provided by JSON parsing alone. Validate Origin against configured same-origin HTTPS deployment; origin checks are not authentication. Client rendering must treat nicknames as text, never HTML.
 

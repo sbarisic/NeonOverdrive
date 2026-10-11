@@ -11,7 +11,7 @@ public class RoomTests
         var id = room.Join("A")!.Value;
         var start = room.Snapshot().Players.Single();
         for (var seq = 1; seq <= 100; seq++) Assert.True(room.Input(id, new(seq, -1, -1, 0, false, false)));
-        Assert.Equal(start, room.Snapshot().Players.Single());
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(start), System.Text.Json.JsonSerializer.Serialize(room.Snapshot().Players.Single()));
         room.Step();
         var end = room.Snapshot().Players.Single();
         Assert.Equal(100, end.Ack);
@@ -73,7 +73,7 @@ public class RoomTests
     public void DisconnectRetainsShipForGraceAndRoomCapacityIsBounded()
     {
         var room = new Room();
-        for (var i = 0; i < Room.Capacity; i++) Assert.NotNull(room.Join("Pilot"));
+        for (var i = 0; i < Room.Capacity; i++) Assert.NotNull(room.Join("Pilot"+i));
         Assert.Null(room.Join("Overflow"));
         room.Disconnect(1);
         Assert.False(room.Input(1, new(1, 1, 0, 0, true, false)));

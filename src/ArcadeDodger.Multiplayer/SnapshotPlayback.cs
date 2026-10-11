@@ -34,19 +34,37 @@ public sealed class SnapshotPlayback
             var angle = MathF.IEEERemainder(to.Aim - from.Aim, MathF.Tau);
             return current with { X = Lerp(from.X, to.X, t), Y = Lerp(from.Y, to.Y, t), Aim = from.Aim + angle * t };
         }).ToArray();
-        var shots = latest.Shots.Where(s => s.Born <= playhead).Select(current =>
+        // Use the playback interval's entity membership as well as its positions.
+        // Dropping a parent from the newest snapshot while birth-gating its children left an empty frame.
+        var shots = a.Shots.Concat(b.Shots).DistinctBy(s => s.Id).Select(seed =>
         {
-            // Reconstruct only past positions, never extrapolate beyond the newest tick.
-            // Birth gating prevents a new shot freezing ahead of the delayed clock.
-            if (current.Born > 0) return current with
+            if (!latest.Shots.Any(s => s.Id == seed.Id) && !frames.Any(f => f.Shots.Any(s => (s.Parent == seed.Id || s.Ancestors?.Contains(seed.Id) == true)))) return null;
+            var from = a.Shots.FirstOrDefault(s => s.Id == seed.Id);
+            var to = b.Shots.FirstOrDefault(s => s.Id == seed.Id);
+            var current = to ?? from!;
+            if (current.Born > playhead) return null;
+            if (to is null)
             {
-                X = current.X - current.Dx * (float)(latest.Tick - playhead),
-                Y = current.Y - current.Dy * (float)(latest.Tick - playhead)
-            };
-            var from = a.Shots.FirstOrDefault(p => p.Id == current.Id);
-            var to = b.Shots.FirstOrDefault(p => p.Id == current.Id);
-            return from is null || to is null ? current : current with { X = Lerp(from.X, to.X, t), Y = Lerp(from.Y, to.Y, t) };
-        }).ToArray();
+                var child = b.Shots.FirstOrDefault(s => (s.Parent == seed.Id || s.Ancestors?.Contains(seed.Id) == true));
+                var endTick = child?.Born ?? b.Tick;
+                if (playhead >= endTick) return null;
+                if (child is not null)
+                {
+                    var progress = (float)Math.Clamp((playhead - a.Tick) / Math.Max(1, endTick - a.Tick), 0, 1);
+                    return current with { X = Lerp(current.X, child.BirthX, progress), Y = Lerp(current.Y, child.BirthY, progress) };
+                }
+                return current;
+            }
+            if (from is not null) return current with { X = Lerp(from.X, to.X, t), Y = Lerp(from.Y, to.Y, t) };
+            if (current.Born > 0)
+            {
+                var progress = (float)Math.Clamp((playhead - current.Born) / Math.Max(1, b.Tick - current.Born), 0, 1);
+                // New split children start at the fork, never the owner's ship.
+                if (current.Parent > 0) return current with { X = Lerp(current.BirthX, current.X, progress), Y = Lerp(current.BirthY, current.Y, progress) };
+                if (!current.Modular) return current with { X = current.X - current.Dx * (float)(b.Tick - playhead), Y = current.Y - current.Dy * (float)(b.Tick - playhead) };
+            }
+            return current;
+        }).OfType<ShotSnapshot>().ToArray();
         var enemies = (latest.Enemies ?? []).Select(current =>
         {
             var from = a.Enemies?.FirstOrDefault(e => e.Id == current.Id);

@@ -6,8 +6,8 @@ namespace ArcadeDodger.Multiplayer.Tests;
 
 public class ProtocolTests
 {
-    private const string Join = """{"v":1,"type":"join","name":"  Pilot_7  ","room":"abcd0123"}""";
-    private const string Input = """{"v":1,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"dash":true}""";
+    private const string Join = """{"v":3,"type":"join","name":"  Pilot_7  ","room":"abcd0123"}""";
+    private const string Input = """{"v":3,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"dash":true}""";
     private static bool Parse(string json, out ClientMessage? message) =>
         ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out message);
 
@@ -18,11 +18,11 @@ public class ProtocolTests
         Assert.Equal(new JoinMessage("Pilot_7", "abcd0123"), join);
         Assert.True(Parse(Input, out var input));
         Assert.Equal(new InputMessage(1, 0, 1, 0, false, true), input);
-        Assert.True(Parse("""{"v":1,"type":"choice","seq":2,"choice":2}""", out var choice));
-        Assert.Equal(new ChoiceMessage(2, 2), choice);
-        Assert.True(Parse("""{"v":1,"type":"respawn","seq":3}""", out var respawn));
+        Assert.True(Parse("""{"v":3,"type":"choice","seq":2,"choice":"phase.1"}""", out var choice));
+        Assert.Equal(new ChoiceMessage(2, "phase.1"), choice);
+        Assert.True(Parse("""{"v":3,"type":"respawn","seq":3}""", out var respawn));
         Assert.Equal(new RespawnMessage(3), respawn);
-        Assert.True(Parse("""{"v":1,"type":"join","name":"   ","room":""}""", out join));
+        Assert.True(Parse("""{"v":3,"type":"join","name":"   ","room":""}""", out join));
         Assert.Equal(new JoinMessage("Pilot", ""), join);
     }
 
@@ -31,19 +31,19 @@ public class ProtocolTests
     [InlineData("null")]
     [InlineData("[]")]
     [InlineData("{}")]
-    [InlineData("{\"v\":1")]
-    [InlineData("{\"v\":1,\"type\":\"join\",\"name\":null,\"room\":\"\"}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":1,}")]
-    [InlineData("{\"v\":1,/*comment*/\"type\":\"respawn\",\"seq\":1}")]
+    [InlineData("{\"v\":3")]
+    [InlineData("{\"v\":3,\"type\":\"join\",\"name\":null,\"room\":\"\"}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":1,}")]
+    [InlineData("{\"v\":3,/*comment*/\"type\":\"respawn\",\"seq\":1}")]
     [InlineData("{\"v\":2,\"type\":\"respawn\",\"seq\":1}")]
-    [InlineData("{\"v\":1,\"type\":\"damage\",\"seq\":1}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":0}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":-1}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":2147483648}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":1.5}")]
-    [InlineData("{\"v\":1,\"type\":\"respawn\",\"seq\":\"1\"}")]
-    [InlineData("{\"v\":1,\"type\":\"choice\",\"seq\":1,\"choice\":3}")]
-    [InlineData("{\"v\":1,\"type\":\"choice\",\"seq\":1,\"choice\":-1}")]
+    [InlineData("{\"v\":3,\"type\":\"damage\",\"seq\":1}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":0}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":-1}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":2147483648}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":1.5}")]
+    [InlineData("{\"v\":3,\"type\":\"respawn\",\"seq\":\"1\"}")]
+    [InlineData("{\"v\":3,\"type\":\"choice\",\"seq\":1,\"choice\":30}")]
+    [InlineData("{\"v\":3,\"type\":\"choice\",\"seq\":1,\"choice\":-1}")]
     public void RejectsMalformedOrOutOfRangeMessages(string json)
     {
         Assert.False(Parse(json, out var message));
@@ -86,7 +86,7 @@ public class ProtocolTests
     [InlineData("Pilot", "abc")]
     public void RejectsInvalidJoinValues(string name, string room)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { v = 1, type = "join", name, room });
+        var json = System.Text.Json.JsonSerializer.Serialize(new { v = 3, type = "join", name, room });
         Assert.False(Parse(json, out _));
     }
 
@@ -109,9 +109,9 @@ public class ProtocolTests
         Assert.True(session.TryAccept(new JoinMessage("Pilot", "")));
         Assert.False(session.TryAccept(new JoinMessage("Pilot", "")));
         Assert.True(session.TryAccept(new InputMessage(2, 0, 0, 0, false, false)));
-        Assert.False(session.TryAccept(new ChoiceMessage(2, 0)));
+        Assert.False(session.TryAccept(new ChoiceMessage(2, "shield.1")));
         Assert.False(session.TryAccept(new RespawnMessage(1)));
-        Assert.True(session.TryAccept(new ChoiceMessage(3, 0)));
+        Assert.True(session.TryAccept(new ChoiceMessage(3, "shield.1")));
         Assert.True(session.TryAccept(new RespawnMessage(int.MaxValue)));
         Assert.False(session.TryAccept(new RespawnMessage(int.MinValue)));
         Assert.Equal(int.MaxValue, session.LastReceivedSequence);

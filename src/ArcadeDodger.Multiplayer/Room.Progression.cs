@@ -11,7 +11,7 @@ public sealed partial class Room
     private readonly List<Energy> energy = new();
     private int nextEnergy;
 
-    // Total XP thresholds: 0, 20, 60, 120, 200... No combat advantage until choices land.
+    // Total XP thresholds: 0, 20, 60, 120, 200... Each level beyond one grants two skill points.
     public static int LevelForExperience(int experience)
     {
         var level = 1;
@@ -35,12 +35,17 @@ public sealed partial class Room
         {
             var drop = energy[i];
             // Swept collection catches dashes. Closest contact wins, then stable player ID.
-            var collector = players.Values.Where(p => p.Hull > 0 && p.Connected)
-                .Select(p => (Player: p, Contact: Intersection(p.Previous - drop.Position, p.Position - drop.Position, Radius + 12)))
+            var collector = players.Values.Where(p => p.Hull > 0 && p.Connected && !p.Editing)
+                .Select(p => (Player: p, Contact: Intersection(p.Previous - drop.Position, p.Position - drop.Position,
+                    Radius + 12 + Value(p,"collector"))))
                 .Where(p => p.Contact.HasValue).OrderBy(p => p.Contact).ThenBy(p => p.Player.Id)
                 .FirstOrDefault().Player;
             if (collector is null) continue;
-            collector.Experience = Math.Min(MaxExperience, collector.Experience + drop.Value);
+            var reward = (int)MathF.Floor(drop.Value * (1+Value(collector,"harvest")));
+            collector.Experience = Math.Min(MaxExperience, collector.Experience + reward);
+            if (HasSkill(collector, Salvage)) collector.DashReadyAt = Math.Max(Tick, collector.DashReadyAt - 15);
+            if (HasSkill(collector, EnergySiphon))
+                collector.Shield = Math.Min(MaxShieldFor(collector), collector.Shield + 1);
             energy.RemoveAt(i);
         }
     }

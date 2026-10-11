@@ -5,16 +5,20 @@ namespace ArcadeDodger.Multiplayer;
 public abstract record ClientMessage;
 public sealed record JoinMessage(string Name, string Room) : ClientMessage;
 public abstract record SequencedMessage(int Sequence) : ClientMessage;
-public sealed record InputMessage(int Sequence, float X, float Y, float Aim, bool Fire, bool Dash)
+public sealed record InputMessage(int Sequence, float X, float Y, float Aim, bool Fire, bool Dash, bool Editing = false)
     : SequencedMessage(Sequence);
-public sealed record ChoiceMessage(int Sequence, int Choice) : SequencedMessage(Sequence);
+public sealed record ChoiceMessage(int Sequence, string Choice) : SequencedMessage(Sequence);
+public sealed record FriendMessage(int Sequence, string Name, string Action) : SequencedMessage(Sequence);
+public sealed record EquipMessage(int Sequence, WeaponConfig[] Weapons) : SequencedMessage(Sequence);
+public sealed record BuyMessage(int Sequence, int Module) : SequencedMessage(Sequence);
+public sealed record IncompatibleMessage : ClientMessage;
 public sealed record RespawnMessage(int Sequence) : SequencedMessage(Sequence);
 
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 1;
-    public const int MaxMessageBytes = 1024;
+    public const int Version = 3;
+    public const int MaxMessageBytes = 4096;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
     public static bool TryParse(ReadOnlyMemory<byte> utf8, out ClientMessage? message)
@@ -30,9 +34,10 @@ public static class ClientProtocol
             var names = new HashSet<string>(StringComparer.Ordinal);
             foreach (var property in root.EnumerateObject())
                 if (!names.Add(property.Name)) return false;
-            if (!Integer(root, "v", out var version) || version != Version ||
+            if (!Integer(root, "v", out var version) ||
                 !Text(root, "type", out var type)) return false;
 
+            if(version!=Version)return false;
             switch (type)
             {
                 case "join":
@@ -44,18 +49,42 @@ public static class ClientProtocol
                     message = new JoinMessage(name.Length == 0 ? "Pilot" : name, room);
                     return true;
                 case "input":
-                    if (!Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "dash") ||
+                    if (!(Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "dash") ||
+                        Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "dash", "editing")) ||
                         !Sequence(root, out var sequence) ||
                         !Number(root, "x", -1, 1, out var x) || !Number(root, "y", -1, 1, out var y) ||
                         !Number(root, "aim", -MathF.PI, MathF.PI, out var aim) ||
                         !Boolean(root, "fire", out var fire) || !Boolean(root, "dash", out var dash)) return false;
-                    message = new InputMessage(sequence, x, y, aim, fire, dash);
+                    var editing = false;
+                    if (names.Contains("editing") && !Boolean(root, "editing", out editing)) return false;
+                    message = new InputMessage(sequence, x, y, aim, fire, dash, editing);
                     return true;
                 case "choice":
                     if (!Fields(names, "v", "type", "seq", "choice") || !Sequence(root, out sequence) ||
-                        !Integer(root, "choice", out var choice) || choice is < 0 or > 2) return false;
+                        !Text(root, "choice", out var choice) || SkillCatalog.Get(choice) is null) return false;
                     message = new ChoiceMessage(sequence, choice);
                     return true;
+                case "friend":
+                    if (!Fields(names, "v", "type", "seq", "name", "action") || !Sequence(root, out sequence) ||
+                        !Text(root, "name", out var friendName) || !FriendBook.ValidName(friendName) ||
+                        !Text(root, "action", out var action) || action is not ("request" or "accept" or "decline" or "cancel" or "remove")) return false;
+                    message = new FriendMessage(sequence, friendName.Trim(), action); return true;
+                case "buy":
+                    if(!Fields(names,"v","type","seq","module")||!Sequence(root,out sequence)||!Integer(root,"module",out var item)||!ModuleCatalog.Valid(item))return false;
+                    message=new BuyMessage(sequence,item);return true;
+                case "equip":
+                    if(!Fields(names,"v","type","seq","weapons")||!Sequence(root,out sequence)||!root.TryGetProperty("weapons",out var weapons)||weapons.ValueKind!=JsonValueKind.Array||weapons.GetArrayLength()!=4)return false;
+                    var configs=new List<WeaponConfig>();
+                    foreach(var w in weapons.EnumerateArray())
+                    {
+                        if(w.ValueKind!=JsonValueKind.Object)return false;
+                        var props=w.EnumerateObject().Select(p=>p.Name).ToArray();
+                        if(props.Length!=3||!Fields(props.ToHashSet(),"emitter","attachments","enabled")||!Integer(w,"emitter",out var emitter)||emitter is <0 or >4||!Boolean(w,"enabled",out var enabled)||!w.TryGetProperty("attachments",out var attachments)||attachments.ValueKind!=JsonValueKind.Array||attachments.GetArrayLength()!=8)return false;
+                        var parts=new List<int>();foreach(var part in attachments.EnumerateArray())
+                        {if(!part.TryGetInt32(out var id)||id!=0&&id is <5 or >28)return false;parts.Add(id);}
+                        configs.Add(new(emitter,parts.ToArray(),enabled));
+                    }
+                    message=new EquipMessage(sequence,configs.ToArray());return true;
                 case "respawn":
                     if (!Fields(names, "v", "type", "seq") || !Sequence(root, out sequence)) return false;
                     message = new RespawnMessage(sequence);
