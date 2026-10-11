@@ -6,6 +6,22 @@ namespace ArcadeDodger.Web;
 public partial class BrowserHost
 {
     private static GameApp? app;
+    private static BrowserArena? arena;
+
+    [JSExport]
+    public static void ActivateArena() => arena = new BrowserArena();
+
+    [JSExport]
+    public static void ArenaWelcome(int id) => arena?.Welcome(id);
+
+    [JSExport]
+    public static void ArenaSnapshot(string json) => arena?.Receive(json);
+
+    [JSExport]
+    public static double ArenaAim(double u, double v) => arena?.Aim(u, v) ?? 0;
+
+    [JSExport]
+    public static void ArenaPresentation(bool menuOpen, bool reducedEffects) => arena?.Presentation(menuOpen, reducedEffects);
 
     public static void Main()
     {
@@ -21,7 +37,7 @@ public partial class BrowserHost
         if (displayWidth <= 0 || displayHeight <= 0) return app is not null;
         Raylib.SetMouseScale((float)(Raylib.GetScreenWidth() / displayWidth),
             (float)(Raylib.GetScreenHeight() / displayHeight));
-        return app?.UpdateFrame() ?? false;
+        return arena?.Frame() ?? app?.UpdateFrame() ?? false;
     }
 
     [JSExport]
@@ -29,5 +45,6 @@ public partial class BrowserHost
     {
         app?.Close();
         app = null;
+        arena = null;
     }
 }

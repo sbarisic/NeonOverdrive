@@ -9,7 +9,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       const page = await browser.newPage({ viewport: { width: 1760, height: 974 }, deviceScaleFactor });
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
-      await page.goto('http://localhost:54955');
+      await page.goto(process.env.BROWSER_URL || 'http://localhost:54955');
       await page.waitForFunction(() => document.getElementById('status').hidden);
       for (const [width, height] of [[1760,974], [2781,1238], [1280,720], [800,900]]) {
         await page.setViewportSize({ width, height });

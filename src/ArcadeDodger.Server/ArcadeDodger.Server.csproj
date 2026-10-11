@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <!-- Build the browser for F5, without adding a WASM dependency to headless CLI builds. -->
+  <PropertyGroup>
+    <BuildBrowserClient Condition="'$(BuildBrowserClient)' == ''">$(BuildingInsideVisualStudio)</BuildBrowserClient>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(BuildBrowserClient)' == 'true'">
+    <ProjectReference Include="../ArcadeDodger/Web/ArcadeDodger.Browser.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ArcadeDodger.Multiplayer/ArcadeDodger.Multiplayer.csproj" />
+  </ItemGroup>
+</Project>

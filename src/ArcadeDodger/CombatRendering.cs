@@ -34,10 +34,7 @@ public sealed partial class GameApp
         foreach (var shot in model.Combat.Projectiles)
         {
             if (!ArenaView.Visible(shot.Position, cameraOrigin)) continue;
-            Vector2 tail = shot.Position - Vector2.Normalize(shot.Velocity) * 18;
-            Raylib.DrawLineEx(tail, shot.Position, 9, Raylib.Fade(gold, 0.12f));
-            Raylib.DrawLineEx(tail, shot.Position, 3, gold);
-            Raylib.DrawCircleV(shot.Position, 2, Ink);
+            NeonRendering.DrawProjectile(shot.Position, shot.Velocity, gold);
         }
         foreach (var pickup in model.Combat.Pickups)
         {
@@ -68,9 +65,7 @@ public sealed partial class GameApp
         }
         if (model.State == GameState.Playing)
         {
-            Raylib.DrawCircleLines((int)aim.X, (int)aim.Y, 9, PlayerColor);
-            Raylib.DrawLine((int)aim.X - 14, (int)aim.Y, (int)aim.X - 5, (int)aim.Y, Ink);
-            Raylib.DrawLine((int)aim.X + 5, (int)aim.Y, (int)aim.X + 14, (int)aim.Y, Ink);
+            NeonRendering.DrawReticle(aim, PlayerColor);
         }
     }
 

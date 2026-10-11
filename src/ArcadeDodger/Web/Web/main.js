@@ -10,6 +10,10 @@ try {
   await runMain();
   status.hidden = true;
   canvas.focus();
+  if (new URLSearchParams(location.search).has('multiplayer')) {
+    const { startNetwork } = await import('./network.js');
+    startNetwork(host, canvas, status);
+  }
   let running = true;
   window.addEventListener('pagehide', () => {
     if (running) { running = false; host.Close(); }

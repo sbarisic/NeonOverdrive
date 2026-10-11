@@ -2,8 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/ArcadeDodger/ArcadeDodger.csproj" />
     <Project Path="src/ArcadeDodger/Web/ArcadeDodger.Browser.csproj" />
+    <Project Path="src/ArcadeDodger.Multiplayer/ArcadeDodger.Multiplayer.csproj" />
+    <Project Path="src/ArcadeDodger.Server/ArcadeDodger.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ArcadeDodger.Multiplayer.Tests/ArcadeDodger.Multiplayer.Tests.csproj" />
     <Project Path="tests/ArcadeDodger.Tests/ArcadeDodger.Tests.csproj" />
   </Folder>
 </Solution>

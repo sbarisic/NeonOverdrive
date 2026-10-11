@@ -158,25 +158,7 @@ public sealed partial class GameApp
         }
     }
 
-    private void DrawBackdrop()
-    {
-        for (int i = 0; i < 600; i++)
-        {
-            float x = (i * 137 + 31) % GameModel.ArenaWidth;
-            float y = (i * 83 + clock * (8 + i % 4 * 7)) % GameModel.ArenaHeight;
-            if (!ArenaView.Visible(new(x, y), cameraOrigin)) continue;
-            float brightness = 0.25f + 0.3f * (1 + MathF.Sin(clock * 2 + i));
-            Raylib.DrawCircleV(new Vector2(x, y), i % 5 == 0 ? 1.5f : 0.7f,
-                Raylib.Fade(PlayerColor, brightness));
-        }
-        for (int x = 0; x <= GameModel.ArenaWidth; x += 60)
-            Raylib.DrawLine(x, 0, x, GameModel.ArenaHeight, new Color(19, 30, 55, 255));
-        for (float y = 0; y < GameModel.ArenaHeight; y += 60)
-            Raylib.DrawLine(0, (int)y, GameModel.ArenaWidth, (int)y, new Color(24, 34, 62, 255));
-        Raylib.DrawRectangleGradientV(0, 0, GameModel.ArenaWidth, GameModel.ArenaHeight,
-            new Color(30, 10, 65, 45), new Color(0, 180, 190, 18));
-        Raylib.DrawRectangleLinesEx(new Rectangle(2, 2, GameModel.ArenaWidth - 4, GameModel.ArenaHeight - 4), 3, PlayerColor);
-    }
+    private void DrawBackdrop() => NeonRendering.DrawBackdrop(clock, cameraOrigin, GameModel.ArenaWidth, GameModel.ArenaHeight);
 
     private void Draw()
     {
@@ -251,34 +233,13 @@ public sealed partial class GameApp
     }
 
     // Shared by the three HUD partials; all coordinates are logical 960 x 540.
-    private static void DrawConsolePanel(int x, int y, int width, int height, Color accent)
-    {
-        Raylib.DrawRectangle(x, y, width, height, ConsoleFill);
-        Raylib.DrawRectangleLinesEx(new Rectangle(x, y, width, height), 1, ConsoleBorder);
-        const int corner = 7;
-        Raylib.DrawLine(x, y, x + corner, y, accent);
-        Raylib.DrawLine(x, y, x, y + corner, accent);
-        Raylib.DrawLine(x + width - corner, y, x + width - 1, y, accent);
-        Raylib.DrawLine(x + width - 1, y, x + width - 1, y + corner, accent);
-        Raylib.DrawLine(x, y + height - 1, x + corner, y + height - 1, accent);
-        Raylib.DrawLine(x, y + height - corner, x, y + height - 1, accent);
-        Raylib.DrawLine(x + width - corner, y + height - 1, x + width - 1, y + height - 1, accent);
-        Raylib.DrawLine(x + width - 1, y + height - corner, x + width - 1, y + height - 1, accent);
-    }
+    private static void DrawConsolePanel(int x, int y, int width, int height, Color accent) =>
+        NeonRendering.DrawConsolePanel(x, y, width, height, accent);
 
     private static void DrawBox(Box box, Color color) =>
         GlowBox(box, color);
 
-    private static void GlowBox(Box box, Color color)
-    {
-        for (int padding = 9; padding >= 3; padding -= 3)
-            Raylib.DrawRectangleRec(new Rectangle(box.X - padding, box.Y - padding,
-                box.Width + padding * 2, box.Height + padding * 2), Raylib.Fade(color, 0.055f));
-        Raylib.DrawRectangleRec(new Rectangle(box.X, box.Y, box.Width, box.Height), Raylib.Fade(color, 0.65f));
-        Raylib.DrawRectangleLinesEx(new Rectangle(box.X, box.Y, box.Width, box.Height), 2, color);
-        Raylib.DrawLine((int)box.X + 4, (int)box.Y + 4,
-            (int)(box.X + box.Width - 4), (int)box.Y + 4, Ink);
-    }
+    private static void GlowBox(Box box, Color color) => NeonRendering.GlowBox(box, color);
 
     private static void Center(string text, int y, int size, Color color) =>
         Raylib.DrawText(text, (GameModel.Width - Raylib.MeasureText(text, size)) / 2, y, size, color);
