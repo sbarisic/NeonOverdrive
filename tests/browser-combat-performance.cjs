@@ -27,6 +27,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
       const frame=structuredClone(original),offset=lap*1000;frame.tick+=offset;
       for(const s of frame.shots)s.born+=offset;
       for(const x of frame.explosions)x.born+=offset;
+      for(const e of frame.combatEvents||[]){e.born+=offset;e.id+=lap*1000000;}
       const json=JSON.stringify(frame),start=performance.now();presentSnapshot(h,frame);receive.push(performance.now()-start);stages.push(h.ArenaMetrics?.().split(',').map(Number)||[]);
       await new Promise(resolve=>setTimeout(resolve,1000/15));count++;
     }

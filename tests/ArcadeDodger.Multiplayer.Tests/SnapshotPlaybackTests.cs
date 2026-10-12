@@ -34,6 +34,42 @@ public class SnapshotPlaybackTests
         Assert.Equal(MathF.PI, sample.Players[0].Aim, 3);
         playback.Receive(Frame(8, 80) with { Players = [], Shots = [] }, .3);
         Assert.Empty(playback.Sample(.3)!.Players);
-        Assert.Empty(playback.Sample(.3)!.Shots);
+        Assert.NotEmpty(playback.Sample(.3)!.Shots); // Still inside the buffered interval.
+        Assert.Empty(playback.Sample(1)!.Shots);
+    }
+
+    [Fact]
+    public void CollisionEndpointPlaysThroughBeforeImpactEvenWhenNewestFrameRemovedShot()
+    {
+        var playback=new SnapshotPlayback();
+        playback.Receive(Frame(0,0),0);
+        playback.Receive(Frame(2,86),2d/30);
+        var hit=new CombatEvent(1,1,1,120,0,3,1);
+        playback.Receive(Frame(4,0) with {Shots=[],CombatEvents=[hit]},4d/30);
+        var approaching=playback.Sample(4d/30)!;
+        Assert.Equal(43,Assert.Single(approaching.Shots).X,3);
+        Assert.Empty(approaching.CombatEvents!);
+        var near=playback.Sample(5.5/30)!;
+        Assert.Equal(103,Assert.Single(near.Shots).X,3);
+        Assert.Empty(near.CombatEvents!);
+        var contact=playback.Sample(6d/30)!;
+        Assert.Empty(contact.Shots);
+        Assert.Single(contact.CombatEvents!);
+        Assert.Empty(playback.Sample(100)!.Shots);
+    }
+
+    [Fact]
+    public void ServerRecordsActualCollisionAndDestructionWithoutAddingDamage()
+    {
+        var room=WorkshopRig.Start();
+        WorkshopRig.Enemy(room,1100,hull:1);
+        WorkshopRig.Fire(room,3);
+        var frame=room.Snapshot();
+        var hit=Assert.Single(frame.CombatEvents!,e=>e.Kind==1);
+        Assert.InRange(hit.X,1070,1100);
+        Assert.Single(frame.CombatEvents!,e=>e.Kind==2);
+        Assert.Empty(frame.Enemies!);
+        WorkshopRig.Step(room,12);
+        Assert.DoesNotContain(room.Snapshot().CombatEvents!,e=>e.Id==hit.Id);
     }
 }

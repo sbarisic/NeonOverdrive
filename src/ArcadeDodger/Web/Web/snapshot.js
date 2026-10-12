@@ -22,5 +22,6 @@ export function presentSnapshot(host, f) {
   list(f.sector?.locations,l=>a.push(l.id,l.hull,label(l.state),l.launchTicks));
   list(f.social?.friends,n=>a.push(label(n)));
   a.push(f.workshop?.credits??0);
+  list(f.combatEvents,e=>a.push(e.id,e.shot,e.kind,e.x,e.y,e.born,e.size));
   host.ArenaSnapshotPacked(a,text);
 }

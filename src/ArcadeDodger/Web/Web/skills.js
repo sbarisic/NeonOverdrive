@@ -1,3 +1,4 @@
+import { control } from './interface.js';
 import { branches, colors, skillIcon, treeCss } from './skill-definitions.js';
 export function createSkillTree(element,info,buySkill,onToggle){
  document.head.append(element('style',treeCss));
@@ -10,14 +11,14 @@ export function createSkillTree(element,info,buySkill,onToggle){
  const scroll=element('div','','tree-scroll');scroll.setAttribute('aria-label','Skill tree. Scroll vertically through branches and horizontally through tiers.');
  const detail=element('div','','tree-detail');detail.id='skill-detail';const detailName=element('strong'),description=element('p'),requirement=element('p'),comparison=element('p');detail.append(detailName,description,comparison,requirement);
  const receipt=element('div','','tree-receipt');receipt.setAttribute('role','status');
- const close=element('button','Return to arena [Esc]');close.type='button';const footer=element('div','','tree-footer');footer.append(element('span','2 points per level · Reset on death · Two masteries · EQUIPMENT CLOAK'),close);
+ const close=element('button','Return to arena [Esc]');close.type='button';control(close,'exit');const footer=element('div','','tree-footer');footer.append(element('span','2 points per level · Reset on death · Two masteries · EQUIPMENT CLOAK'),close);
  panel.append(heading,nav,element('p','Select a branch above · Hover or focus for details · Click or press Enter to learn','tree-help'),scroll,detail,receipt,footer);document.body.append(panel);
  let catalog=[],byId=new Map(),buttons=new Map(),positions=new Map(),links=[],self=null,owned=new Set(),opened=false,available=false,selected='',pending=null,lastReceipt=0,life=-1;
  const rowFamily=family=>({flux:'recharge',impact:'thruster',cruise:'slipstream',luckyfind:'luck',fieldrepair:'collector'}[family]||family);
  const roman=['','I','II','III','IV','V','VI'];
  function state(d){if(owned.has(d.id))return 'learned';if((self?.level||1)<d.minLevel)return 'level-locked';if(d.prerequisite&&!owned.has(d.prerequisite))return 'prerequisite-locked';if(d.mastery&&d.tier===1&&new Set(catalog.filter(s=>s.mastery&&owned.has(s.id)).map(s=>s.mastery)).size>=2)return 'specialization-locked';return available&&(self?.skillPoints||0)>0?'ready':'no points';}
  const reasons={'learned':'LEARNED','ready':'AVAILABLE','level-locked':'LEVEL REQUIRED','prerequisite-locked':'PREREQUISITE REQUIRED','specialization-locked':'Two specializations already selected','no points':'NO SKILL POINTS'};
- function describe(id){const d=byId.get(id);if(!d)return;selected=id;detailName.textContent=d.name;description.textContent=d.description;
+ function describe(id){const d=byId.get(id);if(!d)return;for(const b of nav.children)b.setAttribute('aria-current',String(b.textContent===d.branch));selected=id;detailName.textContent=d.name;description.textContent=d.description;
  const previous=catalog.filter(s=>s.family===d.family&&owned.has(s.id)).sort((a,b)=>b.tier-a.tier)[0];
  comparison.textContent=owned.has(id)?'Current: '+d.description:`Current: ${previous?.description||'No bonus from this skill family.'} → ${d.description}`;
  requirement.textContent=`${reasons[state(d)]} · ${d.cost} point · Level ${d.minLevel}${d.prerequisite?' · Requires '+byId.get(d.prerequisite).name:''}${d.mastery?' · '+d.mastery+' specialization':''}`;
@@ -29,7 +30,7 @@ export function createSkillTree(element,info,buySkill,onToggle){
  function setCatalog(data){catalog=data;byId=new Map(data.map(d=>[d.id,d]));buttons.clear();positions.clear();links=[];scroll.replaceChildren();nav.replaceChildren();let offset=0;
  branches.forEach((branch,bi)=>{const defs=data.filter(d=>d.branch===branch),families=[...new Set(defs.map(d=>rowFamily(d.family)))],section=element('section','','tree-section');section.style.setProperty('--branch',colors[bi]);section.style.height=`${55+families.length*108}px`;section.append(element('h3',branch.toUpperCase()));
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.classList.add('tree-links');svg.setAttribute('aria-hidden','true');section.append(svg);
- const jump=element('button',branch);jump.type='button';jump.addEventListener('click',()=>{scroll.scrollTo({top:section.offsetTop-scroll.firstElementChild.offsetTop,left:0});buttons.get(defs[0].id)?.focus({preventScroll:true});});nav.append(jump);
+ const jump=element('button',branch);jump.type='button';control(jump,['repair','strength','rate','loadout','mastery','mobility','fortune','collection'][bi]);jump.style.setProperty('--branch',colors[bi]);jump.setAttribute('aria-current',String(bi===0));jump.addEventListener('click',()=>{for(const b of nav.children)b.setAttribute('aria-current',String(b===jump));scroll.scrollTo({top:section.offsetTop-scroll.firstElementChild.offsetTop,left:0});buttons.get(defs[0].id)?.focus({preventScroll:true});});nav.append(jump);
  const local=new Map();for(const d of defs){const x=d.prerequisite&&local.has(d.prerequisite)?local.get(d.prerequisite).x+120:18,y=45+families.indexOf(rowFamily(d.family))*108;local.set(d.id,{x,y});positions.set(d.id,{x,y:y+offset});
  const b=element('button','','skill-node');b.type='button';b.dataset.skill=d.id;b.style.left=x+'px';b.style.top=y+'px';b.setAttribute('aria-describedby',detail.id);
  const face=element('span','','skill-face');face.append(skillIcon(d.icon,colors[bi],d.tier),element('span',roman[d.tier]||String(d.tier),'skill-tier'),element('span',`L${d.minLevel}`,'skill-level'));const pips=element('span','','skill-pips');for(let n=0;n<d.tier;n++)pips.append(element('i'));face.append(pips);b.append(face,element('span',d.name,'skill-name'));

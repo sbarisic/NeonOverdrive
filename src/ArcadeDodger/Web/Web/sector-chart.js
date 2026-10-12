@@ -1,0 +1,94 @@
+// Desktop tactical chart. Marker coordinates stay fixed in world space; labels never move them.
+export function createSectorChart(el, root, actions) {
+  const css=el('style');css.textContent=`
+    #sector-console .sector-map{display:grid;grid-template-columns:minmax(0,1fr) 260px;aspect-ratio:auto;height:min(66vh,760px);min-height:330px;border:1px solid #31485d;background:#07111e}
+    #sector-console h2{font-size:26px;letter-spacing:.12em;margin-bottom:8px}
+    #sector-console .chart-view{position:relative;overflow:hidden;min-width:0;background:#070f1c;cursor:grab}
+    #sector-console .chart-view:active{cursor:grabbing}
+    #sector-console .chart-view canvas{position:absolute;inset:0;width:100%;height:100%}
+    #sector-console .chart-tools{position:absolute;left:12px;top:12px;display:flex;gap:6px;z-index:3}
+    #sector-console .chart-tools button{font-size:11px;padding:6px 10px;min-height:30px;background:#0b1b2be8;border-color:#375063}
+    #sector-console .chart-help{position:absolute;bottom:8px;left:12px;color:#93a6b9;font-size:10px;pointer-events:none}
+    #sector-console .chart-detail{padding:18px;border-left:1px solid #31485d;overflow:auto;background:linear-gradient(#122033,#0b1320);font-size:12px}
+    #sector-console .chart-detail h3{color:#efddb3;font:18px/1.3 monospace;margin:8px 0 16px;overflow-wrap:anywhere}
+    #sector-console .chart-detail p{color:#aab8ca;line-height:1.6;font-size:12px}
+    #sector-console .chart-detail button{width:100%;padding:8px;margin-top:7px;font-size:12px;min-height:34px}
+    #sector-console .chart-category{color:#6fd9e4;font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+    #sector-console .chart-detail .chart-primary{border-color:#dabb75;color:#f3d99b;background:#3a3022}
+    #sector-console .chart-filters{display:flex;flex-wrap:wrap;gap:4px;border-top:1px solid #31485d;margin-top:16px;padding-top:10px}
+    #sector-console .chart-filters button{width:auto;font-size:10px;padding:5px 7px;min-height:26px;color:#79909e;border-color:#344353}
+    #sector-console .chart-filters button[aria-pressed=true]{color:#bce4ee;border-color:#648496}
+    #sector-console .map-location{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;min-height:0;padding:3px;max-width:none;border:0;background:#081423aa;color:var(--marker);border-radius:50%;cursor:pointer;z-index:1}
+    #sector-console .map-location svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;filter:drop-shadow(0 0 3px #07111e)}
+    #sector-console .map-location:hover,#sector-console .map-location:focus-visible,#sector-console .map-location[aria-pressed=true]{outline:1px solid #f3d99b;background:#203044;z-index:2}
+    #sector-console .map-location .planet-name{position:absolute;left:50%;top:-20px;transform:translateX(-50%);font:11px monospace;white-space:nowrap;color:#dce8ed;text-shadow:0 2px 3px #000;pointer-events:none}
+    #sector-console .chart-player{position:absolute;width:14px;height:14px;transform:translate(-50%,-50%);border:2px solid #b8fff3;border-radius:50%;box-shadow:0 0 12px #53ebce;pointer-events:none;z-index:2;background:radial-gradient(#fff 0 25%,transparent 35%)}
+    #sector-console .chart-context{position:absolute;z-index:5;width:175px;padding:5px;background:#101e2f;border:1px solid #bda774;box-shadow:0 8px 25px #0009}
+    #sector-console .chart-context button{display:block;width:100%;min-height:30px;font-size:11px;padding:6px;text-align:left;border:0}
+  `;document.head.append(css);
+  root.replaceChildren();
+  const view=el('div','','chart-view'),canvas=el('canvas'),detail=el('aside','','chart-detail');
+  view.tabIndex=0;view.setAttribute('aria-label','Pan sector map');canvas.setAttribute('aria-label','Tactical sector map');view.append(canvas);root.append(view,detail);
+  const tools=el('div','','chart-tools'),minus=el('button','−'),plus=el('button','+'),center=el('button','Center on player'),fit=el('button','Fit sector'),zoomLabel=el('button','100%');
+  minus.setAttribute('aria-label','Zoom out');plus.setAttribute('aria-label','Zoom in');zoomLabel.disabled=true;tools.append(minus,zoomLabel,plus,center,fit);const player=el('div','','chart-player');player.title='Your ship';player.setAttribute('aria-label','Your ship');view.append(player);
+  view.append(tools,el('div','DRAG / WASD: PAN   ·   WHEEL: ZOOM   ·   ENTER: WAYPOINT','chart-help'));
+  const category=el('div','NAVIGATION','chart-category'),title=el('h3','Select a location'),metadata=el('p'),description=el('p','Inspect a marker to see services, regional threats, and distance.'),navigate=el('button','Set waypoint','chart-primary'),ping=el('button','Ping friends'),broadcast=el('button','Broadcast to room'),defend=el('button','Defend ally'),waypointText=el('p'),clear=el('button','Clear waypoint'),filters=el('div','','chart-filters');
+  detail.append(category,title,metadata,description,navigate,ping,broadcast,defend,waypointText,clear,filters);
+  const context=el('div','','chart-context');context.hidden=true;view.append(context);
+  let sector,frame,self,state,selected=null,zoom=1,cx=6000,cy=4000,drag=null,pending=false,suppressClick=false;
+  const markers=new Map(),enabled=new Set(['planet','station','base','wreck','beacon','corridor','pilot','danger']);
+  const names={planet:'Planet',station:'Friendly station',base:'Hostile installation',wreck:'Salvage wreck',beacon:'Survey beacon',corridor:'Arrival corridor',pilot:'Friendly pilot'};
+  const colors={planet:'#9ec7e0',station:'#77e6ae',base:'#f87971',wreck:'#c0a777',beacon:'#eedb7a',corridor:'#ff9477',pilot:'#79e9ce'};
+  const paths={planet:'<circle cx="12" cy="12" r="7"/><path d="M3 16L21 8"/>',station:'<path d="M12 2L21 7V17L12 22L3 17V7Z M7 12H17 M12 7V17"/>',base:'<path d="M12 2L23 21H1Z M8 10L16 18 M16 10L8 18"/>',wreck:'<path d="M4 4L18 7L21 17L11 21L3 13Z M9 4L11 10L7 14L12 21"/>',beacon:'<path d="M12 2L20 12L12 22L4 12Z M12 7V17 M8 12H16"/>',corridor:'<path d="M3 5L11 12L3 19 M12 5L20 12L12 19"/>',pilot:'<path d="M12 2L21 21L12 16L3 21Z"/>'};
+  for(const [label,kinds] of [['Planets',['planet']],['Stations',['station']],['Hostiles',['base','corridor']],['Salvage',['wreck']],['Beacons',['beacon']],['Danger',['danger']]]){
+    const b=el('button',label);b.setAttribute('aria-pressed','true');b.onclick=()=>{const on=!enabled.has(kinds[0]);for(const k of kinds)on?enabled.add(k):enabled.delete(k);b.setAttribute('aria-pressed',String(on));draw();};filters.append(b);
+  }
+  function transform(){const w=view.clientWidth,h=view.clientHeight;const scale=Math.min((w-64)/12000,(h-80)/8000)*zoom;return {w,h,scale,x:w/2-cx*scale,y:h/2-cy*scale};}
+  function select(l){selected=l;context.hidden=true;refresh();draw();}
+  function setWaypoint(){if(selected)actions.navigate(selected);context.hidden=true;refresh();draw();}
+  navigate.onclick=setWaypoint;ping.onclick=()=>selected&&actions.ping('ping',selected);broadcast.onclick=()=>selected&&actions.ping('broadcast',selected);defend.onclick=()=>selected?.pilot&&actions.defend(selected.pilot);clear.onclick=()=>{actions.navigate(null);refresh();draw();};
+  function refresh(){
+    const l=selected,locationState=frame?.sector?.locations?.find(s=>s.id===l?.id),destroyed=locationState?.state==='destroyed';
+    const region=l?.biome||sector?.locations.find(p=>p.id===l?.parent)?.biome||'';
+    const level=({inhabited:1,volcanic:2,gas:3,shattered:4})[region];
+    category.textContent=l?names[l.kind]||l.kind:'NAVIGATION';title.textContent=l?.name||'Select a location';
+    metadata.textContent=l&&self?`${Math.round(Math.hypot(l.x-self.x,l.y-self.y)).toLocaleString()} units away${level?' · Level '+level+' region':''}${region?' · '+region:''}${l.kind==='base'?' · '+(destroyed?'Destroyed':'Active'):''}`:'';
+    description.textContent=!l?'Select an icon to inspect it. Set a waypoint when you are ready to travel.':l.kind==='station'?'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.':l.kind==='base'?destroyed?'This installation is permanently destroyed. Its wreck remains cover.':`Destroying this installation stops its launches. Eligible contributors receive ${40*(level||1)} credits and ${30*(level||1)} XP in pickups, plus a chance of a module.`:l.kind==='corridor'?'Patrols arrive here from outside the sector. This navigation corridor cannot be destroyed.':l.kind==='wreck'?'A wreck that may hold a recovery contract objective.':l.kind==='beacon'?'Survey contract location. Hold position while interacting to scan.':l.kind==='pilot'?'Friendly pilot. A defense ping asks allies to assist against a threatening patrol.':'Planetary scenery lies below the flight plane. Orbital hazards and installations occupy flight space.';
+    navigate.disabled=!l;ping.hidden=broadcast.hidden=!l||l.kind==='pilot';defend.hidden=l?.kind!=='pilot';
+    ping.disabled=broadcast.disabled=!!pending||!state?.discovered?.includes(l?.id);ping.title=broadcast.title=ping.disabled?'Visit this location before sharing it.':'';defend.disabled=!!pending;
+    const wp=actions.waypoint();waypointText.textContent=wp?`WAYPOINT · ${wp.name} · ${Math.round(Math.hypot(wp.x-self.x,wp.y-self.y))} u`:'WAYPOINT · None';clear.hidden=!wp;
+  }
+  function addMarker(l){const b=el('button','','map-location');b.type='button';b.style.setProperty('--marker',colors[l.kind]);b.setAttribute('aria-label',l.name);b.title=`${l.name} · ${names[l.kind]}`;b.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${paths[l.kind]}</svg>`;
+    if(l.kind==='planet')b.append(el('span',l.name,'planet-name'));
+    b.onclick=()=>{if(!suppressClick)select(l);};b.ondblclick=()=>{select(l);setWaypoint();};b.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();select(l);setWaypoint();}};
+    b.oncontextmenu=e=>{e.preventDefault();select(l);context.replaceChildren();for(const [label,fn,disabled] of [['Set waypoint',setWaypoint,false],...(l.kind==='pilot'?[['Defend ally',()=>actions.defend(l.pilot),pending]]:[['Ping friends',()=>actions.ping('ping',l),ping.disabled],['Broadcast to room',()=>actions.ping('broadcast',l),broadcast.disabled]])]){const item=el('button',label);item.disabled=disabled;item.onclick=()=>{fn();context.hidden=true;};context.append(item);}const rect=view.getBoundingClientRect();context.style.left=Math.max(0,Math.min(view.clientWidth-180,e.clientX-rect.left))+'px';context.style.top=Math.max(0,Math.min(view.clientHeight-115,e.clientY-rect.top))+'px';context.hidden=false;context.querySelector('button')?.focus();};view.append(b);markers.set(l.kind==='pilot'?'pilot:'+l.id:l.id,{b,l});}
+  function draw(){
+    if(!sector||root.hidden||!view.clientWidth)return;const t=transform(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(t.w*dpr);canvas.height=Math.round(t.h*dpr);const c=canvas.getContext('2d');c.scale(dpr,dpr);c.fillStyle='#07111e';c.fillRect(0,0,t.w,t.h);
+    c.save();c.translate(t.x,t.y);c.scale(t.scale,t.scale);
+    const line=1/t.scale;c.lineWidth=line;c.strokeStyle='#263b504d';
+    for(let x=0;x<=12000;x+=1000){c.beginPath();c.moveTo(x,0);c.lineTo(x,8000);c.stroke();}for(let y=0;y<=8000;y+=1000){c.beginPath();c.moveTo(0,y);c.lineTo(12000,y);c.stroke();}
+    c.strokeStyle='#4c7184';c.strokeRect(0,0,12000,8000);c.fillStyle='#446176';for(let i=0;i<180;i++){const x=(i*7919+sector.seed)%12000,y=(i*3571+sector.seed)%8000;c.fillRect(x,y,line,line);}
+    const circle=(x,y,r,fill,stroke)=>{c.beginPath();c.arc(x,y,r,0,Math.PI*2);if(fill){c.fillStyle=fill;c.fill();}if(stroke){c.strokeStyle=stroke;c.stroke();}};
+    for(const l of sector.locations){
+      if(l.kind==='planet'&&enabled.has('planet')){const color=({inhabited:'#36778a',volcanic:'#a65b37',gas:'#71638e',shattered:'#66798a'})[l.biome];circle(l.x,l.y,l.radius*1.2,null,color+'35');circle(l.x,l.y,l.radius*1.5,null,'#4d657b40');const g=c.createRadialGradient(l.x-l.radius*.3,l.y-l.radius*.3,0,l.x,l.y,l.radius);g.addColorStop(0,color);g.addColorStop(1,'#112133');circle(l.x,l.y,l.radius,g,color+'90');c.save();c.beginPath();c.arc(l.x,l.y,l.radius,0,Math.PI*2);c.clip();for(let i=-3;i<4;i++){c.strokeStyle=color+'65';c.beginPath();c.ellipse(l.x,l.y+i*l.radius*.27,l.radius,l.radius*.16,.15,0,Math.PI*2);c.stroke();}c.restore();}
+      if(l.kind==='station'&&enabled.has('station'))circle(l.x,l.y,300,'#5bdca510','#5bdca560');
+      if(l.kind==='base'&&enabled.has('danger')&&frame?.sector?.locations?.find(s=>s.id===l.id)?.state!=='destroyed')circle(l.x,l.y,700,'#ee645414','#ee645435');
+      if(l.kind==='cluster')for(let i=0;i<7;i++)circle(l.x+Math.cos(i*2.4)*i*25,l.y+Math.sin(i*2.4)*i*25,18+i*3,'#61718580');
+    }
+    if(self){circle(self.x,self.y,1200,'#5adce008','#5adce040');for(const e of frame?.enemies||[])if(e.hull>0&&Math.hypot(e.x-self.x,e.y-self.y)<=1200)circle(e.x,e.y,2.5*line,'#ff796c');const wp=actions.waypoint();if(wp){c.strokeStyle='#edcc7a';c.setLineDash([5*line,5*line]);c.beginPath();c.moveTo(self.x,self.y);c.lineTo(wp.x,wp.y);c.stroke();c.setLineDash([]);circle(wp.x,wp.y,10*line,null,'#edcc7a');}circle(self.x,self.y,8*line,null,'#6ef4e1');circle(self.x,self.y,4*line,'#ffffff');}
+    c.restore();c.fillStyle='#7596ac';c.font='10px monospace';for(let x=0;x<=12000;x+=2000){const px=t.x+x*t.scale;if(px>8&&px<t.w-45)c.fillText(String(x),px, t.h-27);}zoomLabel.textContent=Math.round(zoom*100)+'%';
+    player.hidden=!self; if(self){const x=t.x+self.x*t.scale,y=t.y+self.y*t.scale;player.hidden=x<10||x>t.w-10||y<10||y>t.h-10;player.style.left=x+'px';player.style.top=y+'px';}
+    for(const {b,l} of markers.values()){const x=t.x+l.x*t.scale,y=t.y+l.y*t.scale;b.hidden=!enabled.has(l.kind)||x<14||x>t.w-14||y<14||y>t.h-14;b.style.left=x+'px';b.style.top=y+'px';b.setAttribute('aria-pressed',String(selected===l));}
+  }
+  function zoomTo(value,x=view.clientWidth/2,y=view.clientHeight/2){const t=transform(),wx=(x-t.x)/t.scale,wy=(y-t.y)/t.scale;zoom=Math.max(1,Math.min(5,value));const next=transform();cx=wx-(x-next.w/2)/next.scale;cy=wy-(y-next.h/2)/next.scale;draw();}
+  minus.onclick=()=>zoomTo(zoom/1.25);plus.onclick=()=>zoomTo(zoom*1.25);fit.onclick=()=>{zoom=1;cx=6000;cy=4000;draw();};center.onclick=()=>{if(self){cx=self.x;cy=self.y;draw();}};
+  view.addEventListener('wheel',e=>{e.preventDefault();const r=view.getBoundingClientRect();zoomTo(zoom*Math.exp(-e.deltaY*.001),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+  view.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button'))return;context.hidden=true;suppressClick=false;drag={id:e.pointerId,x:e.clientX,y:e.clientY,cx,cy};view.setPointerCapture(e.pointerId);});
+  view.addEventListener('pointermove',e=>{if(!drag)return;const t=transform();cx=drag.cx-(e.clientX-drag.x)/t.scale;cy=drag.cy-(e.clientY-drag.y)/t.scale;suppressClick=true;draw();});
+  view.addEventListener('pointerup',()=>{drag=null;suppressClick=false;});view.addEventListener('pointercancel',()=>drag=null);
+  new ResizeObserver(draw).observe(view);
+  return {setup(s){sector=s;selected=null;zoom=1;cx=6000;cy=4000;context.hidden=true;for(const {b} of markers.values())b.remove();markers.clear();for(const l of s?.locations||[])if(paths[l.kind])addMarker(l);},
+    update(s,f,p,st,waiting){sector=s;frame=f;self=p;state=st;pending=waiting;const allies=f.players.filter(a=>a.id!==p.id&&a.hull>0&&a.connected&&f.social?.friends.some(n=>n.toLowerCase()===a.name.toLowerCase()));for(const [key,m] of markers)if(m.l.kind==='pilot'&&!allies.some(a=>a.id===m.l.id)){if(selected===m.l)selected=null;m.b.remove();markers.delete(key);}for(const a of allies){const old=markers.get('pilot:'+a.id);if(old){old.l.x=a.x;old.l.y=a.y;}else addMarker({...a,kind:'pilot',pilot:a.id});}refresh();draw();},
+    keydown(e){if(e.target.closest('input,select,textarea'))return false;if(e.code==='Escape'&&!context.hidden){context.hidden=true;return true;}if(e.code==='Enter'&&e.target===view){setWaypoint();return true;}const direction={KeyW:[0,-1],KeyS:[0,1],KeyA:[-1,0],KeyD:[1,0]}[e.code];if(direction){e.preventDefault();const t=transform();cx+=direction[0]*45/t.scale;cy+=direction[1]*45/t.scale;draw();return true;}return false;}
+  };
+}

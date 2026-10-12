@@ -30,6 +30,8 @@ public partial class BrowserHost
     public static void ArenaPresentation(bool menuOpen, bool reducedEffects) => arena?.Presentation(menuOpen, reducedEffects);
 
     [JSExport]
+    public static void ArenaRadar(double x,double y,bool active,double zoom)=>BrowserArenaHud.Radar(x,y,active,zoom);
+    [JSExport]
     public static string ArenaHudLayout(double width,double height)=>BrowserArenaHud.Configure(width,height);
     [JSExport]
     public static void ArenaInput(double x, double y, double aim, bool menu) => arena?.Input(x, y, aim, menu);
@@ -47,6 +49,7 @@ public partial class BrowserHost
     {
         Raylib.InitWindow(1920, 1080, "Neon Overdrive");
         if (!Raylib.IsWindowReady()) throw new InvalidOperationException("Raylib window initialization failed.");
+        Raylib.SetWindowSize(1920,1080); // Synchronize the initial GL viewport before CSS-sized frames.
         Raylib.SetTargetFPS(0); // Yield to requestAnimationFrame instead of blocking the browser.
         initialized = true;
         ActivateArena();

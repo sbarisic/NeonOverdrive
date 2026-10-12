@@ -10,7 +10,7 @@ public static class ModuleCatalog
         Radiation=19, Corrosion=20, Tesla=21, Gravity=22, Blast=23, Fuse=24, Plasma=25,
         Mine=26, Leech=27, Salvage=28;
     public static readonly ModuleDefinition[] Items = [
-        new(1,"Kinetic barrel",0,"Emitter","Ballistic round: 1 damage, 650 speed.","",650),
+        new(1,"Kinetic barrel",0,"Emitter","Ballistic round: 1 damage, 1,300 speed.","",650),
         new(2,"Laser emitter",150,"Emitter","Continuous beam: 4 base DPS.","",4),
         new(3,"Rocket motor",180,"Emitter","Heavy rocket: 2 damage, 85-unit blast.","",430,85),
         new(4,"Plasma core",180,"Emitter","Plasma orb: 2 damage, 45-unit blast.","",520,45),

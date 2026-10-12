@@ -1,3 +1,4 @@
+import { control } from './interface.js';
 // The server supplies names, prices, parameters, and descriptions. This module owns presentation only.
 export function createWeaponBench(element, info, equip, buy, onToggle) {
   document.head.append(element('style', `
@@ -56,13 +57,52 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
     #weapon-bench .weapon-selector button[data-drop=valid]{outline:2px solid #8ff0c7;outline-offset:2px}
     #weapon-bench .module-item[aria-disabled=true]{opacity:.45;cursor:help}
   `));
+  document.head.append(element('style', `
+    #weapon-bench{inset:2vh 2vw;padding:16px;gap:8px}
+    #weapon-bench h2{font-size:23px;letter-spacing:3px}
+    #weapon-bench .forge-body{min-height:0;gap:8px;padding:3px 4px}
+    #weapon-bench .forge-help{font-size:11px;line-height:1.35}
+    #weapon-bench .weapon-selector{display:flex;gap:6px;margin-bottom:6px}
+    #weapon-bench .weapon-selector button{display:flex;align-items:center;gap:10px;padding:5px 10px;min-height:30px;font-size:11px}
+    #weapon-bench .weapon-selector button span{display:inline;margin:0;font-size:10px}
+    #weapon-bench .weapon-heading{margin:0 0 3px;min-height:28px}
+    #weapon-bench .weapon-heading button.ui-action{min-height:28px;padding:3px 8px;font-size:11px}
+    #weapon-bench .weapon-scroll{padding:3px 3px 7px}
+    #weapon-bench .weapon-row{gap:8px;min-width:810px}
+    #weapon-bench .weapon-slot{min-height:72px;height:72px;padding:3px 4px}
+    #weapon-bench .slot-index{top:4px;left:6px;font-size:9px}
+    #weapon-bench .slot-icon{font-size:24px;margin:14px 0 2px}
+    #weapon-bench .slot-name{font-size:10px;min-height:24px;line-height:1.2}
+    #weapon-bench .weapon-slot::after{top:24px;right:-8px;font-size:17px}
+    #weapon-bench .chain-preview{height:66px;display:block}
+    #weapon-bench .preview-values{font-size:10px;line-height:1.4;margin:4px 0;max-height:42px;overflow:auto}
+    #weapon-bench #workshop-loadout h3{font-size:11px;letter-spacing:.08em;margin:8px 0 6px;color:#b9c5d0}
+    #weapon-bench .module-catalog{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:5px;padding:5px}
+    #weapon-bench .module-item{display:grid;grid-template-columns:26px 1fr;grid-template-rows:auto auto;align-items:center;text-align:left;min-height:42px;padding:5px 6px}
+    #weapon-bench .module-glyph{grid-row:1/3;font-size:22px;margin:0}
+    #weapon-bench .module-name{font-size:10px;line-height:1.2}
+    #weapon-bench .module-count{font-size:9px;line-height:11px;color:#9caebb;margin-top:0;white-space:nowrap}
+    #weapon-bench .bench-detail{min-height:42px;padding:5px 10px;font-size:11px}
+    #weapon-bench .bench-detail strong{font-size:15px;margin-bottom:3px}
+    #weapon-bench .bench-status{font-size:11px;min-height:14px}
+    #weapon-bench .shop-filters{gap:5px;margin:2px 0 8px}
+    #weapon-bench .shop-filters button.ui-action{min-height:28px;padding:4px 8px;font-size:11px}
+    #weapon-bench .shop-filters button[aria-pressed=true]{border-bottom:2px solid #eccb81;color:#ffe3a1}
+    #weapon-bench .shop-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+    #weapon-bench .shop-card{padding:9px;gap:6px;border-radius:3px;min-width:0}
+    #weapon-bench .shop-card strong{font-size:13px}
+    #weapon-bench .shop-card p{font-size:11px;line-height:1.4;min-height:46px}
+    #weapon-bench .shop-card canvas{height:36px}
+    #weapon-bench .shop-card .owned-count{font-size:10px;color:#b2c2cc}
+    #weapon-bench .shop-card button.ui-action{min-height:30px;padding:5px 8px;font-size:11px}
+  `));
   const opener=element('button','Weapons [I]');opener.type='button';opener.hidden=true;info.append(opener);
   const panel=element('section','','arena-shell');panel.id='weapon-bench';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','weapon-title');
   opener.setAttribute('aria-controls',panel.id);opener.setAttribute('aria-expanded','false');
   const title=element('h2','MODULAR ARSENAL');title.id='weapon-title';title.tabIndex=-1;
   const wallet=element('span','100 CREDITS','wallet'),levelLabel=element('span','','forge-level'),heading=element('div','','forge-heading');heading.append(title,wallet,levelLabel);
   const tabs=element('div','','workshop-tabs');tabs.setAttribute('role','tablist');
-  const shopTab=element('button','Shop'),loadoutTab=element('button','Loadout');tabs.append(shopTab,loadoutTab);
+  const shopTab=element('button','Shop'),loadoutTab=element('button','Loadout');tabs.append(shopTab,loadoutTab);control(shopTab,'shop');control(loadoutTab,'loadout');
   const body=element('div','','forge-body'),shop=element('section','','workshop-tab'),loadout=element('section','','workshop-tab');shop.id='workshop-shop';loadout.id='workshop-loadout';
   for(const [button,section] of [[shopTab,shop],[loadoutTab,loadout]]){button.type='button';button.id=section.id+'-tab';button.setAttribute('role','tab');button.setAttribute('aria-controls',section.id);section.setAttribute('role','tabpanel');section.setAttribute('aria-labelledby',button.id);}
   const filters=element('div','','shop-filters'),shopGrid=element('div','','shop-grid');shop.append(filters,shopGrid);
@@ -74,6 +114,7 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
   const inventory=element('div','','module-catalog');inventory.setAttribute('aria-label','Owned inventory. Drop an equipped module here to unequip it.');
   const state=element('p','','bench-status');state.setAttribute('role','status');
   const apply=element('button','Apply loadout'),reset=element('button','Reset draft'),clear=element('button','Clear selected'),close=element('button','Return to arena [I / Esc]');
+  control(apply,'apply','primary');control(reset,'reset');control(clear,'clear');control(close,'exit');
   const actions=element('div','','bench-actions');actions.append(apply,reset,clear,close);for(const b of [apply,reset,clear,close])b.type='button';
   body.append(shop,loadout);panel.append(heading,tabs,element('p','Choose a weapon to edit. To move a part, drop it on another weapon tab or select it, switch weapons, then choose a socket.','forge-help'),body,detail,state,actions);document.body.append(panel);
   let docked=false,opened=false,available=false,level=1,stats=[],unlocked=[true,false,false,false],credits=0,owned=Array(29).fill(0),catalog=[],definitions=new Map(),unlock=[1,5,10,15];
@@ -98,7 +139,8 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
     wallet.textContent=`${credits} CREDITS${docked?"":" · Dock at a station to purchase"}`;levelLabel.textContent=`LEVEL ${level} · ${unlocked.filter(Boolean).length}/4 WEAPONS`;
     slots.forEach((slot,i)=>{const id=part(i);slot.dataset.module=id;slot.style.setProperty('--part',color(id));slot.querySelector('.slot-icon').textContent=glyph(id);slot.querySelector('.slot-name').textContent=id?name(id):i%9===0?'Emitter':'Empty';slot.setAttribute('aria-label',`Weapon ${Math.floor(i/9)+1}, ${i%9===0?'emitter':i%9*5+'%'}: ${name(id)}`);slot.dataset.selected=String(selected?.slot===i);});
     rows.forEach((row,i)=>{row.section.hidden=i!==weapon;weaponButtons[i].setAttribute('aria-selected',String(i===weapon));weaponButtons[i].tabIndex=i===weapon?0:-1;weaponButtons[i].querySelector('span').textContent=!unlocked[i]?'Locked · L'+unlock[i]:draft[i].enabled?'Enabled':'Disabled';row.section.dataset.locked=String(!unlocked[i]);row.label.textContent=`WEAPON ${i+1} · ${!unlocked[i]?'REQUIRES BAY '+(i+1)+' · LEVEL '+unlock[i]:'READY'}`;row.toggle.textContent=draft[i].enabled?'Enabled':'Disabled';row.toggle.setAttribute('aria-pressed',String(draft[i].enabled));});
-    items.forEach(item=>{const id=+item.dataset.moduleId;item.hidden=(owned[id]||0)===0;item.querySelector('.module-count').textContent=`${Math.max(0,spare(id))} available / ${owned[id]||0} owned`;item.setAttribute('aria-disabled',String(spare(id)<=0));item.dataset.selected=String(selected?.slot===-1&&selected.module===id);});
+    items.forEach(item=>{const id=+item.dataset.moduleId;item.hidden=(owned[id]||0)===0;item.querySelector('.module-count').textContent=`${Math.max(0,spare(id))} free · ${owned[id]||0} owned`;item.setAttribute('aria-disabled',String(spare(id)<=0));item.dataset.selected=String(selected?.slot===-1&&selected.module===id);});
+    for(const b of filters.children)b.setAttribute('aria-pressed',String(b.textContent===filter));
     cards.forEach(card=>{const d=definitions.get(+card.dataset.moduleId);card.hidden=filter!=='All'&&filter!==d.category;card.querySelector('.owned-count').textContent=`${owned[d.id]||0} owned · ${Math.max(0,spare(d.id))} available`;const b=card.querySelector('button');b.disabled=!docked||!!pending||d.id===1||credits<d.price;card.querySelector('p').textContent=d.description+(draft[weapon].emitter===2&&d.laserDescription?' Laser: '+d.laserDescription:'');});
     apply.disabled=!!pending||draft.some(w=>w.emitter<0)||catalog.some(d=>spare(d.id)<0);reset.disabled=!!pending;clear.disabled=!!pending||!selected||selected.slot<0;
     preview.setAttribute('aria-label',`Live preview for weapon ${weapon+1}`);previewText.textContent=explain(draft[weapon]);
@@ -124,7 +166,7 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
     node.addEventListener('focus',()=>{const s=source();describe(s.module,s.slot);render();});
   }
   for(let w=0;w<4;w++){
-    const section=element('section'),head=element('div','','weapon-heading'),label=element('strong'),toggle=element('button','Enabled');toggle.type='button';toggle.setAttribute('aria-label',`Enable weapon ${w+1}`);toggle.addEventListener('click',()=>{if(!pending){draft[w].enabled=!draft[w].enabled;weapon=w;changed();}});head.append(label,toggle);
+    const section=element('section'),head=element('div','','weapon-heading'),label=element('strong'),toggle=element('button','Enabled');toggle.type='button';control(toggle,'apply');toggle.setAttribute('aria-label',`Enable weapon ${w+1}`);toggle.addEventListener('click',()=>{if(!pending){draft[w].enabled=!draft[w].enabled;weapon=w;changed();}});head.append(label,toggle);
     section.id=`weapon-chain-${w}`;section.setAttribute('role','tabpanel');const select=element('button',`Weapon ${w+1}`);select.type='button';select.id=`weapon-select-${w}`;select.dataset.weapon=String(w);select.setAttribute('role','tab');select.setAttribute('aria-controls',section.id);section.setAttribute('aria-labelledby',select.id);select.append(element('span'));select.addEventListener('click',()=>selectWeapon(w));weaponButtons.push(select);weaponSelector.append(select);
     const scroll=element('div','','weapon-scroll'),row=element('div','','weapon-row');scroll.append(row);section.append(head,scroll);loadout.append(section);rows.push({section,label,toggle,scroll});
     for(let stage=0;stage<9;stage++){
@@ -143,10 +185,10 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
   panel.addEventListener('pointercancel',cancelDrag);window.addEventListener('blur',cancelDrag);document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelDrag();});
   function setCatalog(data,levels){
     catalog=data;definitions=new Map(data.map(d=>[d.id,d]));unlock=levels||unlock;inventory.replaceChildren();shopGrid.replaceChildren();filters.replaceChildren();items.length=0;cards.length=0;
-    for(const category of ['All','Emitter','Damage','Trajectory','Elemental','Utility']){const b=element('button',category);b.type='button';b.addEventListener('click',()=>{filter=category;render();});filters.append(b);}
+    for(const category of ['All','Emitter','Damage','Trajectory','Elemental','Utility']){const b=element('button',category);b.type='button';control(b,({All:'loadout',Emitter:'strength',Damage:'strength',Trajectory:'locate',Elemental:'mastery',Utility:'repair'})[category]);b.addEventListener('click',()=>{filter=category;render();});filters.append(b);}
     for(const d of catalog){
       const item=element('button','','module-item');item.type='button';item.dataset.moduleId=d.id;item.style.setProperty('--part',color(d.id));item.append(element('span',glyph(d.id),'module-glyph'),element('span',d.name,'module-name'),element('span','','module-count'));bind(item,()=>({slot:-1,module:d.id}));items.push(item);inventory.append(item);
-      const card=element('article','','shop-card');card.dataset.moduleId=d.id;const animation=element('canvas');animation.width=280;animation.height=60;animation.setAttribute('aria-label',d.name+' effect preview');const purchase=element('button',d.id===1?'Starter equipment':`Buy · ${d.price} credits`);purchase.type='button';purchase.setAttribute('aria-label',`Buy ${d.name}`);purchase.addEventListener('click',()=>{if(pending)return;pending=buy(d.id)||0;pendingKind='buy';state.textContent=pending?'Buying…':'Not connected.';render();});card.append(element('strong',d.name),animation,element('p',d.description),element('span','','owned-count'),purchase);cards.push(card);shopGrid.append(card);
+      const card=element('article','','shop-card');card.dataset.moduleId=d.id;const animation=element('canvas');animation.width=280;animation.height=60;animation.setAttribute('aria-label',d.name+' effect preview');const purchase=element('button',d.id===1?'Starter equipment':`Buy · ${d.price} credits`);purchase.type='button';control(purchase,'shop','primary');purchase.setAttribute('aria-label',`Buy ${d.name}`);purchase.addEventListener('click',()=>{if(pending)return;pending=buy(d.id)||0;pendingKind='buy';state.textContent=pending?'Buying…':'Not connected.';render();});card.append(element('strong',d.name),animation,element('p',d.description),element('span','','owned-count'),purchase);cards.push(card);shopGrid.append(card);
     }render();
   }
   function drawChain(canvas,w,time,mini=false){

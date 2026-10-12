@@ -1,3 +1,4 @@
+import { control } from './interface.js';
 import { presentSnapshot, expandCombat } from './snapshot.js';
 // Browser transport/input and accessible shell only. World/HUD stay in C#/WASM/raylib.
 import { createSectorConsole } from './sector.js';
@@ -71,6 +72,15 @@ export function startNetwork(host, canvas, status) {
   menuButton.setAttribute('aria-controls', 'arena-menu'); menuButton.setAttribute('aria-expanded', 'false');
   info.append(connection, link, menuButton); document.body.append(info);
   // Keep transport controls above the uniformly scaled, bottom-anchored HUD.
+  let radarZoom=1,radarWaypoint=null;
+  const radarControls=element('div','','arena-shell');radarControls.id='radar-controls';radarControls.hidden=true;
+  Object.assign(radarControls.style,{position:'fixed',display:'grid',gap:'4px',zIndex:'4'});
+  const radarIn=element('button','+'),radarOut=element('button','−');
+  radarIn.setAttribute('aria-label','Minimap zoom in');radarOut.setAttribute('aria-label','Minimap zoom out');
+  for(const b of [radarIn,radarOut]){b.type='button';Object.assign(b.style,{width:'38px',height:'38px',minHeight:'0',padding:'0',fontSize:'24px'});radarControls.append(b);}
+  document.body.append(radarControls);
+  function updateRadar(){host.ArenaRadar(radarWaypoint?.x||0,radarWaypoint?.y||0,!!radarWaypoint,radarZoom);radarControls.dataset.zoom=radarZoom;radarControls.dataset.waypoint=radarWaypoint?.name||'';radarIn.disabled=radarZoom>=4;radarOut.disabled=radarZoom<=.5;}
+  radarIn.onclick=()=>{radarZoom=Math.min(4,radarZoom*2);updateRadar();};radarOut.onclick=()=>{radarZoom=Math.max(.5,radarZoom/2);updateRadar();};
   function positionInfo() {
     const bounds = canvas.getBoundingClientRect();
     const layout=host.ArenaHudLayout(bounds.width,bounds.height).split(',').map(Number);
@@ -80,6 +90,7 @@ export function startNetwork(host, canvas, status) {
     info.style.setProperty('--command-size',`${layout[4]}px`);
     document.documentElement.style.setProperty('--sector-guide-top',`${bounds.top+layout[5]}px`);
     info.dataset.layout=JSON.stringify(layout);
+    radarControls.style.left=`${bounds.left+layout[10]+layout[12]+10}px`;radarControls.style.top=`${bounds.top+layout[11]+(layout[13]-80)/2}px`;
 
   }
   new ResizeObserver(positionInfo).observe(canvas);
@@ -97,6 +108,7 @@ export function startNetwork(host, canvas, status) {
   const effectsLabel = element('label');
   const effects = element('input'); effects.type = 'checkbox'; effects.id = 'arena-reduced-effects';
   effectsLabel.append(effects, document.createTextNode(' Reduced effects [R]'));
+  control(resume,'apply','primary');control(leave,'exit');
   const menuActions = element('div', '', 'actions'); menuActions.append(resume, leave);
   menu.append(element('p', 'PILOT CONSOLE', 'eyebrow'), menuHeading,
     element('p', 'The room stays live. Your ship can still be hit while this menu is open.', 'arena-notice'),
@@ -165,7 +177,7 @@ export function startNetwork(host, canvas, status) {
     canvas.inert=open||bench.open||skills.open||friends.open||menuOpen||!form.hidden;
     info.inert=open||bench.open||skills.open||friends.open;
     clearInput();presentation();if(!open&&joined)canvas.focus();
-  },()=>bench.openShop());
+  },()=>bench.openShop(),waypoint=>{radarWaypoint=waypoint;updateRadar();});
   // Keep original button text for accessible names; snapshots may update skill counts.
   const commandArt=[
     '<path d="M14 18H50M14 32H50M14 46H50"/>',
@@ -224,7 +236,7 @@ export function startNetwork(host, canvas, status) {
   resume.addEventListener('click', () => setMenu(false));
   effects.addEventListener('change', () => setEffects(effects.checked));
   function resetConnection(message) {
-    joined = false; clearInterval(timer); clearTimeout(joinTimeout); keys.clear(); mouseFire = false; dead = false;
+    joined = false; radarControls.hidden=true; clearInterval(timer); clearTimeout(joinTimeout); keys.clear(); mouseFire = false; dead = false;
     socket = undefined;
     for (const key of ['player','room','tick','snapshot']) delete info.dataset[key];
     form.hidden = false; button.disabled = false; button.textContent = 'Join arena';
@@ -327,7 +339,7 @@ export function startNetwork(host, canvas, status) {
           bench.setCatalog(message.catalog, message.unlockLevels); skills.setCatalog(message.skills);
           sector.setup(message.sector,message.contracts);host.ArenaSector(JSON.stringify(message.sector));
           try { localStorage.setItem('neon.lastName',name.value.trim()); } catch {}
-          clearTimeout(joinTimeout); host.ArenaWelcome(message.id); joined = true; form.hidden = true; dead = false;
+          clearTimeout(joinTimeout); host.ArenaWelcome(message.id); joined = true; radarControls.hidden=false; form.hidden = true; dead = false;
           const invite = new URL(location.href); invite.search = new URLSearchParams({room:message.room});
           link.href = invite.href; link.textContent = `Room ${message.room} • invite link`; link.hidden = false;
           connection.textContent = 'Connected • LIVE'; menuButton.hidden = false;

@@ -22,7 +22,7 @@ public sealed class SnapshotPlayback
         }
     }
     private readonly List<Frame> frames = new();
-    private readonly HashSet<int> survivingAncestors = new();
+    private readonly Dictionary<int,CombatEvent> endpoints = new();
     private readonly HashSet<int> sampled = new();
     private bool ancestryDirty;
     private double receivedAt, playhead;
@@ -51,8 +51,8 @@ public sealed class SnapshotPlayback
         var b = bi.Value;
         if (ancestryDirty)
         {
-            survivingAncestors.Clear();
-            foreach (var frame in frames) survivingAncestors.UnionWith(frame.Descendants.Keys);
+            endpoints.Clear();
+            foreach(var frame in frames)foreach(var e in frame.Value.CombatEvents??[])if(e.Shot>0)endpoints[e.Shot]=e;
             ancestryDirty = false;
         }
         sampled.Clear();
@@ -69,7 +69,6 @@ public sealed class SnapshotPlayback
         // Dropping a parent from the newest snapshot while birth-gating its children left an empty frame.
         var shots = a.Shots.Concat(b.Shots).Where(s => sampled.Add(s.Id)).Select(seed =>
         {
-            if (!frames[^1].Shots.ContainsKey(seed.Id) && !survivingAncestors.Contains(seed.Id)) return null;
             var from = ai.Shots.GetValueOrDefault(seed.Id);
             var to = bi.Shots.GetValueOrDefault(seed.Id);
             var current = to ?? from!;
@@ -77,12 +76,13 @@ public sealed class SnapshotPlayback
             if (to is null)
             {
                 var child = bi.Descendants.GetValueOrDefault(seed.Id);
-                var endTick = child?.Born ?? b.Tick;
+                var endpoint=endpoints.GetValueOrDefault(seed.Id);
+                var endTick = endpoint?.Born ?? child?.Born ?? b.Tick;
                 if (playhead >= endTick) return null;
-                if (child is not null)
+                if (endpoint is not null || child is not null)
                 {
                     var progress = (float)Math.Clamp((playhead - a.Tick) / Math.Max(1, endTick - a.Tick), 0, 1);
-                    return current with { X = Lerp(current.X, child.BirthX, progress), Y = Lerp(current.Y, child.BirthY, progress) };
+                    return current with { X = Lerp(current.X, endpoint?.X ?? child!.BirthX, progress), Y = Lerp(current.Y, endpoint?.Y ?? child!.BirthY, progress) };
                 }
                 return current;
             }
@@ -96,7 +96,7 @@ public sealed class SnapshotPlayback
             }
             return current;
         }).OfType<ShotSnapshot>().ToArray();
-        var enemies = (latest.Enemies ?? []).Select(current =>
+        var enemies = ((t<1?a:b).Enemies ?? []).Select(current =>
         {
             var from = ai.Enemies.GetValueOrDefault(current.Id);
             var to = bi.Enemies.GetValueOrDefault(current.Id);
@@ -106,7 +106,7 @@ public sealed class SnapshotPlayback
                 Aim = from.Aim + MathF.IEEERemainder(to.Aim - from.Aim, MathF.Tau) * t
             };
         }).ToArray();
-        return latest with { Players = players, Shots = shots, Enemies = enemies };
+        return latest with { Players = players, Shots = shots, Enemies = enemies, CombatEvents=(latest.CombatEvents??[]).Where(e=>e.Born<=playhead).ToArray() };
     }
 
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;

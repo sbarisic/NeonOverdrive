@@ -42,8 +42,10 @@ export function createArenaAudio() {
        }
        const newExplosions=(frame.explosions||[]).filter(e=>!(previous.explosions||[]).some(old=>old.id===e.id));
        if(self&&newExplosions.some(e=>Math.hypot(e.x-self.x,e.y-self.y)<800))tone(110,22,.28,'sawtooth',.045);
+       const oldEvents=new Set((previous.combatEvents||[]).map(e=>e.id));
+       if(self&&(frame.combatEvents||[]).some(e=>e.kind===2&&!oldEvents.has(e.id)&&Math.hypot(e.x-self.x,e.y-self.y)<800)){tone(95,24,.4,"sawtooth",.04);tone(180,45,.18,"triangle",.025);}
        const enemies=new Map((frame.enemies||[]).map(e=>[e.id,e]));
-       if(self&&(previous.enemies||[]).some(e=>Math.hypot(e.x-self.x,e.y-self.y)<700&&(!enemies.has(e.id)||enemies.get(e.id).hull<e.hull)))tone(240,55,.09,'triangle',.045);
+       if(self&&(previous.enemies||[]).some(e=>Math.hypot(e.x-self.x,e.y-self.y)<700&&(enemies.has(e.id)&&enemies.get(e.id).hull<e.hull)))tone(240,55,.09,'triangle',.045);
      }previous=frame;
    }
  };

@@ -76,17 +76,17 @@ public sealed partial class Room
             else Pull(s,end,travelled/speed/TickRate);
             s.Position=end;s.Distance+=travelled;
             if(!s.IsBeam)budget-=travelled/speed;
-            if(stopped){if(s.IsBeam)Pull(s,end,1f/TickRate);s.Expires=Tick;return;}
+            if(stopped){s.Impact=true;if(s.IsBeam)Pull(s,end,1f/TickRate);s.Expires=Tick;return;}
             if(boundary<=1)
             {
                 if(absorbed){s.Expires=Tick;return;}
-                if(s.Bounces--<=0){if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
+                if(s.Bounces--<=0){s.Impact=true;if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
                 s.Velocity=Vector2.Reflect(s.Velocity,cover!.Value.Normal);s.Position+=cover.Value.Normal*.03f;
                 continue;
             }
             if(length>=wall-.001f)
             {
-                if(s.Bounces--<=0){if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
+                if(s.Bounces--<=0){s.Impact=true;if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
                 if(wallX<=wall+.001f)s.Velocity.X=-s.Velocity.X;
                 if(wallY<=wall+.001f)s.Velocity.Y=-s.Velocity.Y;
             }

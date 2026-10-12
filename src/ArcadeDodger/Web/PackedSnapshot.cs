@@ -37,8 +37,9 @@ internal sealed class PackedSnapshot(double[] data,string[] text)
         var locations=List(64,()=>new LocationState(Int(),Int(),Text(),Int()));
         var friends=List(1024,Text);
         var wallet=Long();
+        var combat=cursor<data.Length?List(512,()=>new CombatEvent(Int(),Int(),Int(),Float(),Float(),Long(),Float())):[];
         if(cursor!=data.Length)throw new FormatException();
         return new(version,"snapshot",tick,players,shots,enemies,energy,explosions,beams,
-            Social:new(friends,[],[]),Workshop:new(wallet,[],[]),Credits:credits,Mines:mines,Sector:new(locations),ModuleDrops:modules);
+            Social:new(friends,[],[]),Workshop:new(wallet,[],[]),Credits:credits,Mines:mines,Sector:new(locations),ModuleDrops:modules,CombatEvents:combat);
     }
 }

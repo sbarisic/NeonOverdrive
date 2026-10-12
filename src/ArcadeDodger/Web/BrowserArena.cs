@@ -19,7 +19,7 @@ internal sealed class BrowserArena
     private readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
     private readonly LocalPrediction prediction = new();
     private int ownId;
-    private Vector2 origin;
+    private Vector2 origin, cameraKick;
     private Vector2 view = new(960, 540);
     private const float WorldZoom = .75f;
     private float scale = 2;
@@ -64,7 +64,7 @@ internal sealed class BrowserArena
     {
         if (next is null || next.V != ClientProtocol.Version || next.Type != "snapshot" ||
             next.Players.Length > Room.Capacity || next.Shots.Length > 1024 || next.Enemies?.Length > 256 ||
-            next.ModuleDrops?.Length > 128 || next.Credits?.Length > 128 || next.Mines?.Length > 128 || next.Energy?.Length > Room.EnergyCapacity || next.Beams?.Length > Room.BeamCapacity ||
+            next.CombatEvents?.Length > 512 || next.ModuleDrops?.Length > 128 || next.Credits?.Length > 128 || next.Mines?.Length > 128 || next.Energy?.Length > Room.EnergyCapacity || next.Beams?.Length > Room.BeamCapacity ||
             (playback.Latest is { } latest && next.Tick <= latest.Tick)) return;
         var center=next.Players.FirstOrDefault(p=>p.Id==ownId);
         if(center is not null)next=next with {Shots=next.Shots.Where(s=>Math.Abs(s.X-center.X)<view.X/2+250&&Math.Abs(s.Y-center.Y)<view.Y/2+250).ToArray()};
@@ -78,7 +78,7 @@ internal sealed class BrowserArena
         var self = snapshot?.Players.FirstOrDefault(p => p.Id == ownId);
         if (self is null) return 0;
         if (!double.IsFinite(u) || !double.IsFinite(v)) return 0;
-        var target = origin + new Vector2((float)Math.Clamp(u, 0, 1) * view.X, (float)Math.Clamp(v, 0, 1) * view.Y);
+        var target = origin - cameraKick + new Vector2((float)Math.Clamp(u, 0, 1) * view.X, (float)Math.Clamp(v, 0, 1) * view.Y);
         return Math.Atan2(target.Y - self.Y, target.X - self.X);
     }
 
@@ -122,7 +122,8 @@ internal sealed class BrowserArena
         try
         {
             Raylib.ClearBackground(new Color(6, 8, 23, 255));
-            Raylib.BeginMode2D(new Camera2D { Zoom = scale, Target = origin });
+            cameraKick=world.CameraKick((float)seconds,reducedEffects||menuOpen);
+            Raylib.BeginMode2D(new Camera2D { Zoom = scale, Target = origin, Offset=cameraKick*scale });
             try
             {
                 world.Draw(snapshot, ownId, origin, view, (float)clock.Elapsed.TotalSeconds, reducedEffects);

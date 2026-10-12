@@ -20,6 +20,11 @@ internal static class BrowserArenaHud
     private static float width=960,height=540,cell=44,headerHeight=60;
     private static Rectangle footer,grid,map;
     private static SectorDefinition? sector;
+    private static Vector2 radarCenter, waypoint;
+    private static float radarWidth=3600;
+    private static bool hasWaypoint;
+    public static void Radar(double x,double y,bool active,double zoom)
+    {waypoint=new((float)x,(float)y);hasWaypoint=active;radarWidth=3600/(float)Math.Clamp(zoom,.5,4);}
     public static void SetSector(SectorDefinition value)=>sector=value;
     private static readonly List<Vector2> groups=[];
     public static string Configure(double w,double h)
@@ -61,6 +66,10 @@ internal static class BrowserArenaHud
     }
     private static void DrawRadar(RoomSnapshot? snapshot,int ownId,Vector2 origin,Vector2 view,float time,bool reducedEffects)
     {
+        var pilot=snapshot?.Players.FirstOrDefault(p=>p.Id==ownId);
+        radarCenter=pilot is null?Vector2.Zero:new(pilot.X,pilot.Y);
+        var density=Raylib.GetScreenWidth()/width;
+        Raylib.BeginScissorMode((int)(map.X*density),(int)(map.Y*density),(int)(map.Width*density),(int)(map.Height*density));
         Raylib.DrawRectangleRec(map,new Color(5,12,17,255));
         for(var i=1;i<4;i++)Raylib.DrawLine((int)(map.X+i*map.Width/4),(int)map.Y,(int)(map.X+i*map.Width/4),(int)(map.Y+map.Height),Raylib.Fade(Border,.4f));
         Raylib.DrawRectangleLinesEx(map,1,Border);
@@ -70,7 +79,7 @@ internal static class BrowserArenaHud
             if(location.Kind=="planet")
             {
                 var color=location.Biome switch {"volcanic"=>new Color(171,88,54,255),"gas"=>new Color(139,117,183,255),"shattered"=>Muted,_=>new Color(64,133,158,255)};
-                var radius=Math.Max(3,location.Radius/Room.Width*map.Width);
+                var radius=Math.Max(3,location.Radius/radarWidth*map.Width);
                 Raylib.DrawCircleV(at,radius,Raylib.Fade(color,.5f));
                 Raylib.DrawCircleLines((int)at.X,(int)at.Y,radius,color);
             }
@@ -82,8 +91,15 @@ internal static class BrowserArenaHud
             else if(location.Kind is "base" or "corridor" or "wreck" or "beacon")
                 Raylib.DrawCircleV(at,2,location.Kind is "base" or "corridor"?Amber:Muted);
         }
-        var top=Map(origin,map);var bottom=Map(origin+view,map);
-        Raylib.DrawRectangleLinesEx(new Rectangle(top.X,top.Y,bottom.X-top.X,bottom.Y-top.Y),1,Muted);
+        if(hasWaypoint&&pilot is not null)
+        {
+            var start=Map(radarCenter,map);var delta=Map(waypoint,map)-start;
+            var fraction=Math.Min(1,Math.Min((map.Width/2-9)/Math.Max(.001f,Math.Abs(delta.X)),(map.Height/2-9)/Math.Max(.001f,Math.Abs(delta.Y))));
+            var end=start+delta*fraction;
+            Raylib.DrawLineEx(start,end,2,Amber);
+            Raylib.DrawCircleLines((int)end.X,(int)end.Y,5,Amber);
+            if(delta.LengthSquared()>1){var dir=Vector2.Normalize(delta);var side=new Vector2(-dir.Y,dir.X);Raylib.DrawLineEx(end,end-dir*8+side*4,2,Amber);Raylib.DrawLineEx(end,end-dir*8-side*4,2,Amber);}
+        }
         if(snapshot is not null)
         {
             foreach(var drop in snapshot.Energy??[])Raylib.DrawCircleV(Map(new(drop.X,drop.Y),map),1.5f,Cyan);
@@ -96,6 +112,7 @@ internal static class BrowserArenaHud
                 else Raylib.DrawRectangle((int)at.X-2,(int)at.Y-2,4,4,player.Connected?Pink:Muted);
             }
         }
+        Raylib.EndScissorMode();
         var y=(int)(map.Y+map.Height-12);var x=(int)(map.X+(map.Width-180)/2);
         Raylib.DrawRectangle(x-4,y-2,188,14,new Color(5,12,17,225));
         DotLabel(x+3,y,Ink,"YOU");DotLabel(x+48,y,Pink,"PILOT");DotLabel(x+104,y,Enemy,"NPC");DotLabel(x+150,y,Cyan,"XP");
@@ -103,9 +120,7 @@ internal static class BrowserArenaHud
 
     private static Vector2 Map(Vector2 world, Rectangle map)
     {
-        // Inset markers so edge spawns stay inside the radar border.
-        return new Vector2(map.X + 3 + Math.Clamp(world.X / Room.Width, 0, 1) * (map.Width - 6),
-            map.Y + 3 + Math.Clamp(world.Y / Room.Height, 0, 1) * (map.Height - 6));
+        return new Vector2(map.X+map.Width/2,map.Y+map.Height/2)+(world-radarCenter)*(map.Width/radarWidth);
     }
 
     private static void DrawOverlay(string title, string summary, string action, string hint, Color accent)

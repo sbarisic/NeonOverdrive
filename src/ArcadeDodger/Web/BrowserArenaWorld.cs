@@ -25,10 +25,11 @@ internal sealed partial class BrowserArenaWorld
     private long tick = -1;
     private bool shotTransitions;
     private float lastTime;
+    private int lastCombatEvent;
     private Vector2 view = new(960, 540);
     private enum EffectKind { Trail, Muzzle, Hit, Death }
     private readonly record struct Effect(Vector2 Position, Vector2 Direction, Color Color,
-        float Born, float Duration, EffectKind Kind, int Seed);
+        float Born, float Duration, EffectKind Kind, int Seed, float Scale=1);
 
     public void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 viewport, float time, bool reducedEffects)
     {
@@ -48,6 +49,7 @@ internal sealed partial class BrowserArenaWorld
         DrawSector(snapshot,origin,time,reducedEffects);
         if (snapshot.Tick > tick) Observe(snapshot, ownId, origin, time, reducedEffects);
         ObserveShots(snapshot, ownId, origin, time, reducedEffects);
+        ObserveCombat(snapshot,origin,time);
 
         DrawEffects(origin, time, reducedEffects);
         foreach (var drop in snapshot.Energy ?? [])
@@ -107,6 +109,11 @@ internal sealed partial class BrowserArenaWorld
             {
                 var direction = Direction(new(shot.Dx, shot.Dy));
                 Raylib.DrawLineEx(p - direction * 22, p, 5, Gold);
+                if(!reducedEffects)for(int i=1;i<=4;i++)
+                {
+                    var puff=p-direction*(9+i*8);
+                    Raylib.DrawCircleV(puff,2+i,Raylib.Fade(color,(5-i)*.055f));
+                }
                 Raylib.DrawPoly(p, 3, 7, MathF.Atan2(shot.Dy, shot.Dx) * 180 / MathF.PI, color);
             }
             else if (shot.Kind == 4)
@@ -114,6 +121,11 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawCircleV(p, 11, Raylib.Fade(color, .25f));
                 Raylib.DrawCircleV(p, 6, color);
                 Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
+                if(!reducedEffects)
+                {
+                    var orbit=new Vector2(MathF.Cos(time*18+shot.Id),MathF.Sin(time*18+shot.Id))*9;
+                    Raylib.DrawCircleV(p+orbit,2,color);Raylib.DrawCircleV(p-orbit,2,color);
+                }
             }
             else
             {
@@ -159,9 +171,7 @@ internal sealed partial class BrowserArenaWorld
                 if (!players.TryGetValue(p.Id, out var old)) continue;
                 Vector2 position = new(p.X, p.Y);
                 Color color = PlayerColor(p);
-                if (old.Hull > 0 && p.Hull <= 0)
-                    Add(position, Vector2.Zero, color, time, .6f, EffectKind.Death, p.Id, origin);
-                else if (p.Hull > 0)
+                if (p.Hull > 0)
                 {
                     if (p.Hull < old.Hull || p.Shield < old.Shield)
                         Add(position, Vector2.Zero, p.Shield < old.Shield ? Shield : color,
@@ -173,10 +183,8 @@ internal sealed partial class BrowserArenaWorld
                             time, .20f, EffectKind.Trail, p.Id, origin);
                 }
             }
-            var currentEnemies = new HashSet<int>();
             foreach (var e in frame.Enemies ?? [])
             {
-                currentEnemies.Add(e.Id);
                 if (enemies.TryGetValue(e.Id, out var old) && e.Hull < old.Hull)
                 {
                     Add(new(e.X, e.Y), Vector2.Zero, EnemyColor(e), time, .22f,
@@ -186,11 +194,7 @@ internal sealed partial class BrowserArenaWorld
                         enemyHitFlashes[e.Id] = time + EnemyHitFlashDuration;
                 }
             }
-            // Server removes killed aliens. Never infer pilot death from disconnect/removal.
-            foreach (var old in enemies.Values)
-                if (!currentEnemies.Contains(old.Id))
-                    Add(new(old.X, old.Y), Vector2.Zero, EnemyColor(old), time, .6f,
-                        EffectKind.Death, old.Id, origin);
+
         }
         players.Clear();
         foreach (var p in frame.Players.Take(Room.Capacity)) players[p.Id] = p;
@@ -211,16 +215,16 @@ internal sealed partial class BrowserArenaWorld
                 Vector2 muzzle = new(s.X, s.Y);
                 if (s.Owner > 0)
                 {
-                    var owner = frame.Players.FirstOrDefault(p => p.Id == s.Owner && p.Hull > 0);
+                    var owner = players.GetValueOrDefault(s.Owner);
                     if (owner is not null) muzzle = new Vector2(owner.X, owner.Y) + Direction(new(s.Dx, s.Dy)) * 25;
                 }
                 else
                 {
-                    var owner = (frame.Enemies ?? []).FirstOrDefault(e => e.Id == -s.Owner);
+                    var owner = enemies.GetValueOrDefault(-s.Owner);
                     if (owner is not null) muzzle = new Vector2(owner.X, owner.Y) + Direction(new(s.Dx, s.Dy)) * 25;
                 }
-                Add(muzzle, Direction(new(s.Dx, s.Dy)), ShotColor(s.Owner, ownId), time,
-                    .09f, EffectKind.Muzzle, s.Id, origin);
+                Add(muzzle, Direction(new(s.Dx, s.Dy)), ProjectileColor(s), time,
+                    .12f, EffectKind.Muzzle, s.Id, origin);
             }
         }
         shots.Clear();
@@ -328,47 +332,10 @@ internal sealed partial class BrowserArenaWorld
         effects.Add(new(p, d, color, time, duration, kind, seed));
     }
 
-    private void DrawEffects(Vector2 origin, float time, bool low)
-    {
-        foreach (var e in effects)
-        {
-            float age = Math.Max(0, time - e.Born);
-            float alpha = Math.Clamp(1 - age / e.Duration, 0, 1);
-            if (!Visible(e.Position, origin, 120)) continue;
-            Color color = Raylib.Fade(e.Color, alpha);
-            if (e.Kind == EffectKind.Trail)
-            {
-                if (!low) Raylib.DrawRectangleLinesEx(new Rectangle(e.Position.X - 14, e.Position.Y - 14, 28, 28), 1, Raylib.Fade(color, .35f));
-            }
-            else if (e.Kind == EffectKind.Muzzle)
-            {
-                if (low) continue;
-                Raylib.DrawCircleV(e.Position, 14 * alpha, Raylib.Fade(color, .2f));
-                Raylib.DrawCircleV(e.Position, 5 * alpha, Raylib.Fade(NeonRendering.Ink, alpha));
-            }
-            else if (e.Kind == EffectKind.Hit)
-            {
-                Raylib.DrawCircleLines((int)e.Position.X, (int)e.Position.Y, 17 + age * 70, color);
-                if (!low) Raylib.DrawCircleV(e.Position, 10 * alpha, Raylib.Fade(NeonRendering.Ink, alpha * .55f));
-            }
-            else
-            {
-                Raylib.DrawCircleLines((int)e.Position.X, (int)e.Position.Y, 12 + age * 140, color);
-                // Deterministic cosmetic spark fan; no random simulation or reward inference.
-                for (int i = 0; i < (low ? 4 : 16); i++)
-                {
-                    float angle = i * MathF.Tau / (low ? 4 : 16) + e.Seed * .37f;
-                    Vector2 d = new(MathF.Cos(angle), MathF.Sin(angle));
-                    Vector2 p = e.Position + d * age * (70 + i % 4 * 35);
-                    Raylib.DrawLineEx(p, p - d * (low ? 3 : 7), 2, color);
-                }
-            }
-        }
-    }
-
     private void Reset()
     {
         tick = -1;
+        lastCombatEvent=0;
         shotTransitions = false;
         effects.Clear();
         enemyHitFlashes.Clear();

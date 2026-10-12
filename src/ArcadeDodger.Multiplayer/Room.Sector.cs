@@ -36,6 +36,7 @@ public sealed partial class Room
     {var key=FriendBook.Key(p.Name);if(!explorers.TryGetValue(key,out var state))explorers[key]=state=new();return state;}
     private void PilotDied(Player p)
     {
+        if(!p.ResetPending&&!p.ResetComplete)CombatFx(0,2,p.Position,20);
         ResetAfterDeath(p);
         if(Sector is null)return;var s=ExplorationFor(p);if(s.SessionPlayer!=p.Id)return;
         s.Carrying=false;s.InteractionTarget=0;if(Contracts.FirstOrDefault(c=>c.Id==s.Contract)?.Kind=="recover")s.Ready=false;
@@ -101,7 +102,7 @@ public sealed partial class Room
         bool Near(float x,float y)=>Vector2.DistanceSquared(p.Position,new(x,y))<=1400*1400;
         return frame with {Players=frame.Players.Select(other=>other.Id==id?other:other with {Weapons=System.Collections.Immutable.ImmutableArray<WeaponConfig>.Empty,WeaponStats=null,UnlockedWeapons=null,Skills=System.Collections.Immutable.ImmutableArray<string>.Empty}).ToArray(),Enemies=frame.Enemies?.Where(e=>Near(e.X,e.Y)).ToArray(),Shots=frame.Shots.Where(e=>e.Owner==id||Near(e.X,e.Y)).ToArray(),
             Beams=frame.Beams?.Where(e=>e.Owner==id||SectorCollision.DistanceToSegment(p.Position,new(e.X,e.Y),new(e.EndX,e.EndY))<1400).ToArray(),
-            ModuleDrops=frame.ModuleDrops?.Where(e=>e.Owner==id&&Near(e.X,e.Y)).ToArray(),Energy=frame.Energy?.Where(e=>(e.Owner==0||e.Owner==id)&&Near(e.X,e.Y)).ToArray(),Credits=frame.Credits?.Where(e=>(e.Owner==0||e.Owner==id)&&Near(e.X,e.Y)).ToArray(),Mines=frame.Mines?.Where(e=>Near(e.X,e.Y)).ToArray(),Explosions=frame.Explosions?.Where(e=>Near(e.X,e.Y)).ToArray()};
+            ModuleDrops=frame.ModuleDrops?.Where(e=>e.Owner==id&&Near(e.X,e.Y)).ToArray(),Energy=frame.Energy?.Where(e=>(e.Owner==0||e.Owner==id)&&Near(e.X,e.Y)).ToArray(),Credits=frame.Credits?.Where(e=>(e.Owner==0||e.Owner==id)&&Near(e.X,e.Y)).ToArray(),Mines=frame.Mines?.Where(e=>Near(e.X,e.Y)).ToArray(),CombatEvents=frame.CombatEvents?.Where(e=>Near(e.X,e.Y)).ToArray(),Explosions=frame.Explosions?.Where(e=>Near(e.X,e.Y)).ToArray()};
     }
     public SectorState? SectorSnapshot(int player)
     {

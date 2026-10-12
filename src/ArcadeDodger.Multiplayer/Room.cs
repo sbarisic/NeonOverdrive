@@ -9,7 +9,7 @@ public sealed record PlayerSnapshot(int Id, string Name, float X, float Y, float
     int SkillPoints = 0, ImmutableArray<string> Skills = default, int MaxShield = 2, string Weapon = "blaster",
     int MaxHull = 3, float MoveSpeed = 300, bool Menu = false, bool Editing = false, ImmutableArray<WeaponConfig> Weapons = default, int EquipSequence = 0, bool EquipAccepted = false, bool[]? UnlockedWeapons = null, WeaponStats[]? WeaponStats = null, int Docked = 0, string RunId = "");
 public sealed record ShotSnapshot(int Id, int Owner, float X, float Y, float Dx = 0, float Dy = -1, long Born = 0, int Kind = 1, int Effects = 0, bool Modular = false, int Parent = 0, float BirthX = 0, float BirthY = 0, int[]? Ancestors = null, int Weapon = 0, int Stage = 0, float Power = 1);
-public sealed record RoomSnapshot(int V, string Type, long Tick, PlayerSnapshot[] Players, ShotSnapshot[] Shots, EnemySnapshot[]? Enemies = null, EnergySnapshot[]? Energy = null, ExplosionSnapshot[]? Explosions = null, BeamSnapshot[]? Beams = null, SocialSnapshot? Social = null, WorkshopSnapshot? Workshop = null, CreditSnapshot[]? Credits = null, MineSnapshot[]? Mines = null, SkillReceipt? SkillReceipt = null, CreditReward? CreditReward = null, SectorState? Sector = null, ModuleDropSnapshot[]? ModuleDrops = null,int PrivateRevision=0);
+public sealed record RoomSnapshot(int V, string Type, long Tick, PlayerSnapshot[] Players, ShotSnapshot[] Shots, EnemySnapshot[]? Enemies = null, EnergySnapshot[]? Energy = null, ExplosionSnapshot[]? Explosions = null, BeamSnapshot[]? Beams = null, SocialSnapshot? Social = null, WorkshopSnapshot? Workshop = null, CreditSnapshot[]? Credits = null, MineSnapshot[]? Mines = null, SkillReceipt? SkillReceipt = null, CreditReward? CreditReward = null, SectorState? Sector = null, ModuleDropSnapshot[]? ModuleDrops = null,int PrivateRevision=0,CombatEvent[]? CombatEvents=null);
 
 /// <summary>Single-writer fixed-step network-slice simulation; no renderer or wall-clock dependency.</summary>
 public sealed partial class Room
@@ -154,7 +154,7 @@ public sealed partial class Room
         StepProjectiles();
         StepMines();
         beams.RemoveAll(b=>players.TryGetValue(b.Owner,out var owner)&&owner.Hull<=0);
-        foreach (var enemy in enemies.Where(e => e.Hull <= 0)) { RewardEncounter(enemy); DestroyInstallation(enemy); if(!enemy.Installation){DropEnergy(enemy); DropCredits(enemy);} }
+        foreach (var enemy in enemies.Where(e => e.Hull <= 0)) { CombatFx(0,2,enemy.Position,EnemyRadius(enemy)); RewardEncounter(enemy); DestroyInstallation(enemy); if(!enemy.Installation){DropEnergy(enemy); DropCredits(enemy);} }
         enemies.RemoveAll(e => e.Hull <= 0);
         AdmitPersonalDrops();
         StepPickupMotion();
@@ -162,8 +162,10 @@ public sealed partial class Room
         StepCredits();
         StepModuleDrops();
         if(Tick%30==0)foreach(var p in players.Values){if(p.Hull<=0)ResetAfterDeath(p);else SaveCheckpoint(p);}
-        shots.RemoveAll(s => s.Expires <= Tick || s.Position.X < 0 || s.Position.X > Width ||
-            s.Position.Y < 0 || s.Position.Y > Height);
+        shots.RemoveAll(s => {
+            if(s.Expires>Tick&&s.Position.X>=0&&s.Position.X<=Width&&s.Position.Y>=0&&s.Position.Y<=Height)return false;
+            CombatFx(s.Id,s.Impact?1:0,s.Position,s.VisualPower);return true;
+        });
         foreach (var id in players.Values.Where(p => !p.Connected && Tick >= p.RemoveAt).Select(p => p.Id).ToArray())
             {var p=players[id];SaveCheckpoint(p);suspended[FriendBook.Key(p.Name)]=p;players.Remove(id);}
     }
@@ -178,7 +180,7 @@ public sealed partial class Room
         shots.Select(s => new ShotSnapshot(s.Id, s.Owner, s.Position.X, s.Position.Y, s.Velocity.X, s.Velocity.Y, s.Born, s.Kind, Effects(s), s.Program is not null, s.Parent, s.BirthPosition.X, s.BirthPosition.Y, s.Ancestors.Length > 0 ? s.Ancestors : null, s.Weapon, s.Cursor, s.VisualPower)).ToArray(),
         enemies.Select(e => new EnemySnapshot(e.Id, e.Installation ? "installation" : e.Type, e.Position.X, e.Position.Y,
             e.Aim, e.Hull, e.Gunner && e.State=="engage" && e.FireAt>Tick && e.FireAt - Tick <= (e.Type=="sniper"?30:15), (Tick < e.BurnUntil ? 1 : 0) | (Tick < e.RadiationUntil ? 2 : 0) | (Tick < e.SlowUntil ? 4 : 0) | (Tick < e.CorrosionUntil ? 8 : 0) | (Tick < e.StunUntil ? 16 : 0) | (Tick < e.MarkUntil ? 32 : 0),e.Home,e.State,e.Level,EnemyRadius(e),e.MaxHull)).ToArray(),
-        energy.Select(e => new EnergySnapshot(e.Id, e.Position.X, e.Position.Y, e.Value,e.Owner)).ToArray(), explosions.ToArray(), beams.ToArray(), Credits: credits.Select(c=>new CreditSnapshot(c.Id,c.Position.X,c.Position.Y,c.Value,c.Owner)).ToArray(), Mines: mines.Select(m=>new MineSnapshot(m.Id,m.Payload.Owner,m.Payload.Position.X,m.Payload.Position.Y,Tick>=m.ArmedAt,m.Payload.VisualPower)).ToArray(), ModuleDrops:moduleDrops.Select(m=>new ModuleDropSnapshot(m.Id,m.Position.X,m.Position.Y,m.Module,m.Owner)).ToArray());
+        energy.Select(e => new EnergySnapshot(e.Id, e.Position.X, e.Position.Y, e.Value,e.Owner)).ToArray(), explosions.ToArray(), beams.ToArray(), Credits: credits.Select(c=>new CreditSnapshot(c.Id,c.Position.X,c.Position.Y,c.Value,c.Owner)).ToArray(), Mines: mines.Select(m=>new MineSnapshot(m.Id,m.Payload.Owner,m.Payload.Position.X,m.Payload.Position.Y,Tick>=m.ArmedAt,m.Payload.VisualPower)).ToArray(), ModuleDrops:moduleDrops.Select(m=>new ModuleDropSnapshot(m.Id,m.Position.X,m.Position.Y,m.Module,m.Owner)).ToArray(),CombatEvents:combatEvents.Where(e=>Tick-e.Born<=8).ToArray());
 
     private static float? Intersection(Vector2 start, Vector2 end, float radius)
     {
@@ -234,7 +236,7 @@ public sealed partial class Room
         public int Id, Owner, Parent, Weapon;
         public float Damage = 1, InitialRange, VisualPower = 1, Spread = 1, ShieldMultiplier = 1;
         public int Bounces, Relays, Burns, Freezes, Rads, Corrodes, Teslas, Gravity, Blasts, Leeches;
-        public bool Cancelled, Proximity, SalvageMark, IsBeam, Secondary, EmitPlasma, EmitMine;
+        public bool Impact, Cancelled, Proximity, SalvageMark, IsBeam, Secondary, EmitPlasma, EmitMine;
         public string OwnerName = "";
         public Vector2 BirthPosition;
         public Vector2 Position, Velocity;
