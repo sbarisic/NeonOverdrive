@@ -1,32 +1,5 @@
 import { glyph, color } from './weapon-art.js';
 
-export function explainChain(w, weapon, stats, definitions) {
-  const name = (id) => definitions.get(id)?.name || 'Empty';
-  const effective = stats.find((s) => s.emitter === w.emitter);
-  let damage = effective?.damage || (w.emitter === 2 ? 4 : w.emitter >= 3 ? 2 : 1),
-    branches = 1,
-    angle = 1,
-    terminal = false;
-  return (
-    `WEAPON ${weapon + 1} · ${name(w.emitter)} · ${damage.toFixed(2)} ${w.emitter === 2 ? 'DPS' : 'damage'} · Range ${Math.round(effective?.range || 1300)}${w.emitter === 2 ? '' : ' · ' + (30 / (effective?.interval || 7)).toFixed(2) + ' shots/sec'} · ` +
-    w.attachments
-      .map((id, i) => {
-        if (!id) return '';
-        if (terminal) return `${(i + 1) * 5}% ${name(id)}: unreachable`;
-        const d = definitions.get(id);
-        if (id === 5) damage *= d?.value || 2;
-        if (id === 9) angle *= 0.5;
-        if ([11, 12, 13].includes(id)) {
-          branches *= d.value;
-          damage /= d.value;
-        }
-        if (id === 26) terminal = true;
-        return `${(i + 1) * 5}% ${name(id)}: ${damage.toFixed(2).replace(/\.?0+$/, '')} ${w.emitter === 2 ? 'DPS' : 'damage'}/branch, ${branches} branches${[11, 12, 13].includes(id) ? ', ±' + (d.radius * angle).toFixed(2) + ' rad' : ''}`;
-      })
-      .filter(Boolean)
-      .join(' → ')
-  );
-}
 export function drawChain(canvas, w, time, stats, definitions, mini = false) {
   const ctx = canvas.getContext('2d'),
     width = canvas.width,

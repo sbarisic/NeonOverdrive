@@ -471,16 +471,92 @@ export const compactStyles = `
   right: -8px;
   font-size: 17px;
 }
+#weapon-bench .chain-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(380px, 1fr);
+  gap: 16px;
+  max-width: 1320px;
+  margin: 10px auto;
+  padding: 10px;
+  border: 1px solid #424252;
+  background: #080e19;
+}
+#weapon-bench .chain-diagram { min-width: 0; }
+#weapon-bench .chain-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  color: #e6d6ac;
+  min-height: 26px;
+}
+#weapon-bench .chain-note { color: #a5afc1; text-align: right; }
 #weapon-bench .chain-preview {
-  height: 66px;
+  width: 100%;
+  height: clamp(166px, 19vh, 210px);
   display: block;
+  border: 0;
 }
 #weapon-bench .preview-values {
-  font-size: 10px;
-  line-height: 1.4;
-  margin: 4px 0;
-  max-height: 42px;
-  overflow: auto;
+  font-size: 11px;
+  line-height: 1.3;
+  margin: 0;
+  min-width: 0;
+}
+#weapon-bench .chain-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 8px;
+}
+#weapon-bench .chain-summary strong { color: #e6d6ac; }
+#weapon-bench .chain-summary b { color: #82d8d0; font-weight: normal; }
+#weapon-bench .chain-stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+#weapon-bench .chain-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  margin: 0;
+  min-height: 34px;
+  border: 1px solid #384353;
+  background: #111b29;
+  text-align: left;
+  color: #c5cddd;
+  font-size: 11px;
+}
+#weapon-bench .chain-stage:hover, #weapon-bench .chain-stage:focus-visible { border-color: #d9bb70; background: #222838; }
+#weapon-bench .chain-checkpoint { color: #dfc480; font-size: 10px; }
+#weapon-bench .chain-stage strong { display: block; font-size: 11px; font-weight: normal; }
+#weapon-bench .chain-stage small { display: block; font-size: 10px; color: #a5b6c3; }
+#weapon-bench .chain-stage[data-empty="true"] { background: transparent; }
+#weapon-bench .chain-stage[data-reachable="false"] { border-style: dashed; color: #9696a7; }
+@media (max-height: 850px) {
+  #weapon-bench .loadout-lower {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 10px;
+    height: 232px;
+    margin: 8px 0;
+  }
+  #weapon-bench .chain-panel {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 8px;
+    padding: 8px;
+    margin: 0;
+    min-width: 0;
+  }
+  #weapon-bench .chain-caption { flex-direction: column; gap: 2px; }
+  #weapon-bench .chain-note { text-align: left; }
+  #weapon-bench .chain-preview { height: 176px; }
+  #weapon-bench .chain-stage { gap: 4px; padding: 3px 4px; }
+  #weapon-bench .chain-stage small { font-size: 9px; }
+  #weapon-bench .owned-panel { display: flex; flex-direction: column; min-height: 0; }
+  #weapon-bench .owned-panel .module-catalog {
+    overflow-y: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+  }
 }
 #weapon-bench #workshop-loadout h3 {
   font-size: 11px;

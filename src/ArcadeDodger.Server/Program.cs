@@ -29,6 +29,7 @@ public static class Program
         var app = builder.Build();
         app.UseWebSockets();
         var browserRoot = builder.Configuration["BrowserRoot"];
+        string? browserSourceRoot = null;
         if (
             string.IsNullOrWhiteSpace(browserRoot)
             && app.Environment.IsDevelopment()
@@ -56,6 +57,13 @@ public static class Program
                     "Browser bundle missing. Build the server in Visual Studio "
                         + "or build with -p:BuildBrowserClient=true before using the local launch profile."
                 );
+            // F5 uses compiled WASM but serves editable UI modules from the working tree.
+            // Rebuilding a different configuration must not leave the local UI stale.
+            var source = Path.GetFullPath(
+                Path.Combine(app.Environment.ContentRootPath, "../ArcadeDodger/Web/Web")
+            );
+            if (File.Exists(Path.Combine(source, "index.html")))
+                browserSourceRoot = source;
         }
         if (!string.IsNullOrWhiteSpace(browserRoot))
         {
@@ -73,7 +81,9 @@ public static class Program
                         context.Response.ContentType = "text/html; charset=utf-8";
                         context.Response.Headers.CacheControl = "no-store";
                         if (!HttpMethods.IsHead(context.Request.Method))
-                            await context.Response.WriteAsync(BrowserAssets.Index(browserRoot));
+                            await context.Response.WriteAsync(
+                                BrowserAssets.Index(browserSourceRoot ?? browserRoot)
+                            );
                         return;
                     }
                     await next(context);
@@ -83,13 +93,25 @@ public static class Program
                 Path.GetFullPath(browserRoot)
             );
             app.Lifetime.ApplicationStopped.Register(files.Dispose);
-            app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
+            Microsoft.Extensions.FileProviders.IFileProvider browserFiles = files;
+            if (browserSourceRoot is not null)
+            {
+                var sourceFiles = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+                    browserSourceRoot
+                );
+                app.Lifetime.ApplicationStopped.Register(sourceFiles.Dispose);
+                browserFiles = new Microsoft.Extensions.FileProviders.CompositeFileProvider(
+                    sourceFiles,
+                    files
+                );
+            }
+            app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = browserFiles });
             var types = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
             types.Mappings[".pdb"] = "application/octet-stream";
             app.UseStaticFiles(
                 new StaticFileOptions
                 {
-                    FileProvider = files,
+                    FileProvider = browserFiles,
                     ContentTypeProvider = types,
                     OnPrepareResponse = context =>
                         context.Context.Response.Headers.CacheControl = "no-cache",

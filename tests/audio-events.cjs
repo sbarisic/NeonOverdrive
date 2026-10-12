@@ -1,53 +1,31 @@
 const assert = require('node:assert/strict'),
   fs = require('node:fs'),
   vm = require('node:vm');
-let started = 0,
-  stopped = 0;
-const listeners = {},
-  gains = [];
-class AudioContext {
-  constructor() {
-    this.state = 'running';
-    this.currentTime = 0;
-    this.destination = {};
-  }
-  createOscillator() {
-    return {
-      type: 'sine',
-      frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} },
-      connect() {},
-      disconnect() {},
-      start() {
-        started++;
-      },
-      stop() {
-        stopped++;
-      },
-    };
-  }
-  createGain() {
-    const gain = {
-      gain: {
-        value: 0,
-        setValueAtTime() {},
-        linearRampToValueAtTime() {},
-        exponentialRampToValueAtTime() {},
-      },
-      connect() {},
-      disconnect() {},
-    };
-    gains.push(gain);
-    return gain;
-  }
-}
+const calls = [],
+  listeners = {},
+  visibility = {};
+const synth = Object.fromEntries(
+  ['fire', 'impact', 'explosion', 'tone', 'laser', 'silence', 'stopHum'].map((name) => [
+    name,
+    (...args) => calls.push({ name, args }),
+  ]),
+);
 const sandbox = {
+  createCombatSynth: () => synth,
   window: {
-    AudioContext,
+    AudioContext: class {
+      state = 'running';
+    },
     addEventListener(type, fn) {
       listeners[type] = fn;
     },
   },
-  document: { hidden: false, addEventListener() {} },
+  document: {
+    hidden: false,
+    addEventListener(type, fn) {
+      visibility[type] = fn;
+    },
+  },
   setTimeout() {
     return 1;
   },
@@ -57,6 +35,7 @@ vm.createContext(sandbox);
 vm.runInContext(
   fs
     .readFileSync('src/ArcadeDodger/Web/Web/audio.js', 'utf8')
+    .replace(/^import .*;\r?\n/m, '')
     .replace('export function', 'function') + '\nthis.audio=createArenaAudio();',
   sandbox,
 );
@@ -66,63 +45,84 @@ const self = {
   life: 0,
   hull: 3,
   shield: 2,
+  x: 0,
+  y: 0,
   skills: [],
-  weapons: [{ emitter: 1, attachments: Array(8).fill(0), enabled: true }],
+  weapons: [],
   level: 1,
   experience: 0,
-  dashTicks: 0,
 };
-const frame = (tick, shots = [], beams = []) => ({
+const frame = (tick, shots = [], beams = [], extra = {}) => ({
   tick,
-  players: [self],
+  players: [{ ...self }],
   shots,
   beams,
   enemies: [],
+  ...extra,
 });
-sandbox.audio.observe(frame(1), 1);
-sandbox.audio.observe(frame(3, [{ id: 1, owner: 1, kind: 1, parent: 0 }]), 1);
-assert.equal(started, 1);
-sandbox.audio.observe(
-  frame(5, [
-    { id: 2, owner: 1, kind: 1, parent: 1 },
-    { id: 3, owner: 1, kind: 1, parent: 1 },
+const observe = (...args) => sandbox.audio.observe(frame(...args), 1);
+const count = (name) => calls.filter((c) => c.name === name).length;
+const last = (name) => calls.filter((c) => c.name === name).at(-1);
+observe(1);
+observe(3, [{ id: 1, owner: 1, kind: 1, parent: 0 }]);
+assert.equal(count('fire'), 1);
+observe(5, [
+  { id: 2, owner: 1, kind: 1, parent: 1 },
+  { id: 3, owner: 1, kind: 1, parent: 1 },
+]);
+assert.equal(count('fire'), 1, 'split descendants stay silent');
+observe(7, [], [{ owner: 1 }, { owner: 1 }, { owner: 1 }]);
+assert.equal(last('laser').args[0].length, 1, 'forks share one sustained voice');
+observe(
+  9,
+  [],
+  [0, 1, 2, 3].flatMap((weapon) => [
+    { owner: 1, weapon },
+    { owner: 1, weapon },
   ]),
-  1,
 );
-assert.equal(started, 1, 'splitting must not play a second pew');
-sandbox.audio.observe(frame(7, [], [{ owner: 1 }]), 1);
-assert.equal(started, 2);
-sandbox.audio.observe(frame(9, [], [{ owner: 1 }, { owner: 1 }, { owner: 1 }]), 1);
-assert.equal(started, 2, 'forked beam sustains one hum');
-const before = stopped;
-sandbox.audio.observe(frame(11), 1);
-assert.equal(stopped, before + 1);
+assert.equal(last('laser').args[0].length, 4);
+observe(11, [], [{ owner: 1, weapon: 2 }]);
+assert.deepEqual(Array.from(last('laser').args[0]), [2]);
+const shots = [0, 1, 2, 3].map((weapon) => ({
+  id: 10 + weapon,
+  owner: 1,
+  weapon,
+  kind: weapon + 1,
+  parent: 0,
+}));
+observe(13, shots);
+assert.equal(count('fire'), 5, 'each weapon gets its own attack');
+observe(15, shots);
+assert.equal(count('fire'), 5, 'existing projectiles do not replay');
 sandbox.audio.setMuted(true);
-sandbox.audio.observe(frame(13, [], [{ owner: 1 }]), 1);
-assert.equal(started, 2);
+assert.equal(count('silence'), 1, 'mute cancels tails and hums');
+observe(17, [{ id: 20, owner: 1, kind: 1 }]);
+assert.equal(count('fire'), 5);
 sandbox.audio.setMuted(false);
-sandbox.audio.observe(
-  frame(
-    15,
-    [],
-    [0, 1, 2, 3].flatMap((weapon) => [
-      { owner: 1, weapon },
-      { owner: 1, weapon },
-    ]),
-  ),
-  1,
-);
-assert.equal(started, 6, 'four firing weapons each get one hum regardless of branches');
-assert.ok(
-  Math.abs(gains.slice(-4).reduce((sum, g) => sum + g.gain.value ** 2, 0) - 0.035 ** 2) < 1e-10,
-  'combined hum power stays bounded',
-);
-const beforeRelease = stopped;
-sandbox.audio.observe(frame(17, [], [{ owner: 1, weapon: 2 }]), 1);
-assert.equal(stopped, beforeRelease + 3, 'stopping three weapons preserves the remaining hum');
-assert.equal(started, 6);
+observe(19, [{ id: 20, owner: 1, kind: 1 }]);
+assert.equal(count('fire'), 5, 'unmute does not replay muted shots');
+const explosions = [{ id: 1, x: 0, y: 0 }],
+  combatEvents = [{ id: 1, kind: 2, x: 0, y: 0 }];
+observe(21, [], [], { explosions, combatEvents });
+assert.equal(count('explosion'), 1, 'destruction and blast coalesce');
+assert.equal(last('explosion').args[0], true);
+observe(23, [], [], { explosions, combatEvents });
+assert.equal(count('explosion'), 1, 'events do not replay');
+observe(25, [], [], { enemies: [{ id: 1, x: 0, y: 0, hull: 2 }] });
+observe(27, [], [], { enemies: [] });
+assert.equal(count('explosion'), 1, 'enemy relevance exits are silent');
+sandbox.document.hidden = true;
+visibility.visibilitychange();
+assert.equal(count('silence'), 2);
+observe(29, [{ id: 30, owner: 1, kind: 1 }]);
+assert.equal(count('fire'), 5);
+sandbox.document.hidden = false;
 sandbox.audio.reset();
-assert.equal(stopped, beforeRelease + 4);
+assert.equal(count('silence'), 3);
+observe(1);
+observe(3, [{ id: 1, owner: 1, kind: 1 }]);
+assert.equal(count('fire'), 6, 'reset clears per-weapon cadence history');
 console.log(
-  'PASS: silent splits, one hum per firing weapon, bounded combined gain, selective release, reset and mute.',
+  'PASS: silent splits, independent weapons, laser grouping, event deduplication, mute, visibility and reset.',
 );

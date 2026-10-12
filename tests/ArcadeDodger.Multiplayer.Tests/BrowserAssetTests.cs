@@ -7,6 +7,76 @@ namespace ArcadeDodger.Multiplayer.Tests;
 public sealed class BrowserAssetTests
 {
     [Fact]
+    public async Task LocalLaunchUsesCurrentUiSourcesAndCompiledWasmWithoutRebuilding()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "neon-local-ui-" + Guid.NewGuid());
+        var server = Path.Combine(root, "Server");
+        var source = Path.Combine(root, "ArcadeDodger/Web/Web");
+        var configuration = System
+            .Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyConfigurationAttribute>(
+                typeof(Program).Assembly
+            )!
+            .Configuration;
+        var bundle = Path.Combine(
+            root,
+            "ArcadeDodger/Web/bin",
+            configuration,
+            "net10.0/browser-wasm/AppBundle"
+        );
+        Directory.CreateDirectory(server);
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(Path.Combine(bundle, "_framework"));
+        const string index = "<script type=\"module\" src=\"./main.js\"></script>";
+        await File.WriteAllTextAsync(Path.Combine(bundle, "index.html"), index);
+        await File.WriteAllTextAsync(Path.Combine(bundle, "main.js"), "old bundle");
+        await File.WriteAllTextAsync(
+            Path.Combine(bundle, "_framework/runtime.js"),
+            "compiled runtime"
+        );
+        await File.WriteAllTextAsync(Path.Combine(source, "index.html"), index);
+        await File.WriteAllTextAsync(Path.Combine(source, "main.js"), "current UI");
+        await using var app = Program.Build([
+            "--urls",
+            "http://127.0.0.1:0",
+            "--environment",
+            "Development",
+            "--contentRoot",
+            server,
+            "--UseLocalBrowserBundle",
+            "true",
+            "--ProfilesFile",
+            Path.Combine(root, "profiles.json"),
+            "--FriendsFile",
+            Path.Combine(root, "friends.json"),
+            "--Logging:LogLevel:Default",
+            "Warning",
+        ]);
+        try
+        {
+            await app.StartAsync();
+            using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+            var first = Imports(await client.GetStringAsync("/"));
+            Assert.Equal("current UI", await client.GetStringAsync(first["./main.js"]));
+            Assert.Equal("compiled runtime", await client.GetStringAsync("/_framework/runtime.js"));
+            await File.WriteAllTextAsync(Path.Combine(source, "main.js"), "import './preview.js';");
+            await File.WriteAllTextAsync(Path.Combine(source, "preview.js"), "new preview");
+            var updated = Imports(await client.GetStringAsync("/"));
+            Assert.NotEqual(first["./main.js"], updated["./main.js"]);
+            Assert.Equal("new preview", await client.GetStringAsync(updated["./preview.js"]));
+            Assert.Equal(
+                "old bundle",
+                await File.ReadAllTextAsync(Path.Combine(bundle, "main.js"))
+            );
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task ChangingOneModuleInvalidatesEntireGraphAndIndexIsNeverCached()
     {
         var root = Path.Combine(Path.GetTempPath(), "neon-assets-" + Guid.NewGuid());

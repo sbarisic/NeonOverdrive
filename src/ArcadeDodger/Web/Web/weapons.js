@@ -1,5 +1,6 @@
 import { glyph, color } from './weapon-art.js';
-import { drawChain, explainChain } from './weapon-preview.js';
+import { drawChain } from './weapon-preview.js';
+import { createChainPreview } from './weapon-chain-view.js';
 import { createModuleDrag } from './weapon-drag.js';
 import { loadoutStyles, shopStyles, compactStyles } from './weapons.styles.js';
 import { control } from './interface.js';
@@ -71,12 +72,11 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
       'Choose an emitter, then place attachments at fixed distance checkpoints.',
     );
   detail.append(detailName, detailText);
-  const preview = element('canvas', '', 'chain-preview');
-  preview.width = 1000;
-  preview.height = 150;
-  preview.setAttribute('aria-label', 'Live weapon chain preview');
-  const previewText = element('div', '', 'preview-values');
-  previewText.setAttribute('aria-live', 'polite');
+  const preview = createChainPreview(element, (stage) => {
+    const slot = weapon * 9 + stage + 1;
+    describe(part(slot), slot);
+    slots[slot].focus({ preventScroll: true });
+  });
   const inventory = element('div', '', 'module-catalog');
   inventory.setAttribute(
     'aria-label',
@@ -253,8 +253,7 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
       !!pending || draft.some((w) => w.emitter < 0) || catalog.some((d) => spare(d.id) < 0);
     reset.disabled = !!pending;
     clear.disabled = !!pending || !selected || selected.slot < 0;
-    preview.setAttribute('aria-label', `Live preview for weapon ${weapon + 1}`);
-    previewText.textContent = explainChain(draft[weapon], weapon, stats, definitions);
+    preview.update(draft[weapon], weapon, stats, definitions);
   }
   function changed() {
     state.textContent = 'Draft changed · Apply loadout to save · CLOAK ACTIVE';
@@ -378,7 +377,11 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
       row.append(slot);
     }
   }
-  loadout.append(preview, previewText, element('h3', 'OWNED INVENTORY'), inventory);
+  const lower = element('div', '', 'loadout-lower'),
+    ownedPanel = element('section', '', 'owned-panel');
+  ownedPanel.append(element('h3', 'OWNED INVENTORY'), inventory);
+  lower.append(preview.root, ownedPanel);
+  loadout.append(lower);
   function setCatalog(data, levels) {
     catalog = data;
     definitions = new Map(data.map((d) => [d.id, d]));
@@ -455,7 +458,7 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
   }
   function animate(t) {
     if (!opened) return;
-    if (tab === 'loadout') drawChain(preview, draft[weapon], t / 1000, stats, definitions);
+    if (tab === 'loadout') preview.draw(t / 1000);
     else
       cards.forEach((card) => {
         if (!card.hidden) {
