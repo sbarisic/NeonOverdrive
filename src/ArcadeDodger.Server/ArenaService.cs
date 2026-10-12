@@ -10,11 +10,15 @@ public sealed class Peer
     public int PlayerId { get; set; }
     public string RoomId { get; set; } = "";
     public string Name { get; set; } = "";
+    public SectorDefinition? Sector {get;set;}
+    public ContractDefinition[] Contracts {get;set;}=[];
     public bool Closed => Volatile.Read(ref closed) != 0;
     private int closed;
     private InputMessage? latest;
     private RespawnMessage? respawn;
     private EquipMessage? equip;
+    private readonly Channel<SectorActionMessage> sectorActions=Channel.CreateBounded<SectorActionMessage>(16);
+    public void Submit(SectorActionMessage request)=>sectorActions.Writer.TryWrite(request);
     private readonly Channel<BuyMessage> buys = Channel.CreateBounded<BuyMessage>(16);
     public void Submit(BuyMessage request) => buys.Writer.TryWrite(request);
     private readonly Channel<FriendMessage> social = Channel.CreateBounded<FriendMessage>(16);
@@ -46,11 +50,13 @@ public sealed class Peer
             messages.Add(choice);
         for (var i = 0; i < 16 && social.Reader.TryRead(out var friendship); i++) messages.Add(friendship);
         for(var i=0;i<16&&buys.Reader.TryRead(out var buy);i++)messages.Add(buy);
+        for(var i=0;i<16&&sectorActions.Reader.TryRead(out var sector);i++)messages.Add(sector);
         messages.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
         foreach (var message in messages)
         {
             switch (message)
             {
+                case SectorActionMessage sector: room.SectorAction(PlayerId,sector);break;
                 case BuyMessage purchaseModule: room.Buy(PlayerId,purchaseModule); break;
                 case FriendMessage friendship: room.Friend(PlayerId, friendship); break;
                 case InputMessage intent: room.Input(PlayerId, intent); break;
@@ -61,7 +67,7 @@ public sealed class Peer
         }
     }
 
-    public Channel<byte[]> Snapshots { get; } = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1)
+    public Channel<RoomSnapshot> Snapshots { get; } = Channel.CreateBounded<RoomSnapshot>(new BoundedChannelOptions(1)
     { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, SingleWriter = true });
 }
 
@@ -74,18 +80,25 @@ public sealed class ArenaService : BackgroundService
     {
         public Room Model { get; } = new(friends: friends, profiles: profiles);
         public List<Peer> Peers { get; } = new();
+        public long EmptySince=-1;
     }
     private readonly FriendBook friends;
     private readonly ProfileStore profiles;
-    public ArenaService(FriendBook friends, ProfileStore profiles) { this.friends = friends; this.profiles = profiles; }
+    public ArenaService(FriendBook friends, ProfileStore profiles) { this.friends = friends; this.profiles = profiles; profiles.BackgroundWrites=true; }
     private readonly Dictionary<string, Arena> arenas = new();
+    private readonly SemaphoreSlim admissions=new(256);
     private readonly Channel<JoinRequest> joins = Channel.CreateBounded<JoinRequest>(256);
 
     public async Task<string?> JoinAsync(JoinMessage message, Peer peer, CancellationToken token)
     {
+        if(!admissions.Wait(0))return "server_busy";
+        try {
+        var ensured=await profiles.Schedule(()=>profiles.Ensure(message.Name)).WaitAsync(token);
+        if(ensured!="ok")return ensured;
         var result = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!joins.Writer.TryWrite(new(message, peer, result))) return "server_busy";
         return await result.Task.WaitAsync(token);
+        }finally{admissions.Release();}
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -116,16 +129,20 @@ public sealed class ArenaService : BackgroundService
                     if (arena.Model.Tick % 2 == 0 && arena.Peers.Count > 0)
                     {
                         var snapshot = arena.Model.Snapshot();
-                        foreach (var peer in arena.Peers) peer.Snapshots.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(
-                            snapshot with { Social = arena.Model.Social(peer.PlayerId), Workshop = arena.Model.Workshop(peer.PlayerId), SkillReceipt = arena.Model.SkillAction(peer.PlayerId), CreditReward = arena.Model.LastCreditReward(peer.PlayerId) }, Json));
+                        foreach (var peer in arena.Peers) peer.Snapshots.Writer.TryWrite(
+                            arena.Model.ForViewer(snapshot,peer.PlayerId) with { Sector=arena.Model.SectorSnapshot(peer.PlayerId), Social = arena.Model.Social(peer.PlayerId), Workshop = arena.Model.Workshop(peer.PlayerId), SkillReceipt = arena.Model.SkillAction(peer.PlayerId), CreditReward = arena.Model.LastCreditReward(peer.PlayerId) });
                     }
-                    if (arena.Model.PlayerCount == 0) arenas.Remove(id);
+                    if(arena.Peers.Count>0)arena.EmptySince=-1;
+                    else if(arena.EmptySince<0)arena.EmptySince=arena.Model.Tick;
+                    else if(arena.Model.Tick-arena.EmptySince>=15*60*Room.TickRate)arenas.Remove(id);
                 }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         finally
         {
+            foreach(var arena in arenas.Values)arena.Model.SaveRuns();
+            await profiles.FlushAsync();
             joins.Writer.TryComplete();
             while (joins.Reader.TryRead(out var pending)) pending.Result.TrySetResult("server_stopping");
             foreach (var peer in arenas.Values.SelectMany(a => a.Peers)) peer.Snapshots.Writer.TryComplete();
@@ -141,6 +158,12 @@ public sealed class ArenaService : BackgroundService
         // Rejoining can arrive before the tick-loop removes a closed peer.
         foreach(var a in arenas.Values)foreach(var p in a.Peers.Where(p=>p.Closed))a.Model.Disconnect(p.PlayerId);
         var id = request.Message.Room;
+        var previous=arenas.FirstOrDefault(a=>a.Value.Model.ContainsRun(request.Message.Name));
+        if(previous.Key is not null)
+        {
+            if(id.Length>0&&id!=previous.Key){request.Result.TrySetResult("run_in_another_room");return;}
+            id=previous.Key;
+        }
         Arena? arena;
         if (id.Length > 0)
         {
@@ -165,6 +188,7 @@ public sealed class ArenaService : BackgroundService
         request.Peer.Name=request.Message.Name;
         request.Peer.PlayerId = player.Value;
         request.Peer.RoomId = id!;
+        request.Peer.Sector=arena.Model.Sector;request.Peer.Contracts=arena.Model.Contracts;
         arena.Peers.Add(request.Peer);
         request.Result.TrySetResult(null);
     }

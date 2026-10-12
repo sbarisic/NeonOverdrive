@@ -32,7 +32,7 @@ internal static class BrowserArenaHud
         var extra = view - new Vector2(960, 540);
         Raylib.BeginMode2D(new Camera2D { Zoom = scale });
         Panel(12, 8, (int)view.X - 24, 36, Cyan);
-        Text("LIVE ARENA", 24, 14, 10, Muted);
+        Text("LIVE SECTOR", 24, 14, 10, Muted);
         Text(snapshot is null ? "AWAITING SNAPSHOT" : $"PILOTS {connected}/{Room.Capacity}", 24, 28, 10, Ink);
         Raylib.DrawLine(310, 14, 310, 37, Border);
         Center("NEON OVERDRIVE", 19, 16, Cyan, (int)view.X);

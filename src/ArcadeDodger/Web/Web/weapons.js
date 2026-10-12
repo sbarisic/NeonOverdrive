@@ -78,7 +78,7 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
   const apply=element('button','Apply loadout'),reset=element('button','Reset draft'),clear=element('button','Clear selected'),close=element('button','Return to arena [I / Esc]');
   const actions=element('div','','bench-actions');actions.append(apply,reset,clear,close);for(const b of [apply,reset,clear,close])b.type='button';
   body.append(shop,loadout);panel.append(heading,tabs,element('p','Choose a weapon to edit. To move a part, drop it on another weapon tab or select it, switch weapons, then choose a socket.','forge-help'),body,detail,state,actions);document.body.append(panel);
-  let opened=false,available=false,level=1,stats=[],unlocked=[true,false,false,false],credits=0,owned=Array(29).fill(0),catalog=[],definitions=new Map(),unlock=[1,5,10,15];
+  let docked=false,opened=false,available=false,level=1,stats=[],unlocked=[true,false,false,false],credits=0,owned=Array(29).fill(0),catalog=[],definitions=new Map(),unlock=[1,5,10,15];
   const starter=()=>Array.from({length:4},()=>({emitter:1,attachments:Array(8).fill(0),enabled:true}));
   let saved=starter(),draft=starter(),selected=null,drag=null,ghost=null,suppressClick=false,pending=0,pendingKind='',aliveLife=null,weapon=0,filter='All',tab='loadout',animation=0;
   const clone=w=>w.map(x=>({...x,attachments:[...x.attachments]}));
@@ -97,11 +97,11 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
   function selectWeapon(index){cancelDrag();weapon=index;describe(part(index*9),index*9);render();}
   weaponSelector.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const index=e.key==='Home'?0:e.key==='End'?3:(weapon+(e.key==='ArrowLeft'?3:1))%4;selectWeapon(index);weaponButtons[index].focus();}});
   function render(){
-    wallet.textContent=`${credits} CREDITS`;levelLabel.textContent=`LEVEL ${level} · ${unlocked.filter(Boolean).length}/4 WEAPONS`;
+    wallet.textContent=`${credits} CREDITS${docked?"":" · Dock at a station to purchase"}`;levelLabel.textContent=`LEVEL ${level} · ${unlocked.filter(Boolean).length}/4 WEAPONS`;
     slots.forEach((slot,i)=>{const id=part(i);slot.dataset.module=id;slot.style.setProperty('--part',color(id));slot.querySelector('.slot-icon').textContent=glyph(id);slot.querySelector('.slot-name').textContent=id?name(id):i%9===0?'Emitter':'Empty';slot.setAttribute('aria-label',`Weapon ${Math.floor(i/9)+1}, ${i%9===0?'emitter':i%9*5+'%'}: ${name(id)}`);slot.dataset.selected=String(selected?.slot===i);});
     rows.forEach((row,i)=>{row.section.hidden=i!==weapon;weaponButtons[i].setAttribute('aria-selected',String(i===weapon));weaponButtons[i].tabIndex=i===weapon?0:-1;weaponButtons[i].querySelector('span').textContent=!unlocked[i]?'Locked · L'+unlock[i]:draft[i].enabled?'Enabled':'Disabled';row.section.dataset.locked=String(!unlocked[i]);row.label.textContent=`WEAPON ${i+1} · ${!unlocked[i]?'REQUIRES BAY '+(i+1)+' · LEVEL '+unlock[i]:'READY'}`;row.toggle.textContent=draft[i].enabled?'Enabled':'Disabled';row.toggle.setAttribute('aria-pressed',String(draft[i].enabled));});
     items.forEach(item=>{const id=+item.dataset.moduleId;item.hidden=(owned[id]||0)===0;item.querySelector('.module-count').textContent=`${Math.max(0,spare(id))} available / ${owned[id]||0} owned`;item.setAttribute('aria-disabled',String(spare(id)<=0));item.dataset.selected=String(selected?.slot===-1&&selected.module===id);});
-    cards.forEach(card=>{const d=definitions.get(+card.dataset.moduleId);card.hidden=filter!=='All'&&filter!==d.category;card.querySelector('.owned-count').textContent=`${owned[d.id]||0} owned · ${Math.max(0,spare(d.id))} available`;const b=card.querySelector('button');b.disabled=!!pending||d.id===1||credits<d.price;card.querySelector('p').textContent=d.description+(draft[weapon].emitter===2&&d.laserDescription?' Laser: '+d.laserDescription:'');});
+    cards.forEach(card=>{const d=definitions.get(+card.dataset.moduleId);card.hidden=filter!=='All'&&filter!==d.category;card.querySelector('.owned-count').textContent=`${owned[d.id]||0} owned · ${Math.max(0,spare(d.id))} available`;const b=card.querySelector('button');b.disabled=!docked||!!pending||d.id===1||credits<d.price;card.querySelector('p').textContent=d.description+(draft[weapon].emitter===2&&d.laserDescription?' Laser: '+d.laserDescription:'');});
     apply.disabled=!!pending||draft.some(w=>w.emitter<0)||catalog.some(d=>spare(d.id)<0);reset.disabled=!!pending;clear.disabled=!!pending||!selected||selected.slot<0;
     preview.setAttribute('aria-label',`Live preview for weapon ${weapon+1}`);previewText.textContent=explain(draft[weapon]);
   }
@@ -165,17 +165,17 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
     if(!terminal)segment(width-10);
   }
   function animate(t){if(!opened)return;if(tab==='loadout')drawChain(preview,draft[weapon],t/1000);else cards.forEach(card=>{if(!card.hidden){const id=+card.dataset.moduleId;drawChain(card.querySelector('canvas'),{emitter:id<=4?id:draft[weapon].emitter||2,attachments:id<=4?[]:[id]},t/1000,true);}});animation=requestAnimationFrame(animate);}
-  function restore(){cancelDrag();selected=null;draft=clone(saved);render();}
+  function restore(){cancelDrag();selected=null;draft=clone(saved);describe(draft[weapon].emitter,weapon*9);render();}
   function setOpen(value){opened=value&&available;panel.hidden=!opened;info.inert=opened;opener.setAttribute('aria-expanded',String(opened));cancelDrag();suppressClick=false;cancelAnimationFrame(animation);if(opened){restore();state.textContent='CLOAK ACTIVE · Invincible and hidden from aliens';animation=requestAnimationFrame(animate);}onToggle(opened);if(opened)title.focus({preventScroll:true});}
   opener.addEventListener('click',()=>setOpen(true));close.addEventListener('click',()=>setOpen(false));reset.addEventListener('click',restore);clear.addEventListener('click',()=>{if(selected?.slot>=0)remove(selected.slot);});
   apply.addEventListener('click',()=>{if(pending)return;pending=equip(clone(draft))||0;pendingKind='equip';state.textContent=pending?'Saving loadout…':'Not connected.';render();});
   switchTab('loadout');
-  return {get open(){return opened;},setOpen,setCatalog,
+  return {get open(){return opened;},setOpen,setCatalog,openShop(){setOpen(true);switchTab("shop");},
     update(self,connected,profile){
-      available=connected&&!!self&&self.hull>0;opener.hidden=!connected;opener.disabled=!available;level=self?.level||1;stats=self?.weaponStats||[];unlocked=self?.unlockedWeapons||[true,false,false,false];
+      available=connected&&!!self&&self.hull>0;opener.hidden=!connected;opener.disabled=!available;docked=!!self?.docked;level=self?.level||1;stats=self?.weaponStats||[];unlocked=self?.unlockedWeapons||[true,false,false,false];
       if(profile){credits=profile.credits;owned=profile.owned;saved=clone(profile.weapons);}
       const life=self?`${self.id}:${self.life}`:null;if(life!==aliveLife){aliveLife=life;pending=0;restore();}
-      if(pending&&profile?.sequence>=pending){const was=pendingKind;pending=0;state.textContent=profile.result==='ok'?(was==='buy'?'Module purchased ✓':'Loadout equipped ✓')+' · CLOAK ACTIVE':`Not applied: ${profile.result.replaceAll('_',' ')}.`;}
+      if(pending&&profile?.sequence>=pending&&profile.result!=="pending"){const was=pendingKind;pending=0;state.textContent=profile.result==='ok'?(was==='buy'?'Module purchased ✓':'Loadout equipped ✓')+' · CLOAK ACTIVE':`Not applied: ${profile.result.replaceAll('_',' ')}.`;}
       render();if(!available&&opened)setOpen(false);
     },
     keydown(e){if(!opened)return false;if(e.code==='Escape'||e.code==='KeyI'){e.preventDefault();if(!e.repeat)setOpen(false);return true;}

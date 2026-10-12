@@ -48,10 +48,11 @@ public sealed record WeaponConfig(int Emitter, int[] Attachments, bool Enabled =
 {
     public WeaponConfig Copy() => this with { Attachments = (int[])Attachments.Clone() };
 }
-public sealed record PilotProfile(long Credits, int[] Owned, WeaponConfig[] Weapons)
+public sealed record RunCheckpoint(int Experience, string[] Skills, int Hull, int Shield, float HullFraction, float ShieldFraction, long DashCooldown, double[] WeaponCooldown, long[] PlasmaCooldown, long[] MineCooldown, long ShieldDelay, long HullDelay);
+public sealed record PilotProfile(long Credits, int[] Owned, WeaponConfig[] Weapons, string RunId = "", RunCheckpoint? Run = null)
 {
     public static PilotProfile Starter() { var owned=new int[29]; owned[1]=4; return new(100,owned,
         Enumerable.Range(0,4).Select(i=>new WeaponConfig(1,new int[8],i==0)).ToArray()); }
-    public PilotProfile Copy() => new(Credits,(int[])Owned.Clone(),Weapons.Select(w=>w.Copy()).ToArray());
+    public PilotProfile Copy() => this with {Owned=(int[])Owned.Clone(), Weapons=Weapons.Select(w=>w.Copy()).ToArray(),Run=Run is null?null:Run with {Skills=(string[])Run.Skills.Clone(),WeaponCooldown=(double[])Run.WeaponCooldown.Clone(),PlasmaCooldown=(long[])Run.PlasmaCooldown.Clone(),MineCooldown=(long[])Run.MineCooldown.Clone()}};
 }
 public sealed record WorkshopSnapshot(long Credits, int[] Owned, WeaponConfig[] Weapons, int Sequence=0, string Result="");

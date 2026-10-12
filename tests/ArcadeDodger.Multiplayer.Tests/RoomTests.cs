@@ -7,7 +7,7 @@ public class RoomTests
     [Fact]
     public void InputsAreAppliedOnlyOnTickAndPacketRateCannotAccelerateMovement()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("A")!.Value;
         var start = room.Snapshot().Players.Single();
         for (var seq = 1; seq <= 100; seq++) Assert.True(room.Input(id, new(seq, -1, -1, 0, false, false)));
@@ -23,7 +23,7 @@ public class RoomTests
     [Fact]
     public void MovementStopsWhenStaleAndStaysInsideArena()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("A")!.Value;
         room.Input(id, new(1, -1, 0, 0, false, false));
         for (var i = 0; i < 7; i++) room.Step();
@@ -39,7 +39,7 @@ public class RoomTests
     [Fact]
     public void AttackEndsProtectionAndShotsCannotHitOwner()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("A")!.Value;
         Assert.True(room.Snapshot().Players.Single().Protected);
         for (var i = 1; i <= 30; i++) { room.Input(id, new(i, -1, 0, MathF.PI, true, false)); room.Step(); }
@@ -54,9 +54,11 @@ public class RoomTests
     public void TwoPlayersCanDealAuthoritativeDamage()
     {
         // Isolate PvP: ambient rammers can otherwise damage A after B is dead.
-        var room = new Room(enemiesEnabled: false);
+        var room = new Room(enemiesEnabled: false,sectorEnabled:false);
         var a = room.Join("A")!.Value;
         var b = room.Join("B")!.Value;
+        WorkshopRig.Set(WorkshopRig.Player(room,a),"Position",new System.Numerics.Vector2(1700,800));
+        WorkshopRig.Set(WorkshopRig.Player(room,b),"Position",new System.Numerics.Vector2(1000,800));
         for (var i = 1; i <= 400; i++)
         {
             var players = room.Snapshot().Players;
@@ -72,7 +74,7 @@ public class RoomTests
     [Fact]
     public void DisconnectRetainsShipForGraceAndRoomCapacityIsBounded()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         for (var i = 0; i < Room.Capacity; i++) Assert.NotNull(room.Join("Pilot"+i));
         Assert.Null(room.Join("Overflow"));
         room.Disconnect(1);

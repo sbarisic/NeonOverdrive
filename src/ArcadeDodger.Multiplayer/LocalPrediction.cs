@@ -17,6 +17,8 @@ public sealed class LocalPrediction
     private readonly List<Intent> history = new();
     private readonly List<Sent> sent = new();
     private PlayerSnapshot? authoritative;
+    private SectorCollision? geometry;
+    public void SetSector(SectorDefinition sector)=>geometry=new(sector);
     private long tick = -1;
     private double anchorTime, lastTime, correctionAt;
     private Vector2 correction;
@@ -25,7 +27,7 @@ public sealed class LocalPrediction
 
     private readonly record struct Intent(double At, double RefreshedAt, Vector2 Direction, float Aim, bool Dash);
     private readonly record struct Sent(int Sequence, double At);
-    private static bool Active(PlayerSnapshot p) => p.Connected && p.Hull > 0 && !p.Editing;
+    private static bool Active(PlayerSnapshot p) => p.Connected && p.Hull > 0 && !p.Editing && p.Docked==0;
     private static Vector2 Clamp(Vector2 p) => Vector2.Clamp(p, new(Room.Radius),
         new(Room.Width - Room.Radius, Room.Height - Room.Radius));
 
@@ -149,7 +151,7 @@ public sealed class LocalPrediction
                 if (held) aim = intent.Aim;
                 var movement = neutral ? Vector2.Zero : dashLeft > 1e-9
                     ? dashDirection * p.DashMultiplier : intent.Direction;
-                position = Clamp(position + movement * (float)(p.MoveSpeed * dt));
+                position = geometry?.Move(position,position+movement*(float)(p.MoveSpeed*dt),Room.Radius)??Clamp(position + movement * (float)(p.MoveSpeed * dt));
             }
             dashLeft = Math.Max(0, dashLeft - dt);
             cooldown = Math.Max(0, cooldown - dt);

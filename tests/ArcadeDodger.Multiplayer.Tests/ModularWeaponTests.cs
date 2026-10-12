@@ -34,10 +34,10 @@ public class ModularWeaponTests
         Assert.Equal(1,r.Snapshot().Players[0].Ack);Assert.Equal(6,r.Snapshot().Players[0].Weapons![0].Attachments[0]);
     }
     [Theory][InlineData(1,1)][InlineData(5,2)][InlineData(10,3)][InlineData(15,4)]
-    public void WeaponsUnlockPerRunAndRetainConfigurationsOnRespawn(int level,int count)
+    public void WeaponsUnlockPerRunAndResetConfigurationsOnRespawn(int level,int count)
     {
         var r=Start(level);Equip(r,Weapon(1),Weapon(1),Weapon(1),Weapon(1));Set(Player(r),"Skills",new HashSet<string>{"bay.2","bay.3","bay.4"});Fire(r);Assert.Equal(count,r.Snapshot().Shots.Length);
-        Set(Player(r),"Hull",0);Assert.True(r.Respawn(1,new(4)));Assert.Equal(1,r.Snapshot().Players[0].Level);Assert.All(r.Snapshot().Players[0].Weapons!,w=>Assert.True(w.Enabled));
+        Set(Player(r),"Hull",0);Assert.True(r.Respawn(1,new(4)));Assert.Equal(1,r.Snapshot().Players[0].Level);Assert.Equal(new[]{true,false,false,false},r.Snapshot().Players[0].Weapons.Select(w=>w.Enabled));
         ((IList)Get(r,"shots")).Clear();r.Input(1,new(5,0,0,0,true,false));r.Step();Assert.Single(r.Snapshot().Shots);
     }
     [Fact] public void LaserDoublesAtFivePercentThenSharesAtFifteenPercent()
@@ -93,7 +93,7 @@ public class ModularWeaponTests
     }
     [Fact] public void RicochetContinuesDistanceAndPlasmaConversionResumesStages()
     {
-        var r=Start();Set(Player(r),"Position",new Vector2(2700,800));Equip(r,Weapon(2,15));Fire(r);Assert.Contains(r.Snapshot().Beams!,b=>b.X>b.EndX);
+        var r=Start();Set(Player(r),"Position",new Vector2(Room.Width-180,800));Equip(r,Weapon(2,15));Fire(r);Assert.Contains(r.Snapshot().Beams!,b=>b.X>b.EndX);
         var q=Start();Equip(q,Weapon(2,25,5));Fire(q);Assert.Single(q.Snapshot().Shots);var converted=q.Snapshot().Shots[0];Assert.Equal(4,converted.Kind);Assert.True(converted.Parent>0);Assert.Equal(1065,converted.BirthX);
         q.Input(1,new(4,0,0,0,false,false));Step(q,6);Assert.Equal(4f,Get(((IList)Get(q,"shots"))[0]!,"Damage"));
     }
@@ -105,11 +105,11 @@ public class ModularWeaponTests
     [Fact] public void FourExtremeChainsRemainBoundedAndEachWeaponGetsBeamBudget()
     {
         var r=Start(15);Set(Player(r),"Skills",new HashSet<string>{"bay.2","bay.3","bay.4"});Equip(r,Weapon(2,13,13,13,13,13,13,13,13),Weapon(2,12,12,12,12),Weapon(2,25),Weapon(2,26));
-        for(var i=0;i<400;i++){Fire(r,1,i+3);var f=r.Snapshot();Assert.InRange(f.Shots.Length,0,256);Assert.InRange(f.Beams!.Length,0,64);Assert.InRange(f.Mines!.Length,0,32);Assert.Equal(4,f.Beams.Select(b=>b.Weapon).Distinct().Count());}
+        for(var i=0;i<400;i++){Fire(r,1,i+3);var f=r.Snapshot();Assert.InRange(f.Shots.Length,0,Room.ProjectileCapacity);Assert.InRange(f.Beams!.Length,0,64);Assert.InRange(f.Mines!.Length,0,32);Assert.Equal(4,f.Beams.Select(b=>b.Weapon).Distinct().Count());}
     }
     [Fact] public void EquipmentCloakBlocksMovementFireAndAlienTargetingThenExpires()
     {
-        var r=Start(ai:true);var e=Enemy(r,1010);r.Input(1,new(1,1,1,0,true,true,true));Step(r,70);var p=r.Snapshot().Players[0];Assert.True(p.Editing);Assert.Equal(1000,p.X);Assert.Equal(2,p.Shield);Assert.Empty(r.Snapshot().Shots);Assert.Equal(new Vector2(1010,800),Get(e,"Position"));Step(r,21);Assert.False(r.Snapshot().Players[0].Editing);r.Input(1,new(2,0,0,0,false,false,true));r.Step();r.Disconnect(1);Assert.False(r.Snapshot().Players[0].Editing);
+        var r=Start(ai:true);var e=Enemy(r,1010);r.Input(1,new(1,1,1,0,true,true,true));Step(r,70);var p=r.Snapshot().Players[0];Assert.True(p.Editing);Assert.Equal(1000,p.X);Assert.Equal(2,p.Shield);Assert.Empty(r.Snapshot().Shots);Assert.NotEqual(new Vector2(1010,800),Get(e,"Position"));Assert.NotEqual("engage",Get(e,"State"));Step(r,21);Assert.False(r.Snapshot().Players[0].Editing);r.Input(1,new(2,0,0,0,false,false,true));r.Step();r.Disconnect(1);Assert.False(r.Snapshot().Players[0].Editing);
     }
     [Fact] public void EightAmplifiersAreAllowedAndDamageIsNotLimitedByVisualThickness()
     {
@@ -138,7 +138,7 @@ public class ModularWeaponTests
     }
     [Fact] public void FullRoomMixedWeaponsStayWithinNetworkAndEntityBounds()
     {
-        var friends=new FriendBook();var r=new Room(false,friends);
+        var friends=new FriendBook();var r=new Room(false,friends,sectorEnabled:false);
         for(var i=0;i<24;i++)
         {
             var id=r.Join("Load"+i)!.Value;Set(Player(r,id),"Experience",Room.ExperienceForLevel(15));Set(Player(r,id),"Skills",new HashSet<string>{"bay.2","bay.3","bay.4","rate.1","rate.2","rate.3","rate.4","rate.5"});
@@ -150,7 +150,7 @@ public class ModularWeaponTests
         for(var tick=1;tick<=90;tick++)
         {
             for(var id=1;id<=24;id++)r.Input(id,new(tick,0,0,0,true,false));r.Step();var f=r.Snapshot();
-            Assert.InRange(f.Shots.Length,0,256);Assert.InRange(f.Beams!.Length,0,1536);Assert.InRange(f.Mines!.Length,0,128);
+            Assert.InRange(f.Shots.Length,0,Room.ProjectileCapacity);Assert.InRange(f.Beams!.Length,0,1536);Assert.InRange(f.Mines!.Length,0,128);
             Assert.All(f.Beams.GroupBy(b=>b.Owner),g=>Assert.InRange(g.Count(),1,64));
             Assert.True(JsonSerializer.SerializeToUtf8Bytes(f,ArenaService.Json).Length<524288);
         }
@@ -158,5 +158,5 @@ public class ModularWeaponTests
     }
     [Theory][InlineData(0,false)][InlineData(29,false)][InlineData(5,true)]
     public void PurchaseProtocolIsStrict(int module,bool valid)
-    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":3,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"),out _));}
+    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"),out _));}
 }

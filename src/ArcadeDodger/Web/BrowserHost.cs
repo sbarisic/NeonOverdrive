@@ -9,10 +9,16 @@ public partial class BrowserHost
     private static BrowserArena? arena;
 
     [JSExport]
-    public static void ActivateArena() => arena = new BrowserArena();
+    public static void ActivateArena() {arena?.Release();arena = new BrowserArena();}
+
+    [JSExport]
+    public static void ArenaSector(string json)=>arena?.SetSector(json);
 
     [JSExport]
     public static void ArenaWelcome(int id) => arena?.Welcome(id);
+
+    [JSExport]
+    public static void ArenaSnapshotPacked([JSMarshalAs<JSType.Array<JSType.Number>>] double[] data,[JSMarshalAs<JSType.Array<JSType.String>>] string[] labels)=>arena?.ReceivePacked(data,labels);
 
     [JSExport]
     public static void ArenaSnapshot(string json) => arena?.Receive(json);
@@ -28,6 +34,9 @@ public partial class BrowserHost
 
     [JSExport]
     public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);
+
+    [JSExport]
+    public static string ArenaMetrics()=>arena?.Metrics()??"";
 
     [JSExport]
     public static string ArenaPosition() => arena?.Position() ?? "";
@@ -62,6 +71,6 @@ public partial class BrowserHost
     {
         app?.Close();
         app = null;
-        arena = null;
+        arena?.Release();arena = null;
     }
 }

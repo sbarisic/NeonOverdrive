@@ -7,7 +7,7 @@ public class DashTests
     [Fact]
     public void FixedDurationCooldownAndPacketRate()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("Dash")!.Value;
         var start = room.Snapshot().Players.Single();
         for (var i = 1; i <= Room.DashDuration; i++)
@@ -39,7 +39,7 @@ public class DashTests
     [Fact]
     public void StationaryDashUsesAimAndDisconnectStopsIt()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("Dash")!.Value;
         var start = room.Snapshot().Players.Single();
         room.Input(id, new(1, 0, 0, MathF.PI, false, true));
@@ -56,7 +56,7 @@ public class DashTests
     [Fact]
     public void DashClampsAtArenaBoundary()
     {
-        var room = new Room();
+        var room = new Room(sectorEnabled:false);
         var id = room.Join("Dash")!.Value;
         room.Input(id, new(1, 1, 0, 0, false, true));
         for (var i = 0; i < Room.DashDuration; i++) room.Step();

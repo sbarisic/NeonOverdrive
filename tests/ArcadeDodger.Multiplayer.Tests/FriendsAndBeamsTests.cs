@@ -13,7 +13,7 @@ public class FriendsAndBeamsTests
     private static object Player(Room r, int id=1) => ((IDictionary)Get(r,"players"))[id]!;
     private static Room Start(FriendBook? book=null)
     {
-        var r=new Room(false,book); r.Join("Player1"); Set(Player(r),"Experience",Room.ExperienceForLevel(10));
+        var r=new Room(false,book,sectorEnabled:false); r.Join("Player1"); Set(Player(r),"Experience",Room.ExperienceForLevel(10));
         Set(Player(r),"Position",new Vector2(1000,800));Set(Player(r),"Previous",new Vector2(1000,800));return r;
     }
     private static void Equip(Room r, params int[] modules)
@@ -82,7 +82,7 @@ public class FriendsAndBeamsTests
         var r=Start();var e=Enemy(r,1200,800);Equip(r,2);
         for(var i=0;i<30;i++){r.Input(1,new(i+3,0,0,0,true,false));r.Step();}
         Assert.Equal(96,Get(e,"Hull"));Assert.Empty(r.Snapshot().Shots);
-        var beam=r.Snapshot().Beams![0];Assert.Equal(1000,beam.X);Assert.Equal(1177,r.Snapshot().Beams![^1].EndX,3);
+        var beam=r.Snapshot().Beams![0];Assert.Equal(1000,beam.X);Assert.Equal(1184,r.Snapshot().Beams![^1].EndX,3);
         r.Input(1,new(33,0,1,MathF.PI/2,true,false));r.Step();beam=r.Snapshot().Beams![0];
         Assert.Equal(r.Snapshot().Players[0].Y,beam.Y);Assert.True(beam.EndY>beam.Y);
         r.Input(1,new(34,0,0,0,false,false));r.Step();Assert.Empty(r.Snapshot().Beams!);
@@ -127,5 +127,5 @@ public class FriendsAndBeamsTests
     [Theory]
     [InlineData("accept",true)] [InlineData("request",true)] [InlineData("force",false)]
     public void FriendWireCommandsAreStrict(string action,bool valid)
-    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":3,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"),out _));}
+    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"),out _));}
 }

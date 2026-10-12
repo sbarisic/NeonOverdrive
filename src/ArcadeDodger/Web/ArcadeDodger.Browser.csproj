@@ -24,6 +24,8 @@
     <Compile Include="../*.cs" Exclude="../Program.cs;../obj/**;../bin/**" Link="%(Filename)%(Extension)" />
     <WasmExtraFilesToDeploy Include="Web/index.html" TargetPath="index.html" />
     <WasmExtraFilesToDeploy Include="Web/main.js" TargetPath="main.js" />
+    <WasmExtraFilesToDeploy Include="Web/snapshot.js" TargetPath="snapshot.js" />
+    <WasmExtraFilesToDeploy Include="Web/sector.js" TargetPath="sector.js" />
     <WasmExtraFilesToDeploy Include="Web/network.js" TargetPath="network.js" />
     <WasmExtraFilesToDeploy Include="Web/weapons.js" TargetPath="weapons.js" />
     <WasmExtraFilesToDeploy Include="Web/friends.js" TargetPath="friends.js" />

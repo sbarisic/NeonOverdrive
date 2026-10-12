@@ -18,13 +18,12 @@ const assert = require('node:assert/strict');
     const read=p=>p.locator('#network-info').evaluate(e=>({id:Number(e.dataset.player),snapshot:JSON.parse(e.dataset.snapshot)}));
     const initial=await read(a), second=await read(b);
     assert.notEqual(initial.id,second.id);
-    await a.bringToFront();
-    await a.keyboard.down('a'); await a.waitForTimeout(7600); await a.keyboard.up('a');
-    await a.waitForTimeout(200);
-    const moved=await read(b);
-    assert(moved.snapshot.players.find(p=>p.id===initial.id).x < initial.snapshot.players.find(p=>p.id===initial.id).x-1200);
+    // Both pilots leave the sanctuary before testing hostile player damage.
+    await b.bringToFront();await b.locator('#canvas').focus();await b.keyboard.down('d');await b.waitForTimeout(1300);await b.keyboard.up('d');
+    await a.bringToFront();await a.locator('#canvas').focus();await a.keyboard.down('d');await a.waitForTimeout(2800);await a.keyboard.up('d');await a.waitForTimeout(200);
+    const moved=await read(b);assert(moved.snapshot.players.find(p=>p.id===initial.id).x>initial.snapshot.players.find(p=>p.id===initial.id).x+700);
     const now=await read(a), self=now.snapshot.players.find(p=>p.id===initial.id), target=now.snapshot.players.find(p=>p.id===second.id);
-    const ox=Math.max(0,Math.min(2880-960,self.x-480)), oy=Math.max(0,Math.min(1620-540,self.y-270));
+    const ox=Math.max(0,Math.min(12000-960,self.x-480)), oy=Math.max(0,Math.min(8000-540,self.y-270));
     const box=await a.locator('#canvas').boundingBox();
     // Aim left towards Beta, even when Beta lies outside the local viewport.
     const dx=target.x-self.x, dy=target.y-self.y, scale=200/Math.hypot(dx,dy);

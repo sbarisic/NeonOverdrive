@@ -17,7 +17,7 @@ public sealed record RespawnMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 3;
+    public const int Version = 5;
     public const int MaxMessageBytes = 4096;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -85,6 +85,9 @@ public static class ClientProtocol
                         configs.Add(new(emitter,parts.ToArray(),enabled));
                     }
                     message=new EquipMessage(sequence,configs.ToArray());return true;
+                case "sector":
+                    if(!Fields(names,"v","type","seq","action","target")||!Sequence(root,out sequence)||!Text(root,"action",out var sectorAction)||sectorAction is not ("dock" or "undock" or "repair" or "accept" or "claim" or "interact" or "cancel" or "ping" or "broadcast" or "defend")||!Integer(root,"target",out var target)||target<0)return false;
+                    message=new SectorActionMessage(sequence,sectorAction,target);return true;
                 case "respawn":
                     if (!Fields(names, "v", "type", "seq") || !Sequence(root, out sequence)) return false;
                     message = new RespawnMessage(sequence);

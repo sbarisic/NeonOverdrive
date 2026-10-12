@@ -21,6 +21,12 @@ public sealed partial class Room
     private static string WeaponFor(Player p)=>string.Join(" + ",p.Weapons.Where((w,i)=>Active(p,i)).Select(w=>w.Emitter switch{2=>"laser",3=>"rocket",4=>"plasma",_=>"blaster"}));
     private static string AbilityFor(Player p)=>HasSkill(p,LongPhase)?"long-phase":HasSkill(p,PhaseDash)?"phase":"dash";
     public static int DashDurationForAbility(string ability)=>ability=="long-phase"?LongDashDuration:DashDuration;
+    private static WeaponStats Stats(Player p,int emitter)
+    {
+        if(p.StatsSkills!=p.Skills||p.StatsCount!=p.Skills.Count)
+        {p.StatsSkills=p.Skills;p.StatsCount=p.Skills.Count;p.StatsCache=Enumerable.Range(1,4).Select(e=>CalculateWeaponStats(p.Skills,e)).ToArray();}
+        return p.StatsCache[emitter-1];
+    }
     public static WeaponStats CalculateWeaponStats(IEnumerable<string> learned,int emitter)
     {
         var skills=learned.ToHashSet();float V(string family,float fallback=0)=>SkillCatalog.Value(skills,family,fallback);
@@ -58,8 +64,8 @@ public sealed partial class Room
         for(var step=0;step<4;step++)
         {
             var i=(step+(int)(Tick%4))%4;var w=p.Weapons[i];
-            if(!Active(p,i)||w.Emitter==2||Tick<p.WeaponReady[i]||shots.Count>=256)continue;
-            var interval=CalculateWeaponStats(p.Skills,w.Emitter).Interval;
+            if(!Active(p,i)||w.Emitter==2||Tick<p.WeaponReady[i]||shots.Count>=ProjectileLimit)continue;
+            var interval=Stats(p,w.Emitter).Interval;
             // Preserve fractional cadence while held; do not bank volleys during idle periods.
             p.WeaponReady[i]=Math.Max(Tick-1,p.WeaponReady[i])+interval;
             shots.Add(CreateModularShot(p,p.Aim,i));
@@ -67,7 +73,7 @@ public sealed partial class Room
     }
     private void DashNova(Player p)
     {
-        if(!HasSkill(p,"nova.1")||shots.Count+8>256)return;
+        if(!HasSkill(p,"nova.1")||shots.Count+8>ProjectileLimit)return;
         p.ProtectedUntil=0;
         for(var i=0;i<8;i++){var angle=i*MathF.Tau/8;shots.Add(new Shot{Id=++nextShot,Owner=p.Id,OwnerName=p.Name,Position=p.Position,BirthPosition=p.Position,Born=Tick,Expires=Tick+60,Damage=1+Value(p,"strength"),Velocity=new Vector2(MathF.Cos(angle),MathF.Sin(angle))*650/TickRate});}
     }

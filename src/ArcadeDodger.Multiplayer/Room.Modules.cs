@@ -7,7 +7,7 @@ public sealed partial class Room
     private Shot CreateModularShot(Player p,float aim,int weapon=0)
     {
         var w=p.Weapons[weapon];var kind=w.Emitter;
-        var stats=CalculateWeaponStats(p.Skills,kind);var range=stats.Range;var speed=stats.Speed;
+        var stats=Stats(p,kind);var range=stats.Range;var speed=stats.Speed;
         return new Shot {Id=++nextShot,Owner=p.Id,OwnerName=p.Name,Weapon=weapon,Position=p.Position,BirthPosition=p.Position,
             Born=Tick,Expires=Tick+Math.Max(180,(int)MathF.Ceiling(range*MathF.Pow(1.3f,w.Attachments.Count(id=>id==7))/MathF.Min(speed,520)*TickRate)+30),Kind=kind,Program=(int[])w.Attachments.Clone(),Range=range,InitialRange=range,
             Velocity=new Vector2(MathF.Cos(aim),MathF.Sin(aim))*speed/TickRate,
@@ -20,8 +20,10 @@ public sealed partial class Room
     private static int Effects(Shot s)=>(s.Burns>0?1:0)|(s.Rads>0?2:0)|(s.Freezes>0?4:0)|(s.Corrodes>0?8:0)|(s.Teslas>0?16:0);
     private void StepProjectiles()
     {
-        foreach(var s in shots.ToArray())
+        var count=shots.Count;
+        for(var index=0;index<count&&index<shots.Count;index++)
         {
+            var s=shots[index];
             if(s.Expires<=Tick)continue;
             Guide(s); Advance(s,1,0,int.MaxValue);
         }
@@ -52,6 +54,11 @@ public sealed partial class Room
             var length=MathF.Min(s.IsBeam?float.PositiveInfinity:budget*speed,MathF.Min(wall,MathF.Min(Gate(s)-s.Distance,s.Program is null?float.PositiveInfinity:s.Range-s.Distance)));
             length=MathF.Max(0,length);
             var start=s.Position;var end=start+direction*length;
+            var cover=geometry?.Trace(start,end);float? sanctuary=null;
+            if(Sector is not null)foreach(var station in Sector.Locations.Where(l=>l.Kind=="station"))
+                if(SectorCollision.Circle(start-station.Position,end-station.Position,300) is {} t&&(sanctuary is null||t<sanctuary))sanctuary=t;
+            var boundary=cover?.T??2;var absorbed=sanctuary.HasValue&&sanctuary<=boundary;if(absorbed)boundary=sanctuary!.Value;
+            if(boundary<=1){end=Vector2.Lerp(start,end,boundary);length*=boundary;}
             var contacts=Contacts(s,start,end,s.IsBeam?1:1-budget,s.IsBeam?1:MathF.Min(1,1-budget+length/speed));var stopped=false;
             foreach(var c in contacts)
             {
@@ -69,6 +76,13 @@ public sealed partial class Room
             s.Position=end;s.Distance+=travelled;
             if(!s.IsBeam)budget-=travelled/speed;
             if(stopped){if(s.IsBeam)Pull(s,end,1f/TickRate);s.Expires=Tick;return;}
+            if(boundary<=1)
+            {
+                if(absorbed){s.Expires=Tick;return;}
+                if(s.Bounces--<=0){if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
+                s.Velocity=Vector2.Reflect(s.Velocity,cover!.Value.Normal);s.Position+=cover.Value.Normal*.03f;
+                continue;
+            }
             if(length>=wall-.001f)
             {
                 if(s.Bounces--<=0){if(!s.IsBeam)Explode(s,end,null,null);s.Expires=Tick;return;}
@@ -94,7 +108,7 @@ public sealed partial class Room
             case 10:s.ShieldMultiplier*=d.Value;break;
             case 11:case 12:case 13:
                 var count=(int)d.Value;
-                if(s.IsBeam?beams.Count-firstSegment+count>limit:shots.Count+count>256)break;
+                if(s.IsBeam?beams.Count-firstSegment+count>limit:shots.Count+count>ProjectileLimit)break;
                 for(var i=0;i<count;i++)
                 {
                     var angle=(-d.Radius+2*d.Radius*i/(count-1))*s.Spread;
@@ -120,7 +134,7 @@ public sealed partial class Room
             case 25:
                 if(s.Kind==4)break;
                 if(!s.IsBeam){s.Kind=4;s.Blast=MathF.Max(s.Blast,45*s.RadiusMultiplier);s.Velocity=Vector2.Normalize(s.Velocity)*520*s.SpeedMultiplier/TickRate;break;}
-                if(s.EmitPlasma&&shots.Count<256)
+                if(s.EmitPlasma&&shots.Count<ProjectileLimit)
                 {
                     var child=s.Copy();child.Id=++nextShot;child.Parent=s.Id;child.Ancestors=[..s.Ancestors,s.Id];child.BirthPosition=s.Position;child.Born=Tick;
                     child.IsBeam=false;child.Kind=4;child.Damage/=2;child.Blast=45*child.RadiusMultiplier;child.Velocity=Vector2.Normalize(s.Velocity)*520*s.SpeedMultiplier/TickRate;child.Expires=Tick+180;
@@ -146,27 +160,28 @@ public sealed partial class Room
         }
         return false;
     }
+    private readonly List<(float Time,Player? Pilot,Enemy? Alien)> contactBuffer=[];
     private List<(float Time,Player? Pilot,Enemy? Alien)> Contacts(Shot s,Vector2 start,Vector2 end,float startTime=0,float endTime=1)
     {
-        var result=new List<(float Time,Player? Pilot,Enemy? Alien)>();
-        foreach(var p in players.Values)
+        var result=contactBuffer;result.Clear();
+        foreach(var p in playerGrid.Query(start,end,140))
         {
-            if(p.Id==s.Owner||Friendly(s,p)||p.Hull<=0||p.Editing||Tick<p.ProtectedUntil||s.HitPlayers.Contains(p.Id)||(s.IsBeam&&HasSkill(p,PhaseDash)&&Tick<p.DashUntil))continue;
+            if(p.Id==s.Owner||Friendly(s,p)||p.Hull<=0||p.Editing||Safe(p)||Tick<p.ProtectedUntil||s.HitPlayers.Contains(p.Id)||(s.IsBeam&&HasSkill(p,PhaseDash)&&Tick<p.DashUntil))continue;
             var t=Intersection(start-Vector2.Lerp(p.Previous,p.Position,startTime),end-Vector2.Lerp(p.Previous,p.Position,endTime),s.Proximity?Definition(24).Radius:Radius+3);
             if(t.HasValue)result.Add((t.Value,p,null));
         }
-        if(s.Owner>0)foreach(var e in enemies)
+        if(s.Owner>0)foreach(var e in enemyGrid.Query(start,end,140))
         {
-            if(e.Hull<=0||s.HitEnemies.Contains(e.Id))continue;
-            var t=Intersection(start-Vector2.Lerp(e.Previous,e.Position,startTime),end-Vector2.Lerp(e.Previous,e.Position,endTime),s.Proximity?Definition(24).Radius:23);
+            if(e.Hull<=0||Sanctuary(e.Position)||s.HitEnemies.Contains(e.Id))continue;
+            var t=Intersection(start-Vector2.Lerp(e.Previous,e.Position,startTime),end-Vector2.Lerp(e.Previous,e.Position,endTime),s.Proximity?(e.Installation?85:0)+Definition(24).Radius:EnemyRadius(e)+3);
             if(t.HasValue)result.Add((t.Value,null,e));
         }
-        return result.OrderBy(c=>c.Time).ThenBy(c=>c.Pilot?.Id??c.Alien!.Id).ToList();
+        result.Sort(static(a,b)=>{var time=a.Time.CompareTo(b.Time);return time!=0?time:(a.Pilot?.Id??a.Alien!.Id).CompareTo(b.Pilot?.Id??b.Alien!.Id);});return result;
     }
     private void Guide(Shot s)
     {
         if(!s.Homing)return;
-        var target=enemies.Where(e=>e.Hull>0&&!s.HitEnemies.Contains(e.Id)).OrderBy(e=>Vector2.DistanceSquared(e.Position,s.Position)).FirstOrDefault();
+        var target=enemyGrid.Query(s.Position,s.Position,600).Where(e=>e.Hull>0&&!Sanctuary(e.Position)&&VisibleLine(s.Position,e.Position)&&!s.HitEnemies.Contains(e.Id)).OrderBy(e=>Vector2.DistanceSquared(e.Position,s.Position)).FirstOrDefault();
         if(target is null)return;var delta=target.Position-s.Position;
         if(delta.LengthSquared()<1||delta.LengthSquared()>Definition(14).Radius*Definition(14).Radius)return;
         var speed=s.Velocity.Length();var direction=s.IsBeam?Vector2.Normalize(delta):Vector2.Lerp(Vector2.Normalize(s.Velocity),Vector2.Normalize(delta),Definition(14).Value);
@@ -175,8 +190,8 @@ public sealed partial class Room
     private void Pull(Shot s,Vector2 at,float seconds)
     {
         if(s.Gravity==0)return;
-        foreach(var e in enemies.Where(e=>e.Hull>0))
-        {var delta=at-e.Position;var distance=delta.Length();if(distance>.001f&&distance<Definition(22).Radius)e.Position+=delta/distance*MathF.Min(distance,Definition(22).Value*s.Gravity*seconds);}
+        foreach(var e in enemyGrid.Query(at,at,100).Where(e=>e.Hull>0&&!e.Installation&&!Sanctuary(e.Position)&&VisibleLine(at,e.Position)).ToArray())
+        {var delta=at-e.Position;var distance=delta.Length();if(distance>.001f&&distance<Definition(22).Radius){e.Position=MoveShip(e.Position,e.Position+delta/distance*MathF.Min(distance,Definition(22).Value*s.Gravity*seconds),20);enemyGrid.Move(e,e.Position);}}
     }
 }
 public sealed record ExplosionSnapshot(int Id,float X,float Y,float Radius,long Born);

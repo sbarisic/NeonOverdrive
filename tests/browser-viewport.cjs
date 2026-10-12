@@ -26,8 +26,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
      const c=document.querySelector('#canvas'), b=c.getBoundingClientRect(), host=window.__viewportHost;
      const [x,y]=host.ArenaPosition().split(',').map(Number);
      const scale=Math.min(c.width/960,c.height/540),vw=c.width/scale,vh=c.height/scale;
-     const ox=Math.max(0,Math.min(x-vw/2,Math.max(0,2880-vw)));
-     const oy=Math.max(0,Math.min(y-vh/2,Math.max(0,1620-vh)));
+     const ox=Math.max(0,Math.min(x-vw/2,Math.max(0,12000-vw)));
+     const oy=Math.max(0,Math.min(y-vh/2,Math.max(0,8000-vh)));
      const errors=[[.05,.2],[.95,.8],[.5,.5]].map(([u,v])=>
       Math.abs(host.ArenaAim(u,v)-Math.atan2(oy+v*vh-y,ox+u*vw-x)));
      return {x:b.x,y:b.y,width:b.width,height:b.height,buffer:[c.width,c.height],errors,

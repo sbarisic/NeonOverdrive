@@ -10,11 +10,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.addInitScript(()=>{
       const Native=window.WebSocket;window.__farm=false;
       window.WebSocket=class extends Native{
-        constructor(...args){super(...args);this.addEventListener('message',e=>{const f=JSON.parse(e.data);if(f.type==='welcome')this.pilot=f.id;if(f.type==='snapshot'){this.frame=f;if(window.__holdFrames)e.stopImmediatePropagation();}});}
+        constructor(...args){super(...args);this.addEventListener('message',e=>{const f=JSON.parse(e.data);if(f.type==='welcome'){this.pilot=f.id;const base=f.sector?.locations.find(l=>l.id===20);if(base)this.destination={x:base.x-300,y:base.y};}if(f.type==='snapshot'){this.frame=f;if(window.__holdFrames)e.stopImmediatePropagation();}});}
         send(raw){const m=JSON.parse(raw),f=this.frame,p=f?.players.find(p=>p.id===this.pilot);
           if(window.__farm&&m.type==='input'&&p?.hull>0){
             const nearest=items=>[...(items||[])].sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
-            const enemy=nearest(f.enemies),drop=nearest(f.energy),target=drop||enemy;
+            const enemy=nearest(f.enemies?.filter(e=>e.kind!=="installation")),drop=nearest(f.energy),target=drop||enemy||this.destination;
             if(target){const dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy);m.x=dx/Math.max(1,d);m.y=dy/Math.max(1,d);if(!drop&&d<170){m.x*=-1;m.y*=-1;}}
             if(enemy){m.aim=Math.atan2(enemy.y-p.y,enemy.x-p.x);m.fire=true;}m.editing=false;
           }super.send(JSON.stringify(m));

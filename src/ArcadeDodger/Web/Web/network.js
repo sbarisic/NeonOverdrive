@@ -1,4 +1,6 @@
+import { presentSnapshot, expandCombat } from './snapshot.js';
 // Browser transport/input and accessible shell only. World/HUD stay in C#/WASM/raylib.
+import { createSectorConsole } from './sector.js';
 import { createSkillTree } from './skills.js';
 import { createWeaponBench } from './weapons.js';
 import { createArenaAudio } from './audio.js';
@@ -70,6 +72,7 @@ export function startNetwork(host, canvas, status) {
   // Keep transport controls above the uniformly scaled, bottom-anchored HUD.
   function positionInfo() {
     const bounds = canvas.getBoundingClientRect();
+    document.documentElement.style.setProperty("--sector-guide-top",`${bounds.top+Math.min(bounds.width/960,bounds.height/540)*126}px`);
     info.style.bottom = `${Math.max(12, innerHeight - bounds.bottom + Math.min(bounds.width / 960, bounds.height / 540) * 74)}px`;
   }
   new ResizeObserver(positionInfo).observe(canvas);
@@ -102,12 +105,13 @@ export function startNetwork(host, canvas, status) {
   const supported = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','ShiftLeft','ShiftRight']);
   const held = (...codes) => codes.some(k => keys.has(k)) ? 1 : 0;
   const editable = target => target instanceof Element && !!target.closest('input:not([type=checkbox]),textarea,select,[contenteditable]:not([contenteditable=false])');
-  let bench, friends;
+  let bench, friends, sector;
   const skills = createSkillTree(element, info, id => {
     if (!joined || dead || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
-    socket.send(JSON.stringify({v:3,type:'choice',seq:++seq,choice:id}));
+    socket.send(JSON.stringify({v:5,type:'choice',seq:++seq,choice:id}));
   }, open => {
+    if(open&&sector?.open)sector.setOpen('');
     if (open && bench?.open) bench.setOpen(false);
     if (open && friends?.open) friends.setOpen(false);
     info.inert = open || !!bench?.open;
@@ -119,13 +123,14 @@ export function startNetwork(host, canvas, status) {
     if (!joined || dead || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
     sendInput();
-    socket.send(JSON.stringify({v:3,type:'equip',seq:++seq,weapons}));
+    socket.send(JSON.stringify({v:5,type:'equip',seq:++seq,weapons}));
     return seq;
   }, module => {
     if (!joined || dead || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
-    sendInput(); socket.send(JSON.stringify({v:3,type:'buy',seq:++seq,module})); return seq;
+    sendInput(); socket.send(JSON.stringify({v:5,type:'buy',seq:++seq,module})); return seq;
   }, open => {
+    if(open&&sector?.open)sector.setOpen('');
     if (open && skills.open) skills.setOpen(false);
     if (open && friends?.open) friends.setOpen(false);
     info.inert = open || skills.open;
@@ -135,16 +140,27 @@ export function startNetwork(host, canvas, status) {
   friends = createFriendsMenu(element, info, (name, action) => {
     if (!joined || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
-    socket.send(JSON.stringify({v:3,type:'friend',seq:++seq,name,action})); return seq;
+    socket.send(JSON.stringify({v:5,type:'friend',seq:++seq,name,action})); return seq;
   }, open => {
     if (open && bench.open) bench.setOpen(false);
+    if(open&&sector?.open)sector.setOpen('');
     if (open && skills.open) skills.setOpen(false);
     info.inert = open || bench.open || skills.open;
     canvas.inert = open || bench.open || skills.open || menuOpen || !form.hidden;
     clearInput(); presentation(); if (!open && joined) canvas.focus();
   });
-  const inputBlocked = () => friends?.open || bench?.open || skills.open || menuOpen || !form.hidden || document.hidden || !document.hasFocus() || editable(document.activeElement) || (document.activeElement instanceof Element && !!document.activeElement.closest('button,a,input'));
-  function presentation() { host.ArenaPresentation(menuOpen || skills.open || !!bench?.open || !!friends?.open, reducedEffects); }
+  sector=createSectorConsole(element,info,(action,target)=>{
+    if(!joined||dead||socket?.readyState!==WebSocket.OPEN)return;
+    if(socket.bufferedAmount>4096||seq>=2147483647){socket.close();return;}
+    socket.send(JSON.stringify({v:5,type:'sector',seq:++seq,action,target}));return seq;
+  },open=>{
+    if(open){bench.setOpen(false);skills.setOpen(false);friends.setOpen(false);}
+    canvas.inert=open||bench.open||skills.open||friends.open||menuOpen||!form.hidden;
+    info.inert=open||bench.open||skills.open||friends.open;
+    clearInput();presentation();if(!open&&joined)canvas.focus();
+  },()=>bench.openShop());
+  const inputBlocked = () => sector?.open || friends?.open || bench?.open || skills.open || menuOpen || !form.hidden || document.hidden || !document.hasFocus() || editable(document.activeElement) || (document.activeElement instanceof Element && !!document.activeElement.closest('button,a,input'));
+  function presentation() { host.ArenaPresentation(!!sector?.open || menuOpen || skills.open || !!bench?.open || !!friends?.open, reducedEffects); }
   function localInput() {
     const blocked = !joined || dead || inputBlocked();
     if (blocked) { keys.clear(); mouseFire = false; }
@@ -153,7 +169,7 @@ export function startNetwork(host, canvas, status) {
       x:blocked ? 0 : held('KeyD','ArrowRight')-held('KeyA','ArrowLeft'),
       y:blocked ? 0 : held('KeyS','ArrowDown')-held('KeyW','ArrowUp'),
       aim, fire:!blocked && (mouseFire || !!held('Space')),
-      dash:!blocked && !!held('ShiftLeft','ShiftRight'), editing:skills.open || !!bench?.open || !!friends?.open};
+      dash:!blocked && !!held('ShiftLeft','ShiftRight'), editing:!!sector?.open || skills.open || !!bench?.open || !!friends?.open};
     host.ArenaInput(intent.x, intent.y, intent.aim, intent.dash);
     return intent;
   }
@@ -161,7 +177,7 @@ export function startNetwork(host, canvas, status) {
     if (!joined || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
     const intent = localInput();
-    socket.send(JSON.stringify({v:3, type:'input', seq:++seq, ...intent}));
+    socket.send(JSON.stringify({v:5, type:'input', seq:++seq, ...intent}));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -195,7 +211,7 @@ export function startNetwork(host, canvas, status) {
     connection.textContent = 'Disconnected • rejoin available'; notice.textContent = message;
     document.body.classList.add("arena-fullscreen");
   host.ActivateArena();
-    audio.reset(); friends.update(null, {}, false); bench.update(null, false); skills.update(null, false); setMenu(false); name.focus();
+    audio.reset(); sector.update(null,{},false); friends.update(null, {}, false); bench.update(null, false); skills.update(null, false); setMenu(false); name.focus();
   }
   leave.addEventListener('click', () => {
     clearInput(); const previous = socket; socket = undefined; previous?.close();
@@ -205,9 +221,10 @@ export function startNetwork(host, canvas, status) {
     if (!joined || menuOpen || socket?.readyState !== WebSocket.OPEN || retry.disabled) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) { socket.close(); return; }
     clearInput(); retry.disabled = true; retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({v:3,type:'respawn',seq:++seq})); canvas.focus();
+    socket.send(JSON.stringify({v:5,type:'respawn',seq:++seq})); canvas.focus();
   });
   window.addEventListener('keydown', e => {
+    if(joined&&!editable(e.target)&&!bench.open&&!skills.open&&!friends.open&&!menuOpen&&sector.keydown(e))return;
     if (friends.keydown(e)) return;
     if (joined && !menuOpen && !bench.open && !skills.open && e.code === 'KeyP' && !editable(e.target)) {
       e.preventDefault(); if (!e.repeat) friends.setOpen(true); return;
@@ -275,18 +292,19 @@ export function startNetwork(host, canvas, status) {
       if (socket === current && !joined) { failure = 'The server did not answer. Check the server and try again.'; current.close(); }
     }, 15000);
     current.addEventListener('open', () => {
-      if (socket === current) current.send(JSON.stringify({v:3,type:'join',name:name.value,room:params.get('room') || ''}));
+      if (socket === current) current.send(JSON.stringify({v:5,type:'join',name:name.value,room:params.get('room') || ''}));
     });
     current.addEventListener('message', e => {
       if (socket !== current) return;
       try {
         if (typeof e.data !== 'string' || e.data.length > 524288) throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 3) throw new Error('Protocol mismatch');
+        if (message.v !== 5) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit=0;lastCreditLife=-1;payout.hidden=true;
           if (joined) throw new Error('Duplicate welcome');
           bench.setCatalog(message.catalog, message.unlockLevels); skills.setCatalog(message.skills);
+          sector.setup(message.sector,message.contracts);host.ArenaSector(JSON.stringify(message.sector));
           try { localStorage.setItem('neon.lastName',name.value.trim()); } catch {}
           clearTimeout(joinTimeout); host.ArenaWelcome(message.id); joined = true; form.hidden = true; dead = false;
           const invite = new URL(location.href); invite.search = new URLSearchParams({multiplayer:'1',room:message.room});
@@ -296,16 +314,23 @@ export function startNetwork(host, canvas, status) {
           setMenu(false); timer = setInterval(sendInput, 1000/30);
         } else if (message.type === 'snapshot') {
           if (!joined) throw new Error('Snapshot before welcome');
-          host.ArenaSnapshot(e.data);
+          expandCombat(message);
+          for(const key of ['workshop','social','skillReceipt','creditReward']) {
+            if(message[key]==null)message[key]=current.privateState?.[key]??null;
+          }
+          if(message.sector && message.sector.pilot==null)message.sector.pilot=current.privateState?.sector?.pilot??null;
+          current.privateState=message;
+          const fullSnapshot=JSON.stringify(message);
+          presentSnapshot(host,message);
           const self = message.players.find(p => p.id === Number(info.dataset.player));
           const nowDead = !!self && self.hull <= 0;
           if (nowDead && !dead) { clearInput(); retry.disabled = false; retry.textContent = 'Ship destroyed — respawn'; }
           dead = nowDead; retry.hidden = !dead || menuOpen;
           if(self?.life!==lastCreditLife){lastCredit=0;lastCreditLife=self?.life;payout.hidden=true;}
           if(message.creditReward?.sequence>lastCredit){const reward=message.creditReward;lastCredit=reward.sequence;payout.textContent=`${reward.lucky?'Lucky! ':''}+${reward.amount} credits`;payout.hidden=false;clearTimeout(payoutTimer);payoutTimer=setTimeout(()=>payout.hidden=true,1600);}
-          friends.update(self, message, joined); skills.update(self, joined, message.skillReceipt); bench.update(self, joined, message.workshop); audio.observe(message, Number(info.dataset.player));
+          sector.update(self,message,joined); friends.update(self, message, joined); skills.update(self, joined, message.skillReceipt); bench.update(self, joined, message.workshop); audio.observe(message, Number(info.dataset.player));
           // Read-only transport diagnostics also used by browser acceptance tests.
-          info.dataset.tick = message.tick; info.dataset.snapshot = e.data;
+          info.dataset.tick = message.tick; info.dataset.snapshot = fullSnapshot;
         } else if (message.type === 'error') {
           const reason = message.code === "refresh_required" ? "Game updated. Refresh this page to continue." : message.code === "name_in_use" ? "That callsign is already connected. Choose another name or close the other session." : `Server refused the request: ${message.code}.`;
           if (!joined) { failure = `${reason} Try another room or join again.`; notice.textContent = failure; current.close(); }

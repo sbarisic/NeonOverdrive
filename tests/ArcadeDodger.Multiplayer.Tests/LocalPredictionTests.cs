@@ -48,7 +48,7 @@ public class LocalPredictionTests
     [Fact]
     public void LatestIntentBurstMatchesRoomAndDoesNotMultiplyMovement()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         var id = room.Join("Pilot")!.Value;
         var initial = room.Snapshot().Players.Single();
         var prediction = Start(initial);
@@ -241,7 +241,7 @@ public class LocalPredictionTests
     [Fact]
     public void RoomExportsRemainingDashStateForPrediction()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         var id = room.Join("Pilot")!.Value;
         room.Input(id, new(1, 0, -1, 0, false, true));
         room.Step();

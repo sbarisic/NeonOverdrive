@@ -31,7 +31,7 @@ public class ProgressionTests
     [Fact]
     public void RealProjectileKillDropsOnceAndCollectionConsumesValue()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         var id = room.Join("pilot")!.Value;
         var p = room.Snapshot().Players.Single();
         Enemy(room, new(p.X - 100, p.Y), hull: 1);
@@ -42,7 +42,12 @@ public class ProgressionTests
         var drop = Assert.Single(room.Snapshot().Energy!);
         Assert.Equal(10, drop.Value);
         Assert.Empty(room.Snapshot().Enemies!);
-        for (var i = 3; i < 12; i++) { room.Input(id, new(i, -1, 0, 0, false, false)); room.Step(); }
+        for (var i = 3; i < 24 && room.Snapshot().Energy!.Length>0; i++)
+        {
+            var target=room.Snapshot().Energy![0];var pilot=room.Snapshot().Players[0];
+            var delta=Vector2.Normalize(new Vector2(target.X-pilot.X,target.Y-pilot.Y));
+            room.Input(id,new(i,delta.X,delta.Y,0,false,false));room.Step();
+        }
         Assert.Empty(room.Snapshot().Energy!);
         Assert.Equal(10, room.Snapshot().Players.Single().Experience);
         room.Step();
@@ -52,7 +57,7 @@ public class ProgressionTests
     [Fact]
     public void SimultaneousCollectorsNeverDuplicateRewardAndRespawnResetsRun()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         var a = room.Join("a")!.Value; var b = room.Join("b")!.Value;
         var point = new Vector2(600, 600);
         Set(Player(room, a), "Position", point); Set(Player(room, b), "Position", point);
@@ -72,7 +77,7 @@ public class ProgressionTests
     [InlineData(true)] [InlineData(false)]
     public void DeadOrDisconnectedPlayersCannotCollect(bool dead)
     {
-        var room = new Room(false); var id = room.Join("a")!.Value;
+        var room = new Room(false,sectorEnabled:false); var id = room.Join("a")!.Value;
         var p = room.Snapshot().Players.Single();
         if (dead) Set(Player(room, id), "Hull", 0); else room.Disconnect(id);
         Enemy(room, new(p.X, p.Y)); room.Step();
@@ -83,7 +88,7 @@ public class ProgressionTests
     [Fact]
     public void DropsAreBoundedExpireAndRoundTripThroughSnapshots()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         for (var i = 0; i < Room.EnergyCapacity + 5; i++) Enemy(room, new(500, 500));
         room.Step();
         var snapshot = room.Snapshot();

@@ -56,16 +56,16 @@ public class WorkshopEconomyTests
     }
     [Fact] public void EquipWireRejectsMalformedNestedFieldsAndOldProtocol()
     {
-        var json=JsonSerializer.Serialize(new{v=3,type="equip",seq=1,weapons=Loadout(Weapon(1,6))},new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json=JsonSerializer.Serialize(new{v = 5,type="equip",seq=1,weapons=Loadout(Weapon(1,6))},new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json),out var message));Assert.IsType<EquipMessage>(message);
-        foreach(var invalid in new[]{json.Replace("\"emitter\":1","\"emitter\":1,\"emitter\":1"),json.Replace("\"enabled\":true","\"enabled\":1"),json.Replace("[6,0,0,0,0,0,0,0]","[6]"),json.Replace("\"v\":3","\"v\":1")})
+        foreach(var invalid in new[]{json.Replace("\"emitter\":1","\"emitter\":1,\"emitter\":1"),json.Replace("\"enabled\":true","\"enabled\":1"),json.Replace("[6,0,0,0,0,0,0,0]","[6]"),json.Replace("\"v\":5","\"v\":1")})
             Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(invalid),out _));
     }
     [Fact] public void SameNormalizedNameCannotConnectTwiceButDisconnectAllowsRejoin()
     {var r=Start();Assert.Null(r.Join(" modules "));r.Disconnect(1);Assert.NotNull(r.Join("MODULES"));}
     [Fact] public void PlasmaAndMinesIgnoreFriendsAndSecondaryDamageCannotLeechOverkill()
     {
-        var friends=new FriendBook();friends.Change("Modules","Ally","request");friends.Change("Ally","Modules","accept");var r=new Room(false,friends);r.Join("Modules");Set(Player(r),"Position",new Vector2(1000,800));
+        var friends=new FriendBook();friends.Change("Modules","Ally","request");friends.Change("Ally","Modules","accept");var r=new Room(false,friends,sectorEnabled:false);r.Join("Modules");Set(Player(r),"Position",new Vector2(1000,800));
         var ally=r.Join("Ally")!.Value;Set(Player(r,ally),"Position",new Vector2(1080,800));Set(Player(r,ally),"ProtectedUntil",0L);
         Equip(r,Weapon(2,26));Fire(r);r.Input(1,new(4,0,0,0,false,false));Step(r,20);Assert.Single(r.Snapshot().Mines!);Assert.Equal(2,r.Snapshot().Players[1].Shield);
         Enemy(r,1080);r.Step();Assert.Empty(r.Snapshot().Mines!);Assert.Equal(2,r.Snapshot().Players[1].Shield);

@@ -89,7 +89,11 @@ public static class Program
             var session = new ClientSession();
             var first = await Receive(socket, TimeSpan.FromSeconds(5), lifetime.Token);
             if(first is IncompatibleMessage)
-            {await Send(socket,JsonSerializer.SerializeToUtf8Bytes(new {v=ClientProtocol.Version,type="error",code="refresh_required"}),lifetime.Token);return;}
+            {
+                await Send(socket,JsonSerializer.SerializeToUtf8Bytes(new {v=ClientProtocol.Version,type="error",code="refresh_required"}),lifetime.Token);
+                using var refreshTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation,"refresh_required",refreshTimeout.Token);return;
+            }
             if (first is not JoinMessage join || !session.TryAccept(first)) return;
             using var joinTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
             joinTimeout.CancelAfter(TimeSpan.FromSeconds(5));
@@ -103,7 +107,7 @@ public static class Program
                 return;
             }
             await Send(socket, JsonSerializer.SerializeToUtf8Bytes(new
-            { v = ClientProtocol.Version, type = "welcome", id = peer.PlayerId, room = peer.RoomId, tickRate = Room.TickRate, skills=SkillCatalog.Items, catalog=ModuleCatalog.Items, unlockLevels=ModuleCatalog.UnlockLevels }, ArenaService.Json), lifetime.Token);
+            { v = ClientProtocol.Version, type = "welcome", id = peer.PlayerId, room = peer.RoomId, tickRate = Room.TickRate, skills=SkillCatalog.Items, catalog=ModuleCatalog.Items, unlockLevels=ModuleCatalog.UnlockLevels, sector=peer.Sector, contracts=peer.Contracts, enemies=EnemyCatalog.Items }, ArenaService.Json), lifetime.Token);
             sender = SendSnapshots(socket, peer, lifetime);
             var tokens = 90d;
             var last = Stopwatch.GetTimestamp();
@@ -115,6 +119,7 @@ public static class Program
                 last = now;
                 if (tokens < 1 || message is null || !session.TryAccept(message)) break;
                 tokens--;
+                if (message is SectorActionMessage sector) {peer.Submit(sector);continue;}
                 if (message is BuyMessage buy) { peer.Submit(buy); continue; }
                 if (message is FriendMessage friendship) { peer.Submit(friendship); continue; }
                 if (message is EquipMessage equip) { peer.Submit(equip); continue; }
@@ -162,8 +167,9 @@ public static class Program
     {
         try
         {
-            await foreach (var bytes in peer.Snapshots.Reader.ReadAllAsync(lifetime.Token))
-                await Send(socket, bytes, lifetime.Token);
+            var encoder=new SnapshotEncoder();
+            await foreach (var frame in peer.Snapshots.Reader.ReadAllAsync(lifetime.Token))
+                await Send(socket, encoder.Encode(frame), lifetime.Token);
         }
         catch (OperationCanceledException) { }
         catch (WebSocketException) { }

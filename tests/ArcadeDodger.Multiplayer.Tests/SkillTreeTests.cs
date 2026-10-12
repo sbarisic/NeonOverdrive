@@ -42,12 +42,12 @@ public class SkillTreeTests
     {
         var r=Start(level);Equip(r,Weapon(1),Weapon(1),Weapon(1),Weapon(1));Assert.Equal(new[]{true,false,false,false},r.Snapshot().Players[0].UnlockedWeapons);
         var seq=3;Learn(r,$"bay.{weapons}",ref seq);Fire(r,1,++seq);Assert.Equal(weapons,r.Snapshot().Shots.Length);
-        Set(Player(r),"Hull",0);Assert.True(r.Respawn(1,new(++seq)));Assert.Equal(new[]{true,false,false,false},r.Snapshot().Players[0].UnlockedWeapons);Assert.All(r.Snapshot().Players[0].Weapons,w=>Assert.True(w.Enabled));
+        Set(Player(r),"Hull",0);Assert.True(r.Respawn(1,new(++seq)));Assert.Equal(new[]{true,false,false,false},r.Snapshot().Players[0].UnlockedWeapons);Assert.Equal(new[]{true,false,false,false},r.Snapshot().Players[0].Weapons.Select(w=>w.Enabled));
     }
     [Fact] public void StringSkillProtocolRejectsLegacyNumericChoicesAndUnknownIds()
     {
-        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("{\"v\":3,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"),out var m));Assert.Equal(new ChoiceMessage(1,"shield.1"),m);
-        foreach(var choice in new[]{"0","\"unknown\"","null"})Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":3,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"),out _));
+        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("{\"v\":5,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"),out var m));Assert.Equal(new ChoiceMessage(1,"shield.1"),m);
+        foreach(var choice in new[]{"0","\"unknown\"","null"})Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"),out _));
     }
     [Fact] public void AllShieldAndHullTiersRestoreOnlyTheirAddedPoint()
     {

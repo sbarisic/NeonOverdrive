@@ -5,52 +5,28 @@ namespace ArcadeDodger.Multiplayer.Tests;
 public sealed class EnemyTests
 {
     [Fact]
-    public void EmptyRoomDoesNotSpawn()
+    public void SectorHasGarrisonsBeforeAnyPilotArrives()
     {
-        var room = new Room();
-        for (int i = 0; i < 1000; i++) room.Step();
-        Assert.Empty(room.Snapshot().Enemies!);
+        var room=new Room(seed:42);Assert.Equal(20,room.Snapshot().Enemies!.Length);
+        for(var i=0;i<600;i++)room.Step();
+        Assert.Equal(24,room.Snapshot().Enemies!.Length);
+        Assert.All(room.Snapshot().Enemies!,e=>Assert.InRange(e.Home,20,23));
     }
-
     [Fact]
-    public void EnemiesSpawnSafelyPursueAndDamage()
+    public void PatrolsIgnoreSafePortAndEngageNearbyExposedPilots()
     {
-        var room = new Room(); room.Join("pilot");
-        for (int i = 0; i < 90; i++) room.Step();
-        var first = Assert.Single(room.Snapshot().Enemies!);
-        var player = Assert.Single(room.Snapshot().Players);
-        Assert.True(MathF.Sqrt(MathF.Pow(first.X - player.X, 2) + MathF.Pow(first.Y - player.Y, 2)) > 290);
-        Assert.Equal("rammer", first.Kind);
-        bool gunner = false, hostileShot = false;
-        for (int i = 0; i < 900; i++)
-        {
-            room.Step();
-            var state = room.Snapshot();
-            gunner |= state.Enemies!.Any(e => e.Kind == "gunner");
-            hostileShot |= state.Shots.Any(s => s.Owner < 0);
-            Assert.InRange(state.Enemies!.Length, 0, Room.EnemyCapacity);
-            Assert.InRange(state.Players[0].Hull, 0, 3);
-        }
-        Assert.True(gunner); Assert.True(hostileShot);
-        Assert.Equal(0, room.Snapshot().Players[0].Hull);
+        var room=new Room(seed:42);room.Join("pilot");WorkshopRig.Step(room,100);
+        Assert.DoesNotContain(room.Snapshot().Enemies!,e=>e.State=="engage");
+        var enemy=room.Snapshot().Enemies!.First(e=>e.Kind=="rammer");
+        WorkshopRig.Set(WorkshopRig.Player(room),"Position",new System.Numerics.Vector2(enemy.X+100,enemy.Y));
+        room.Step();Assert.Contains(room.Snapshot().Enemies!,e=>e.State=="engage");
     }
-
     [Fact]
-    public void PlayerShotsCanKillEnemies()
+    public void PlayerShotsCanKillPatrolShips()
     {
-        var room = new Room(); var id = room.Join("pilot")!.Value;
-        for (int i = 0; i < 90; i++) room.Step();
-        var enemyId = Assert.Single(room.Snapshot().Enemies!).Id;
-        for (int i = 1; i <= 150; i++)
-        {
-            var state = room.Snapshot();
-            var enemy = state.Enemies!.FirstOrDefault(e => e.Id == enemyId);
-            if (enemy is null) return;
-            var player = state.Players[0];
-            room.Input(id, new InputMessage(i, 0, 0, MathF.Atan2(enemy.Y - player.Y, enemy.X - player.X), true, false));
-            room.Step();
-        }
-        Assert.DoesNotContain(room.Snapshot().Enemies!, e => e.Id == enemyId);
+        var room=WorkshopRig.Start();var enemy=WorkshopRig.Enemy(room,1100,hull:3);
+        WorkshopRig.Fire(room,45);Assert.DoesNotContain(room.Snapshot().Enemies!,e=>e.Id==1);
+        Assert.NotEmpty(room.Snapshot().Energy!);
     }
 
     [Fact]

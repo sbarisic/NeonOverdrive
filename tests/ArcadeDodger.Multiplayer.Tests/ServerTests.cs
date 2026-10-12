@@ -24,32 +24,32 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task RealSocketsJoinSameRoomApplyInputAndRetainDisconnectedShip()
     {
         using var a = await Connect();
-        await Send(a, "{\"v\":3,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(a, "{\"v\":5,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         var welcomeA = await Read(a);
         var idA = welcomeA.GetProperty("id").GetInt32();
         var room = welcomeA.GetProperty("room").GetString();
         using var b = await Connect();
-        await Send(b, JsonSerializer.Serialize(new { v = 3, type = "join", name = "B", room }));
+        await Send(b, JsonSerializer.Serialize(new { v = 5, type = "join", name = "B", room }));
         var welcomeB = await Read(b);
         Assert.Equal(room, welcomeB.GetProperty("room").GetString());
         var initial = await Until(a, x => x.GetProperty("players").GetArrayLength() == 2);
         var x0 = initial.GetProperty("players")[0].GetProperty("x").GetSingle();
-        await Send(a, "{\"v\":3,\"type\":\"input\",\"seq\":1,\"x\":-1,\"y\":0,\"aim\":0,\"fire\":true,\"dash\":false}");
+        await Send(a, "{\"v\":5,\"type\":\"input\",\"seq\":1,\"x\":-1,\"y\":0,\"aim\":0,\"fire\":true,\"dash\":false}");
         var moved = await Until(b, x => x.GetProperty("players")[0].GetProperty("ack").GetInt32() == 1);
         Assert.True(moved.GetProperty("players")[0].GetProperty("x").GetSingle() < x0);
-        Assert.True(moved.GetProperty("shots").GetArrayLength() > 0);
+        Assert.Equal(0,moved.GetProperty("shots").GetArrayLength()); // Sanctuary suppresses firing.
         a.Abort();
         var disconnected = await Until(b, x => !x.GetProperty("players")[0].GetProperty("connected").GetBoolean());
         Assert.Equal(idA, disconnected.GetProperty("players")[0].GetProperty("id").GetInt32());
     }
 
     [Theory]
-    [InlineData("{\"v\":3,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"dash\":false,\"damage\":100}")]
-    [InlineData("{\"v\":3,\"type\":\"join\",\"name\":\"Again\",\"room\":\"\"}")]
+    [InlineData("{\"v\":5,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"dash\":false,\"damage\":100}")]
+    [InlineData("{\"v\":5,\"type\":\"join\",\"name\":\"Again\",\"room\":\"\"}")]
     public async Task ForgedAuthorityAndRepeatedJoinDisconnect(string invalid)
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":3,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(socket, "{\"v\":5,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         await Read(socket);
         await Send(socket, invalid);
         await AssertDisconnected(socket);
@@ -59,7 +59,7 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task FragmentedJoinAcceptedOversizedFragmentedInputRejected()
     {
         using var socket = await Connect();
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"v\":3,\"type\":\"join\","), WebSocketMessageType.Text, false, CancellationToken.None);
+        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"v\":5,\"type\":\"join\","), WebSocketMessageType.Text, false, CancellationToken.None);
         await Send(socket, "\"name\":\"A\",\"room\":\"\"}");
         Assert.Equal("welcome", (await Read(socket)).GetProperty("type").GetString());
         await socket.SendAsync(new byte[800], WebSocketMessageType.Text, false, CancellationToken.None);
@@ -80,9 +80,9 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task MissingInviteRoomReportsError()
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":3,\"type\":\"join\",\"name\":\"A\",\"room\":\"00000000\"}");
+        await Send(socket, "{\"v\":5,\"type\":\"join\",\"name\":\"A\",\"room\":\"00000000\"}");
         var error = await Read(socket);
-        Assert.Equal(3, error.GetProperty("v").GetInt32());
+        Assert.Equal(ClientProtocol.Version, error.GetProperty("v").GetInt32());
         Assert.Equal("error", error.GetProperty("type").GetString());
         Assert.Equal("room_missing", error.GetProperty("code").GetString());
 
@@ -101,14 +101,14 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task LiveRespawnRequestDoesNotDisconnectOrResetShip()
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":3,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(socket, "{\"v\":5,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         await Read(socket);
-        await Send(socket, "{\"v\":3,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":true,\"dash\":false}");
+        await Send(socket, "{\"v\":5,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":true,\"dash\":false}");
         await Until(socket, x => x.GetProperty("players")[0].GetProperty("ack").GetInt32() == 1);
-        await Send(socket, "{\"v\":3,\"type\":\"respawn\",\"seq\":2}");
-        await Send(socket, "{\"v\":3,\"type\":\"input\",\"seq\":3,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"dash\":false}");
+        await Send(socket, "{\"v\":5,\"type\":\"respawn\",\"seq\":2}");
+        await Send(socket, "{\"v\":5,\"type\":\"input\",\"seq\":3,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"dash\":false}");
         var snapshot = await Until(socket, x => x.GetProperty("players")[0].GetProperty("ack").GetInt32() == 3);
-        Assert.False(snapshot.GetProperty("players")[0].GetProperty("protected").GetBoolean());
+        Assert.True(snapshot.GetProperty("players")[0].GetProperty("protected").GetBoolean()); // Still in sanctuary.
         Assert.Equal(3, snapshot.GetProperty("players")[0].GetProperty("hull").GetInt32());
         Assert.Single(snapshot.GetProperty("players").EnumerateArray());
     }
@@ -123,11 +123,11 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task SkillPurchaseIntentKeepsSocketAndPilotAlive(int choice)
     {
         using var socket = await Connect();
-        await Send(socket, """{"v":3,"type":"join","name":"Buyer","room":""}""");
+        await Send(socket, """{"v":5,"type":"join","name":"Buyer","room":""}""");
         var welcome = await Read(socket);
         var id = welcome.GetProperty("id").GetInt32();
-        await Send(socket, JsonSerializer.Serialize(new { v = 3, type = "choice", seq = 1, choice = SkillCatalog.Items[choice].Id }));
-        await Send(socket, """{"v":3,"type":"input","seq":2,"x":0,"y":0,"aim":0,"fire":false,"dash":false}""");
+        await Send(socket, JsonSerializer.Serialize(new { v = 5, type = "choice", seq = 1, choice = SkillCatalog.Items[choice].Id }));
+        await Send(socket, """{"v":5,"type":"input","seq":2,"x":0,"y":0,"aim":0,"fire":false,"dash":false}""");
         var snapshot = await Until(socket, x => x.GetProperty("players")[0].GetProperty("ack").GetInt32() == 2);
         var player = snapshot.GetProperty("players")[0];
         Assert.Equal(id, player.GetProperty("id").GetInt32());
@@ -142,17 +142,21 @@ public sealed class ServerTests : IAsyncLifetime
     [Fact]
     public async Task WelcomeCatalogUsesCamelCaseAndPurchasesReturnPrivateReceipts()
     {
-        using var a=await Connect();await Send(a,"""{"v":3,"type":"join","name":"Buyer","room":""}""");var welcome=await Read(a);
+        using var a=await Connect();await Send(a,"""{"v":5,"type":"join","name":"Buyer","room":""}""");var welcome=await Read(a);
         Assert.Equal(69,welcome.GetProperty("skills").GetArrayLength());Assert.Equal(28,welcome.GetProperty("catalog").GetArrayLength());Assert.Equal(6,welcome.GetProperty("catalog")[5].GetProperty("id").GetInt32());
-        await Send(a,"""{"v":3,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"dash":false,"editing":true}""");
-        await Send(a,"""{"v":3,"type":"buy","seq":2,"module":6}""");
-        var receipt=await Until(a,m=>m.GetProperty("workshop").GetProperty("sequence").GetInt32()==2);
+        await Send(a,"""{"v":5,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"dash":false,"editing":true}""");
+        await Send(a,"""{"v":5,"type":"buy","seq":2,"module":6}""");
+        var rejected=await Until(a,m=>m.GetProperty("workshop").GetProperty("sequence").GetInt32()==2);
+        Assert.Equal("not_docked",rejected.GetProperty("workshop").GetProperty("result").GetString());
+        await Send(a,"""{"v":5,"type":"sector","seq":3,"action":"dock","target":10}""");
+        await Send(a,"""{"v":5,"type":"buy","seq":4,"module":6}""");
+        var receipt=await Until(a,m=>m.GetProperty("workshop").GetProperty("sequence").GetInt32()==4);
         Assert.Equal(40,receipt.GetProperty("workshop").GetProperty("credits").GetInt32());Assert.Equal("ok",receipt.GetProperty("workshop").GetProperty("result").GetString());
-        using var b=await Connect();await Send(b,"""{"v":3,"type":"join","name":"Observer","room":""}""");await Read(b);
+        using var b=await Connect();await Send(b,"""{"v":5,"type":"join","name":"Observer","room":""}""");await Read(b);
         var other=await Until(b,_=>true);Assert.Equal(100,other.GetProperty("workshop").GetProperty("credits").GetInt32());
-        using var duplicate=await Connect();await Send(duplicate,"""{"v":3,"type":"join","name":"buyer","room":""}""");Assert.Equal("name_in_use",(await Read(duplicate)).GetProperty("code").GetString());
+        using var duplicate=await Connect();await Send(duplicate,"""{"v":5,"type":"join","name":"buyer","room":""}""");Assert.Equal("name_in_use",(await Read(duplicate)).GetProperty("code").GetString());
     }
-    [Theory][InlineData(1)][InlineData(2)]
+    [Theory][InlineData(1)][InlineData(2)][InlineData(3)]
     public async Task OldBrowserGetsRefreshRequiredInsteadOfJoiningWithWrongProtocol(int version)
     {
         using var socket=await Connect();await Send(socket,JsonSerializer.Serialize(new{v=version,type="join",name="Old",room=""}));

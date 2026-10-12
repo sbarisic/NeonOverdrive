@@ -101,3 +101,7 @@ Fresh expansion checks on Windows x64 (2026-10-10), separately from manual accep
 - [ArenaTests.cs](tests/ArcadeDodger.Tests/ArenaTests.cs) and [DirectorTests.cs](tests/ArcadeDodger.Tests/DirectorTests.cs): arena and director regressions.
 
 Movement uses delta time, capped at 0.05 seconds per frame to prevent jumps after stalls. Scores measure simulated survival time, so a long stall does not inflate them. Pause and menu states freeze simulation. Diagonal movement is normalized; difficulty is bounded.
+
+## Browser multiplayer sector
+
+Multiplayer features a seeded star sector with planets, stations, asteroid cover, patrols and contracts. Press **E** to dock or interact, **M** for the discovered sector map, **I** for modular weapons, and **Tab** for skills. Buy modules at stations; rearrange equipment anywhere. See [the inhabited sector guide](docs/inhabited-sector.md) for sector rules. The [v5 cooperative combat guide](docs/cooperative-combat.md) covers run resets, regional enemies, personal loot, map pings, and performance verification.

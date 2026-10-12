@@ -7,6 +7,7 @@ using Raylib_cs;
 namespace ArcadeDodger.Web;
 
 [JsonSerializable(typeof(RoomSnapshot))]
+[JsonSerializable(typeof(SectorDefinition))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class SnapshotJson : JsonSerializerContext { }
 
@@ -23,6 +24,9 @@ internal sealed class BrowserArena
     private float scale = 2;
     private readonly BrowserArenaWorld world = new();
     private bool menuOpen, reducedEffects;
+    private double receiveMs,playbackMs,renderMs;
+    private static double Milliseconds(long start)=>System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+    public string Metrics()=>System.FormattableString.Invariant($"{receiveMs},{playbackMs},{renderMs}");
     public void Presentation(bool menu, bool reduced)
     {
         if (menu && !menuOpen)
@@ -30,6 +34,8 @@ internal sealed class BrowserArena
                 false, clock.Elapsed.TotalSeconds);
         menuOpen = menu; reducedEffects = reduced;
     }
+    public void Release()=>world.ReleaseSector();
+    public void SetSector(string json) {var sector=JsonSerializer.Deserialize(json,SnapshotJson.Default.SectorDefinition);if(sector is not null){prediction.SetSector(sector);world.SetSector(sector);}}
     public void Welcome(int id) { ownId = id; prediction.Reset(); }
     public void Input(double x, double y, double aim, bool dash) =>
         prediction.Input(menuOpen ? 0 : (float)x, menuOpen ? 0 : (float)y, (float)aim,
@@ -43,16 +49,27 @@ internal sealed class BrowserArena
     }
     public void Receive(string json)
     {
-        var next = JsonSerializer.Deserialize(json, SnapshotJson.Default.RoomSnapshot);
+        var started=System.Diagnostics.Stopwatch.GetTimestamp();
+        Accept(JsonSerializer.Deserialize(json, SnapshotJson.Default.RoomSnapshot));receiveMs=Milliseconds(started);
+    }
+    public void ReceivePacked(double[] data,string[] labels)
+    {
+        var started=System.Diagnostics.Stopwatch.GetTimestamp();
+        try {Accept(new PackedSnapshot(data,labels).Read());}
+        catch(FormatException) {return;}catch(OverflowException){return;}
+        receiveMs=Milliseconds(started);
+    }
+    private void Accept(RoomSnapshot? next)
+    {
         if (next is null || next.V != ClientProtocol.Version || next.Type != "snapshot" ||
-            next.Players.Length > Room.Capacity || next.Shots.Length > 256 || next.Enemies?.Length > Room.EnemyCapacity ||
-            next.Credits?.Length > 128 || next.Mines?.Length > 128 || next.Energy?.Length > Room.EnergyCapacity || next.Beams?.Length > Room.BeamCapacity ||
+            next.Players.Length > Room.Capacity || next.Shots.Length > 1024 || next.Enemies?.Length > 256 ||
+            next.ModuleDrops?.Length > 128 || next.Credits?.Length > 128 || next.Mines?.Length > 128 || next.Energy?.Length > Room.EnergyCapacity || next.Beams?.Length > Room.BeamCapacity ||
             (playback.Latest is { } latest && next.Tick <= latest.Tick)) return;
-        var seconds = clock.Elapsed.TotalSeconds;
-        playback.Receive(next, seconds);
+        var center=next.Players.FirstOrDefault(p=>p.Id==ownId);
+        if(center is not null)next=next with {Shots=next.Shots.Where(s=>Math.Abs(s.X-center.X)<view.X/2+250&&Math.Abs(s.Y-center.Y)<view.Y/2+250).ToArray()};
+        var seconds = clock.Elapsed.TotalSeconds;playback.Receive(next, seconds);
         var self = next.Players.FirstOrDefault(p => p.Id == ownId);
-        if (self is null) prediction.Reset();
-        else prediction.Receive(self, next.Tick, seconds);
+        if (self is null) prediction.Reset();else prediction.Receive(self, next.Tick, seconds);
     }
 
     public double Aim(double u, double v)
@@ -69,28 +86,35 @@ internal sealed class BrowserArena
         scale = MathF.Min(Raylib.GetScreenWidth() / 960f, Raylib.GetScreenHeight() / 540f);
         view = new(Raylib.GetScreenWidth() / scale, Raylib.GetScreenHeight() / scale);
         var seconds = clock.Elapsed.TotalSeconds;
+        var started=System.Diagnostics.Stopwatch.GetTimestamp();
         snapshot = playback.Sample(seconds);
         if (snapshot is not null && prediction.Sample(seconds) is { } predicted)
             snapshot = snapshot with { Players = snapshot.Players.Select(p =>
                 p.Id == ownId ? predicted : p).ToArray() };
         if (snapshot is not null && playback.Latest is { } latest)
         {
-            var aligned = (snapshot.Beams ?? []).Select(beam =>
+            var transforms=new Dictionary<int,(Vector2 From,Vector2 To,Matrix3x2 Rotation)>();
+            foreach(var player in snapshot.Players)
             {
-                var from = latest.Players.FirstOrDefault(p => p.Id == beam.Owner);
-                var to = snapshot.Players.FirstOrDefault(p => p.Id == beam.Owner);
-                if (from is null || to is null) return beam;
-                var rotation = Matrix3x2.CreateRotation(to.Aim - from.Aim);
-                Vector2 Align(float x, float y) => new Vector2(to.X, to.Y) + Vector2.Transform(new Vector2(x - from.X, y - from.Y), rotation);
-                var start = Align(beam.X, beam.Y); var end = Align(beam.EndX, beam.EndY);
-                return beam with { X = start.X, Y = start.Y, EndX = end.X, EndY = end.Y };
-            }).ToArray();
-            snapshot = snapshot with { Beams = aligned };
+                var from=latest.Players.FirstOrDefault(p=>p.Id==player.Id);
+                if(from is null||from.X==player.X&&from.Y==player.Y&&from.Aim==player.Aim)continue;
+                transforms[player.Id]=(new(from.X,from.Y),new(player.X,player.Y),Matrix3x2.CreateRotation(player.Aim-from.Aim));
+            }
+            if(transforms.Count>0)
+                snapshot=snapshot with {Beams=(snapshot.Beams??[]).Select(beam=>
+                {
+                    if(!transforms.TryGetValue(beam.Owner,out var transform))return beam;
+                    var start=transform.To+Vector2.Transform(new Vector2(beam.X,beam.Y)-transform.From,transform.Rotation);
+                    var end=transform.To+Vector2.Transform(new Vector2(beam.EndX,beam.EndY)-transform.From,transform.Rotation);
+                    return beam with {X=start.X,Y=start.Y,EndX=end.X,EndY=end.Y};
+                }).ToArray()};
         }
+
         var self = snapshot?.Players.FirstOrDefault(p => p.Id == ownId);
         if (self is not null)
             origin = Vector2.Clamp(new Vector2(self.X, self.Y) - view / 2, Vector2.Zero,
                 Vector2.Max(Vector2.Zero, new Vector2(Room.Width, Room.Height) - view));
+        playbackMs=Milliseconds(started);started=System.Diagnostics.Stopwatch.GetTimestamp();
         Raylib.BeginDrawing();
         try
         {
@@ -110,7 +134,7 @@ internal sealed class BrowserArena
             }
             finally { Raylib.EndMode2D(); }
         }
-        finally { Raylib.EndDrawing(); }
+        finally { Raylib.EndDrawing();renderMs=Milliseconds(started); }
         return true;
     }
 }

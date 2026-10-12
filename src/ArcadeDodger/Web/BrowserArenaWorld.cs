@@ -6,7 +6,7 @@ namespace ArcadeDodger.Web;
 
 // Presentation only: positions, damage, protection and warnings always come from the server.
 // Cosmetic history is bounded by the protocol entity limits and is never fed back into play.
-internal sealed class BrowserArenaWorld
+internal sealed partial class BrowserArenaWorld
 {
     private static readonly Color Cyan = new(65, 245, 235, 255);
     private static readonly Color Rival = new(255, 65, 130, 255);
@@ -33,6 +33,7 @@ internal sealed class BrowserArenaWorld
     public void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 viewport, float time, bool reducedEffects)
     {
         view = viewport;
+        reducedEffects |= (snapshot?.Shots.Length??0)>180 || (snapshot?.Beams?.Length??0)>400;
         if (time < lastTime || snapshot is null || (snapshot is not null && snapshot.Tick < tick)) Reset();
         lastTime = time;
         effects.RemoveAll(e => time - e.Born >= e.Duration);
@@ -44,6 +45,7 @@ internal sealed class BrowserArenaWorld
         // Static backdrop animation in low FX mode, but retain the native grid and boundary.
         NeonRendering.DrawBackdrop(reducedEffects ? 0 : time, origin, (int)Room.Width, (int)Room.Height, view);
         if (snapshot is null) return;
+        DrawSector(snapshot,origin,time,reducedEffects);
         if (snapshot.Tick > tick) Observe(snapshot, ownId, origin, time, reducedEffects);
         ObserveShots(snapshot, ownId, origin, time, reducedEffects);
 
@@ -66,13 +68,20 @@ internal sealed class BrowserArenaWorld
             Raylib.DrawPoly(p,6,9,time*30,Raylib.Fade(Gold,.3f));Raylib.DrawPolyLinesEx(p,6,9,time*30,2,Gold);
             Raylib.DrawText("$",(int)p.X-4,(int)p.Y-5,10,Gold);
         }
+        foreach(var module in snapshot.ModuleDrops ?? [])
+        {
+            Vector2 pos=new(module.X,module.Y);if(!Visible(pos,origin,50))continue;
+            Raylib.DrawRectangle((int)pos.X-12,(int)pos.Y-12,24,24,new Color(25,35,48,255));
+            Raylib.DrawRectangleLines((int)pos.X-12,(int)pos.Y-12,24,24,Gold);
+            Raylib.DrawText("MOD",(int)pos.X-10,(int)pos.Y-4,10,Gold);
+        }
         foreach(var mine in snapshot.Mines ?? [])
         {
             Vector2 p=new(mine.X,mine.Y);if(!Visible(p,origin,30))continue;
             var c=mine.Armed?Gold:MutedMine;
             Raylib.DrawPoly(p,4,8,45,c);Raylib.DrawCircleLines((int)p.X,(int)p.Y,mine.Armed?14:10,c);
         }
-        foreach (var enemy in snapshot.Enemies ?? []) DrawEnemy(enemy, origin, time, reducedEffects);
+        foreach (var enemy in snapshot.Enemies ?? []) if(enemy.Kind!="installation")DrawEnemy(enemy, origin, time, reducedEffects);
         foreach (var player in snapshot.Players) DrawPlayer(player, ownId, origin, time, reducedEffects, snapshot.Social?.Friends.Any(n => FriendBook.Key(n) == FriendBook.Key(player.Name)) == true);
         foreach (var shot in snapshot.Shots)
         {
@@ -116,7 +125,7 @@ internal sealed class BrowserArenaWorld
         }
         foreach (var beam in snapshot.Beams ?? [])
         {
-            var owner = snapshot.Players.FirstOrDefault(p => p.Id == beam.Owner);
+            var owner = players.GetValueOrDefault(beam.Owner);
             if (owner is null || owner.Hull <= 0 || owner.Editing) continue;
             Vector2 start = new(beam.X, beam.Y), end = new(beam.EndX, beam.EndY);
             if (!SegmentVisible(start, end, origin)) continue;
@@ -173,7 +182,7 @@ internal sealed class BrowserArenaWorld
                     Add(new(e.X, e.Y), Vector2.Zero, EnemyColor(e), time, .22f,
                         EffectKind.Hit, e.Id, origin);
                     if (!low && e.Hull > 0 &&
-                        (enemyHitFlashes.ContainsKey(e.Id) || enemyHitFlashes.Count < Room.EnemyCapacity))
+                        (enemyHitFlashes.ContainsKey(e.Id) || enemyHitFlashes.Count < 256))
                         enemyHitFlashes[e.Id] = time + EnemyHitFlashDuration;
                 }
             }
@@ -186,7 +195,7 @@ internal sealed class BrowserArenaWorld
         players.Clear();
         foreach (var p in frame.Players.Take(Room.Capacity)) players[p.Id] = p;
         enemies.Clear();
-        foreach (var e in (frame.Enemies ?? []).Take(Room.EnemyCapacity)) enemies[e.Id] = e;
+        foreach (var e in (frame.Enemies ?? []).Take(256)) enemies[e.Id] = e;
         tick = frame.Tick; // Damage/death transitions remain tick-deduplicated.
     }
 
@@ -196,7 +205,7 @@ internal sealed class BrowserArenaWorld
         // Remember each sampled ID even when FX are suppressed, so it cannot flash later.
         if (shotTransitions)
         {
-            foreach (var s in frame.Shots.Take(256))
+            foreach (var s in frame.Shots.Take(1024))
             {
                 if (shots.Contains(s.Id) || low || s.Parent > 0) continue;
                 Vector2 muzzle = new(s.X, s.Y);
@@ -215,7 +224,7 @@ internal sealed class BrowserArenaWorld
             }
         }
         shots.Clear();
-        foreach (var s in frame.Shots.Take(256)) shots.Add(s.Id);
+        foreach (var s in frame.Shots.Take(1024)) shots.Add(s.Id);
     }
 
     private void DrawPlayer(PlayerSnapshot p, int ownId, Vector2 origin, float time, bool low, bool friendly)
@@ -270,38 +279,22 @@ internal sealed class BrowserArenaWorld
         Vector2 d = new(MathF.Cos(e.Aim), MathF.Sin(e.Aim));
         Color color = !low && enemyHitFlashes.TryGetValue(e.Id, out var until) && time < until
             ? NeonRendering.Ink : EnemyColor(e);
-        bool gunner = e.Kind == "gunner";
-        // Draw warning rays even when their emitter is just outside the viewport.
-        if (e.Telegraph && gunner && SegmentVisible(p, p + d * 650, origin))
-            Raylib.DrawLineEx(p, p + d * 650, 1, Raylib.Fade(Hostile, .65f));
-        if (!Visible(p, origin, 80)) return;
-        if (e.Effects != 0)
-            Raylib.DrawCircleLines((int)e.X, (int)e.Y, 27, (e.Effects & 16) != 0 ? new Color(190,135,255,255) : (e.Effects & 8) != 0 ? new Color(185,255,85,255) : (e.Effects & 32) != 0 ? Gold : (e.Effects & 2) != 0 ? new Color(150,255,70,255)
-                : (e.Effects & 1) != 0 ? new Color(255,130,45,255) : new Color(125,200,255,255));
-        if (!low)
-        {
-            Raylib.DrawCircleV(p, 29, Raylib.Fade(color, .10f));
-            Raylib.DrawCircleV(p + new Vector2(0, 25), 3 + 2 * MathF.Sin(time * 20), Raylib.Fade(color, .6f));
-        }
-        if (gunner)
-        {
-            Raylib.DrawPoly(p, 6, 20, 30, Raylib.Fade(color, .35f));
-            Raylib.DrawPolyLinesEx(p, 6, 20, 30, 2, color);
-            Raylib.DrawLineEx(p, p + d * 34, 5, color);
-        }
-        else
-        {
-            Raylib.DrawTriangle(p + new Vector2(0, -20), p + new Vector2(-20, 20), p + new Vector2(20, 20), Raylib.Fade(color, .45f));
-            Raylib.DrawTriangleLines(p + new Vector2(0, -20), p + new Vector2(-20, 20), p + new Vector2(20, 20), color);
-            Raylib.DrawLineEx(p + new Vector2(-20, 0), p + new Vector2(-28, -8), 2, color);
-            Raylib.DrawLineEx(p + new Vector2(20, 0), p + new Vector2(28, -8), 2, color);
-        }
-        Raylib.DrawCircleV(p, 5, NeonRendering.Ink);
-        if (e.Telegraph)
-        {
-            Raylib.DrawCircleLines((int)p.X, (int)p.Y, 32, Hostile);
-            Raylib.DrawText("!", (int)p.X - 4, (int)p.Y - 46, 20, NeonRendering.Ink);
-        }
+        var radius=e.Radius;
+        var gunner=e.Kind is "gunner" or "sniper" or "interceptor";
+        var reach=e.Kind=="sniper"?850:650;
+        if(e.Telegraph&&gunner&&SegmentVisible(p,p+d*reach,origin))Raylib.DrawLineEx(p,p+d*reach,e.Kind=="sniper"?2:1,Raylib.Fade(color,.7f));
+        if(!Visible(p,origin,80))return;
+        if(!low)Raylib.DrawCircleV(p,radius+6,Raylib.Fade(color,.12f));
+        var sides=e.Kind switch {"gunner"=>6,"sniper"=>4,"tender"=>8,_=>3};
+        var angle=e.Aim*180/MathF.PI;
+        Raylib.DrawPoly(p,sides,radius,angle,Raylib.Fade(color,.4f));Raylib.DrawPolyLinesEx(p,sides,radius,angle,2,color);
+        if(gunner)Raylib.DrawLineEx(p,p+d*(radius+10),e.Kind=="sniper"?3:5,color);
+        if(e.Kind=="tender"){Raylib.DrawLineEx(p-new Vector2(7,0),p+new Vector2(7,0),3,color);Raylib.DrawLineEx(p-new Vector2(0,7),p+new Vector2(0,7),3,color);}
+        if(e.Kind=="interceptor")Raylib.DrawLineEx(p-d*radius,p-d*(radius+12),3,color);
+        if(e.Effects!=0)Raylib.DrawCircleLines((int)p.X,(int)p.Y,radius+4,Gold);
+        Raylib.DrawText($"L{e.Level}",(int)p.X-8,(int)(p.Y-radius-15),10,color);
+        if(e.Telegraph)Raylib.DrawCircleLines((int)p.X,(int)p.Y,radius+8,Hostile);
+
     }
 
     private void DrawThreatWarnings(RoomSnapshot frame, int ownId, Vector2 origin)
@@ -309,7 +302,7 @@ internal sealed class BrowserArenaWorld
         var self = frame.Players.FirstOrDefault(p => p.Id == ownId && p.Hull > 0);
         if (self is null) return;
         Vector2 pilot = new(self.X, self.Y);
-        foreach (var e in (frame.Enemies ?? []).Take(Room.EnemyCapacity))
+        foreach (var e in (frame.Enemies ?? []).Take(256))
         {
             Vector2 p = new(e.X, e.Y);
             if (e.Hull <= 0 || Visible(p, origin, 0) ||
@@ -385,7 +378,7 @@ internal sealed class BrowserArenaWorld
     }
 
     private static Color ShotColor(int owner, int ownId) => owner < 0 ? Hostile : owner == ownId ? Gold : Rival;
-    private static Color EnemyColor(EnemySnapshot e) => e.Kind == "gunner" ? Hostile : Rammer;
+    private static Color EnemyColor(EnemySnapshot e) => e.Kind switch {"gunner"=>Hostile,"interceptor"=>Gold,"sniper"=>new Color(195,120,255,255),"tender"=>new Color(100,240,160,255),_=>Rammer};
     private static Vector2 Direction(Vector2 d) => d.LengthSquared() < .001f ? -Vector2.UnitY : Vector2.Normalize(d);
     private bool Visible(Vector2 p, Vector2 origin, float margin) =>
         p.X >= origin.X - margin && p.X <= origin.X + view.X + margin &&

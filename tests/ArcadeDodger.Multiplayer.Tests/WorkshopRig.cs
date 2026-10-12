@@ -9,7 +9,7 @@ internal static class WorkshopRig
     public static void Set(object o,string key,object value)=>o.GetType().GetField(key,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(o,value);
     public static object Player(Room r,int id=1)=>((IDictionary)Get(r,"players"))[id]!;
     public static Room Start(int level=1,ProfileStore? profiles=null,bool ai=false)
-    {var r=new Room(ai,profiles:profiles);r.Join("Modules");Set(Player(r),"Experience",Room.ExperienceForLevel(level));Set(Player(r),"Position",new Vector2(1000,800));Set(Player(r),"Previous",new Vector2(1000,800));Set(Player(r),"ProtectedUntil",0L);return r;}
+    {var r=new Room(ai,profiles:profiles,sectorEnabled:false);r.Join("Modules");Set(Player(r),"Experience",Room.ExperienceForLevel(level));Set(Player(r),"Position",new Vector2(1000,800));Set(Player(r),"Previous",new Vector2(1000,800));Set(Player(r),"ProtectedUntil",0L);return r;}
     public static WeaponConfig Weapon(int emitter,params int[] parts){var stages=new int[8];parts.CopyTo(stages,0);return new(emitter,stages);}
     public static void Fund(Room r,params WeaponConfig[] configs)
     {

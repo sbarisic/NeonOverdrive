@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace ArcadeDodger.Multiplayer;
 
-public sealed record EnergySnapshot(int Id, float X, float Y, int Value);
+public sealed record EnergySnapshot(int Id, float X, float Y, int Value, int Owner=0);
 
 public sealed partial class Room
 {
@@ -25,7 +25,8 @@ public sealed partial class Room
     private void DropEnergy(Enemy enemy)
     {
         if (energy.Count >= EnergyCapacity) return; // Bounded load; overflow reward is discarded, never duplicated.
-        energy.Add(new Energy(++nextEnergy, enemy.Position, enemy.Gunner ? 15 : 10, Tick + EnergyLifetimeTicks));
+        var drop=Eject(enemy,nextEnergy+1);
+        energy.Add(new Energy(++nextEnergy, drop.Position, (enemy.Gunner ? 15 : 10)*enemy.Level, Tick + EnergyLifetimeTicks){Velocity=drop.Velocity});
     }
 
     private void StepEnergy()
@@ -35,8 +36,8 @@ public sealed partial class Room
         {
             var drop = energy[i];
             // Swept collection catches dashes. Closest contact wins, then stable player ID.
-            var collector = players.Values.Where(p => p.Hull > 0 && p.Connected && !p.Editing)
-                .Select(p => (Player: p, Contact: Intersection(p.Previous - drop.Position, p.Position - drop.Position,
+            var collector = players.Values.Where(p => Eligible(p,drop.Owner))
+                .Select(p => (Player: p, Contact: Intersection(p.Previous - drop.Previous, p.Position - drop.Position,
                     Radius + 12 + Value(p,"collector"))))
                 .Where(p => p.Contact.HasValue).OrderBy(p => p.Contact).ThenBy(p => p.Player.Id)
                 .FirstOrDefault().Player;
@@ -50,5 +51,6 @@ public sealed partial class Room
         }
     }
 
-    private sealed record Energy(int Id, Vector2 Position, int Value, long Expires);
+    private sealed record Energy(int Id, Vector2 Position, int Value, long Expires,int Owner=0)
+    {public Vector2 Previous=Position,Velocity;}
 }

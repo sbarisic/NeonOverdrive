@@ -1,3 +1,6 @@
+Current multiplayer protocol: **v5**. See [cooperative combat](cooperative-combat.md) for run resets and reconnect persistence. Skill effects and unlock rules below remain in force.
+
+
 # Multiplayer skill tree and modular arsenal
 
 ## Pilot Ascension (Tab)

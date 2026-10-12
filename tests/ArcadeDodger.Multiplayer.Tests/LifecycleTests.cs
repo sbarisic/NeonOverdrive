@@ -6,13 +6,15 @@ public class LifecycleTests
 {
     private static (Room Room, int A, int B, int Seq) Pair()
     {
-        var room = new Room(false);
+        var room = new Room(false,sectorEnabled:false);
         var a = room.Join("A")!.Value;
         var b = room.Join("B")!.Value;
+        WorkshopRig.Set(WorkshopRig.Player(room,a),"Position",new System.Numerics.Vector2(1700,800));
+        WorkshopRig.Set(WorkshopRig.Player(room,b),"Position",new System.Numerics.Vector2(1000,800));
         for (var i = 1; i <= 115; i++)
         {
-            room.Input(a, new(i, -1, 0, MathF.PI, false, false));
-            room.Input(b, new(i, 1, 0, 0, false, false));
+            room.Input(a, new(i, 0, 0, MathF.PI, false, false));
+            room.Input(b, new(i, 0, 0, 0, false, false));
             room.Step();
         }
         room.Input(a, new(116, 0, 0, MathF.PI, false, false));

@@ -9,13 +9,15 @@ const assert = require('node:assert/strict');
     await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/?multiplayer=1');
     await page.locator('#nickname').fill('NPCCheck');
     await page.locator('#join-form button').click();
+    await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
+    await page.locator('#canvas').focus();await page.keyboard.down('d');await page.waitForTimeout(5200);await page.keyboard.up('d');
     await page.waitForFunction(() => {
       const state = JSON.parse(document.querySelector('#network-info')?.dataset.snapshot || '{}');
       return state.enemies?.some(e => e.kind === 'rammer') && state.enemies?.some(e => e.kind === 'gunner');
     }, null, {timeout:20000});
     await page.waitForFunction(() => JSON.parse(document.querySelector('#network-info').dataset.snapshot).shots.some(s => s.owner < 0 && s.born > 0), null, {timeout:10000});
     const state = await page.locator('#network-info').evaluate(e => JSON.parse(e.dataset.snapshot));
-    assert(state.enemies.length <= 24);
+    assert(state.enemies.length <= 192);
     assert(state.shots.every(s => Number.isFinite(s.dx) && Number.isFinite(s.dy) && s.born > 0));
     await page.screenshot({path:'artifacts/browser-check/multiplayer-enemies.png'});
     assert.deepEqual(errors, []);
