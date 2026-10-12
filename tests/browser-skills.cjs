@@ -21,7 +21,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         }
       };
     });
-    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/?multiplayer=1');
+    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/');
     await page.locator('#nickname').fill('S_'+Date.now().toString(36));
     await page.getByRole('button', {name:'Join arena',exact:true}).click();
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
@@ -30,6 +30,12 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(await panel.locator('[data-skill]').count(), 69);
     assert.equal(await panel.locator('[data-skill][aria-disabled="true"]').count(), 69);
     assert.equal(await panel.locator('.tree-link').count(), 55);
+    for(const chain of [['recharge.2','flux.1','flux.2'],['thruster.1','thruster.2','impact.1'],['slipstream.2','cruise.1'],['luck.3','luckyfind.1'],['collector.2','fieldrepair.1']]){
+      const boxes=await Promise.all(chain.map(id=>panel.locator(`[data-skill="${id}"]`).boundingBox()));
+      assert(boxes.every(b=>Math.abs(b.y-boxes[0].y)<1),`Aligned chain: ${chain}`);
+      assert(boxes.slice(1).every((b,i)=>b.x>=boxes[i].x+boxes[i].width),`Nonoverlapping chain: ${chain}`);
+    }
+
     await panel.locator('[data-skill="harvest.1"]').focus();
     assert.match(await panel.locator('.tree-detail').innerText(), /Astral Harvest/);
     await panel.getByRole('button',{name:'Collection',exact:true}).click();

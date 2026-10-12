@@ -29,6 +29,7 @@ public sealed class ProfileStore
         {
             profiles=JsonSerializer.Deserialize<Dictionary<string,PilotProfile>>(File.ReadAllText(this.path))
                 ?? throw new InvalidDataException("Empty profile store.");
+            profiles=profiles.ToDictionary(p=>p.Key,p=>p.Value with {Run=p.Value.Run is {} run?run with {Skills=run.Skills.Select(SkillCatalog.Migrate).Distinct().ToArray()}:null});
             if(profiles.Any(p=>p.Key!=FriendBook.Key(p.Key)||!Valid(p.Value)))
                 throw new InvalidDataException("Invalid profile store; preserve and repair it before starting.");
         }
@@ -52,7 +53,7 @@ public sealed class ProfileStore
     private static bool ValidRun(RunCheckpoint? r)=>r is null||
         r.Experience is >=0 and <=Room.MaxExperience&&r.Skills is not null&&r.Skills.All(s=>SkillCatalog.Get(s)!=null)&&r.Hull>=0&&r.Shield>=0&&
         float.IsFinite(r.HullFraction)&&r.HullFraction is >=0 and <1&&float.IsFinite(r.ShieldFraction)&&r.ShieldFraction is >=0 and <1&&
-        r.DashCooldown>=0&&r.ShieldDelay>=0&&r.HullDelay>=0&&r.WeaponCooldown is {Length:4}&&r.WeaponCooldown.All(t=>double.IsFinite(t)&&t>=0)&&
+        float.IsFinite(r.VelocityX)&&float.IsFinite(r.VelocityY)&&r.ShieldDelay>=0&&r.HullDelay>=0&&r.WeaponCooldown is {Length:4}&&r.WeaponCooldown.All(t=>double.IsFinite(t)&&t>=0)&&
         r.PlasmaCooldown is {Length:4}&&r.PlasmaCooldown.All(t=>t>=0)&&r.MineCooldown is {Length:4}&&r.MineCooldown.All(t=>t>=0);
     public string Buy(string name,int module)
     {

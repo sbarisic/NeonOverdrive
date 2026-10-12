@@ -9,7 +9,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   await page.route('**/main.js*',async route=>{const response=await route.fetch(),source=await response.text();await route.fulfill({response,body:source.replace('const host = exports.ArcadeDodger.Web.BrowserHost;','const host = exports.ArcadeDodger.Web.BrowserHost;window.__weaponHost=host;')});});
   await page.addInitScript(()=>{const NativeAudio=window.AudioContext;window.__tones=0;window.AudioContext=class extends NativeAudio{createOscillator(){window.__tones++;return super.createOscillator();}};});
   const nickname='W_'+Date.now().toString(36);
-  await page.goto((process.env.ARENA_URL||'http://localhost:5088')+'/?multiplayer=1');await page.locator('#nickname').fill(nickname);await page.getByRole('button',{name:'Join arena',exact:true}).click();
+  await page.goto((process.env.ARENA_URL||'http://localhost:5088')+'/');await page.locator('#nickname').fill(nickname);await page.getByRole('button',{name:'Join arena',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
   const read=()=>page.locator('#network-info').evaluate(el=>{const f=JSON.parse(el.dataset.snapshot);return {self:f.players.find(p=>p.id===+el.dataset.player),profile:f.workshop};});
   await page.locator('#canvas').focus();await page.keyboard.press('e');await page.locator('#sector-console').getByRole('button',{name:'Module shop',exact:true}).click();await page.locator('#weapon-bench').getByRole('tab',{name:'Loadout',exact:true}).click();const panel=page.locator('#weapon-bench');await panel.waitFor({state:'visible'});

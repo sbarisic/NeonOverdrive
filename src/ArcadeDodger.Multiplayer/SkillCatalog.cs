@@ -15,6 +15,7 @@ public static class SkillCatalog
     public static SkillDefinition? Get(string id) => ById.GetValueOrDefault(id);
     public static int Rank(IEnumerable<string> skills, string family) => skills.Select(Get).Where(s => s?.Family == family).Select(s => s!.Tier).DefaultIfEmpty().Max();
     public static float Value(IEnumerable<string> skills, string family, float fallback = 0) => skills.Select(Get).Where(s => s?.Family == family).OrderByDescending(s => s!.Tier).FirstOrDefault()?.Value ?? fallback;
+    public static string Migrate(string id)=>id switch {"phase.1"=>"thruster.1","longphase.1"=>"thruster.2","blink.1"=>"vector.1","blink.2"=>"vector.2","comet.1"=>"cruise.1","nova.1"=>"impact.1","salvage.1"=>"fieldrepair.1",_=>id};
     private static SkillDefinition[] Build()
     {
         var list = new List<SkillDefinition>();
@@ -46,17 +47,16 @@ public static class SkillCatalog
         int[] levels=[2,5,10,15];
         for(var m=0;m<4;m++) for(var i=0;i<4;i++)
         {var key=masteries[m];list.Add(new($"{key}.{i+1}", $"{char.ToUpper(key[0])+key[1..]} Mastery {roman[i+1]}", descriptions[m][i], "Masteries", key, i+1, levels[i], i==0?null:$"{key}.{i}", key, effects[m][i], values[m][i], Mastery:key));}
-        Series("phase", "Phase Dash", "Mobility", "phase", [1], v=>"Dash grants damage immunity.");
-        Series("longphase", "Long Phase", "Mobility", "duration", [10], v=>"Dash lasts 10 ticks instead of 6.", "phase.1");
-        Series("blink", "Blink Cycle", "Mobility", "cooldown", [2.5f,2], v=>$"Dash cooldown becomes {v} seconds.", "phase.1");
+        Series("thruster", "Thruster Tuning", "Mobility", "acceleration", [.25f,.5f], v=>$"+{v*100:0}% normal acceleration.");
+        Series("vector", "Vector Control", "Mobility", "steering", [.25f,.5f], v=>$"+{v*100:0}% counter-steering acceleration.", "thruster.1");
         Series("slipstream", "Slipstream", "Mobility", "movement", [.1f,.2f], v=>$"+{v*100:0}% movement speed.");
-        Series("comet", "Comet Drive", "Mobility", "dashspeed", [4], v=>"Dash at four times movement speed.", "slipstream.2");
-        Series("nova", "Storm Nova", "Mobility", "nova", [8], v=>"Dash emits eight kinetic shots. Global Strength applies; attachments do not.", "longphase.1");
+        Series("cruise", "Cruise Engines", "Mobility", "movement", [.1f], v=>"+10% maximum speed, additive with Slipstream.", "slipstream.2");
+        Series("impact", "Impact Dampeners", "Mobility", "ramdefense", [.5f], v=>"Take 50% less enemy ramming damage.", "thruster.2");
         Series("fortune", "Fortune", "Fortune", "credits", [.25f,.5f,1], v=>$"+{v*100:0}% collected credits. Combines with Luck.");
         Series("luck", "Luck", "Fortune", "luck", [.1f,.2f,.3f], v=>$"{v*100:0}% chance to double a collected credit payout.");
         Series("collector", "Collector Field", "Collection", "radius", [30,60], v=>$"+{v} units of XP and credit collection radius.");
         Series("harvest", "Astral Harvest", "Collection", "xp", [.25f,.5f], v=>$"+{v*100:0}% collected XP, rounded down.", "collector.1");
-        Series("salvage", "Salvage Cycle", "Collection", "dashrefund", [.5f], v=>"Each XP pickup reduces remaining dash cooldown by half a second.", "collector.2");
+        Series("fieldrepair", "Field Repairs", "Collection", "pickuprepair", [.25f], v=>"Each XP pickup restores 0.25 hull, up to maximum hull.", "collector.2");
         Series("luckyfind", "Lucky Find", "Fortune", "luck", [.35f], v=>"Raise the chance of a doubled credit payout to 35%.", "luck.3");
         return list.ToArray();
     }

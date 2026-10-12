@@ -10,7 +10,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
    assert(source.includes(marker));await route.fulfill({response,body:source.replace(marker,marker+'\nwindow.__beamHost=host;')});
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(String(e)));
-  await page.goto((process.env.ARENA_URL||'http://localhost:5088')+'/?multiplayer=1');
+  await page.goto((process.env.ARENA_URL||'http://localhost:5088')+'/');
   await page.locator('#nickname').fill('BeamFixture');await page.getByRole('button',{name:'Join arena',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
   await page.evaluate(()=>{

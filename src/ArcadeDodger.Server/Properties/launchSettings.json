@@ -3,7 +3,7 @@
     "ArcadeDodger.Server": {
       "commandName": "Project",
       "launchBrowser": true,
-      "launchUrl": "?multiplayer=1",
+      "launchUrl": "",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "UseLocalBrowserBundle": "true"

@@ -56,9 +56,9 @@ public class WorkshopEconomyTests
     }
     [Fact] public void EquipWireRejectsMalformedNestedFieldsAndOldProtocol()
     {
-        var json=JsonSerializer.Serialize(new{v = 5,type="equip",seq=1,weapons=Loadout(Weapon(1,6))},new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json=JsonSerializer.Serialize(new{v = 6,type="equip",seq=1,weapons=Loadout(Weapon(1,6))},new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json),out var message));Assert.IsType<EquipMessage>(message);
-        foreach(var invalid in new[]{json.Replace("\"emitter\":1","\"emitter\":1,\"emitter\":1"),json.Replace("\"enabled\":true","\"enabled\":1"),json.Replace("[6,0,0,0,0,0,0,0]","[6]"),json.Replace("\"v\":5","\"v\":1")})
+        foreach(var invalid in new[]{json.Replace("\"emitter\":1","\"emitter\":1,\"emitter\":1"),json.Replace("\"enabled\":true","\"enabled\":1"),json.Replace("[6,0,0,0,0,0,0,0]","[6]"),json.Replace("\"v\":6","\"v\":1")})
             Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(invalid),out _));
     }
     [Fact] public void SameNormalizedNameCannotConnectTwiceButDisconnectAllowsRejoin()

@@ -32,11 +32,11 @@ public class CooperativeRunTests
     }
     [Fact] public void ReconnectKeepsPilotHealthSkillsAndCooldownsBeforeAndAfterBodyRemoval()
     {
-        var r=Start(5);Set(Player(r),"Hull",2);Set(Player(r),"Shield",0);Set(Player(r),"ShieldAt",10000L);Set(Player(r),"DashReadyAt",1000L);
+        var r=Start(5);Set(Player(r),"Hull",2);Set(Player(r),"Shield",0);Set(Player(r),"ShieldAt",10000L);
         Set(Player(r),"Skills",new HashSet<string>{"strength.1"});var before=r.Snapshot().Players[0];
         r.Disconnect(1);Assert.Equal(1,r.Join("MODULES"));Assert.Equal(before.RunId,r.Snapshot().Players[0].RunId);Assert.Equal(2,r.Snapshot().Players[0].Hull);
         r.Disconnect(1);Step(r,151);Assert.Empty(r.Snapshot().Players);Assert.Equal(1,r.Join("Modules"));var after=r.Snapshot().Players[0];
-        Assert.Equal(2,after.Hull);Assert.Equal(0,after.Shield);Assert.Equal(before.Experience,after.Experience);Assert.Contains("strength.1",after.Skills);Assert.True(after.DashCooldown>0);
+        Assert.Equal(2,after.Hull);Assert.Equal(0,after.Shield);Assert.Equal(before.Experience,after.Experience);Assert.Contains("strength.1",after.Skills);Assert.Equal(0,after.VelocityX);
     }
     [Fact] public void RestartRestoresRunCheckpointAtNewArrivalPort()
     {

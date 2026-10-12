@@ -48,7 +48,7 @@ public sealed record WeaponConfig(int Emitter, int[] Attachments, bool Enabled =
 {
     public WeaponConfig Copy() => this with { Attachments = (int[])Attachments.Clone() };
 }
-public sealed record RunCheckpoint(int Experience, string[] Skills, int Hull, int Shield, float HullFraction, float ShieldFraction, long DashCooldown, double[] WeaponCooldown, long[] PlasmaCooldown, long[] MineCooldown, long ShieldDelay, long HullDelay);
+public sealed record RunCheckpoint(int Experience, string[] Skills, int Hull, int Shield, float HullFraction, float ShieldFraction, double[] WeaponCooldown, long[] PlasmaCooldown, long[] MineCooldown, long ShieldDelay, long HullDelay, float VelocityX=0, float VelocityY=0);
 public sealed record PilotProfile(long Credits, int[] Owned, WeaponConfig[] Weapons, string RunId = "", RunCheckpoint? Run = null)
 {
     public static PilotProfile Starter() { var owned=new int[29]; owned[1]=4; return new(100,owned,

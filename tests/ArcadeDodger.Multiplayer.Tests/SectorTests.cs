@@ -119,8 +119,8 @@ public class SectorTests
     }
     [Fact] public void SectorCommandsRejectUnknownActionsAndClientAuthority()
     {
-        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":5,"type":"sector","seq":1,"action":"dock","target":10}"""),out _));
-        Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":5,"type":"sector","seq":1,"action":"teleport","target":10}"""),out _));
-        Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":5,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""),out _));
+        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":6,"type":"sector","seq":1,"action":"dock","target":10}"""),out _));
+        Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":6,"type":"sector","seq":1,"action":"teleport","target":10}"""),out _));
+        Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("""{"v":6,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""),out _));
     }
 }

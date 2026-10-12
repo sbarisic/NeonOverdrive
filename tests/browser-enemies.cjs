@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
   try {
     const page = await browser.newPage({viewport:{width:1280,height:720}});
     page.on('pageerror', e => errors.push(String(e)));
-    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/?multiplayer=1');
+    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/');
     await page.locator('#nickname').fill('NPCCheck');
     await page.locator('#join-form button').click();
     await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);

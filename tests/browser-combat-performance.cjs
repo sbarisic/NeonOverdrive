@@ -8,6 +8,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   page.on('pageerror',e=>errors.push(String(e)));
   await page.route('**/main.js*',async route=>{
    const response=await route.fetch();let source=(await response.text()).replaceAll('\r\n','\n');
+   source=source.replace('startNetwork(host, canvas, status);', '/* Recorded playback owns the arena in this test. */');
    source=source.replace('const host = exports.ArcadeDodger.Web.BrowserHost;','const host = exports.ArcadeDodger.Web.BrowserHost;window.__perfHost=host;window.__frameTimes=[];');
    source=source.replace('const bounds = canvas.getBoundingClientRect();','const started=performance.now();const bounds = canvas.getBoundingClientRect();');
    source=source.replace('} catch (error) {\n      running = false;','window.__frameTimes.push(performance.now()-started);\n    } catch (error) {\n      running = false;');
@@ -19,7 +20,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
    const recording=JSON.parse(fs.readFileSync(`artifacts/combat-performance/frames-${limit}.json`,'utf8'));
    recording.frames=recording.frames.slice(0,45);
    const result=await page.evaluate(async ({sector,frames})=>{
-    const {presentSnapshot}=await import('/snapshot.js');const h=window.__perfHost;h.ActivateArena();h.ArenaWelcome(1);h.ArenaSector(JSON.stringify(sector));
+    const {presentSnapshot}=await import('/snapshot.js');const h=window.__perfHost;h.ActivateArena();h.ArenaHudLayout(1920,1080);h.ArenaWelcome(1);h.ArenaSector(JSON.stringify(sector));
     window.__frameTimes=[];const stages=[];const receive=[],intervals=[];let last=performance.now(),count=0,done=false;
     function raf(now){intervals.push(now-last);last=now;if(!done)requestAnimationFrame(raf);}requestAnimationFrame(raf);
     for(let lap=0;lap<2;lap++)for(const original of frames){

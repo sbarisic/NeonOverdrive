@@ -127,5 +127,5 @@ public class FriendsAndBeamsTests
     [Theory]
     [InlineData("accept",true)] [InlineData("request",true)] [InlineData("force",false)]
     public void FriendWireCommandsAreStrict(string action,bool valid)
-    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"),out _));}
+    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":6,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"),out _));}
 }

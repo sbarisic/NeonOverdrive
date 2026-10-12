@@ -22,8 +22,8 @@ public sealed partial class Room
         }
     }
     private RunCheckpoint Checkpoint(Player p)=>new(p.Experience,p.Skills.ToArray(),p.Hull,p.Shield,p.HullFraction,p.ShieldFraction,
-        Math.Max(0,p.DashReadyAt-Tick),p.WeaponReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),p.PlasmaReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),
-        p.MineReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),Math.Max(0,p.ShieldAt-Tick),Math.Max(0,p.HullAt-Tick));
+        p.WeaponReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),p.PlasmaReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),
+        p.MineReady.Select(t=>Math.Max(0,t-Tick)).ToArray(),Math.Max(0,p.ShieldAt-Tick),Math.Max(0,p.HullAt-Tick),p.Velocity.X,p.Velocity.Y);
     private void SaveCheckpoint(Player p)
     {
         if(p.Hull<=0||p.CheckpointPending||p.ResetPending)return;
@@ -35,14 +35,14 @@ public sealed partial class Room
         if(r is null)return;
         p.Experience=r.Experience;p.Skills=r.Skills.Where(s=>SkillCatalog.Get(s)!=null).ToHashSet();
         p.Hull=r.Hull;p.Shield=r.Shield;p.HullFraction=r.HullFraction;p.ShieldFraction=r.ShieldFraction;
-        p.DashReadyAt=Tick+r.DashCooldown;p.WeaponReady=r.WeaponCooldown.Select(t=>Tick+t).ToArray();
+        p.WeaponReady=r.WeaponCooldown.Select(t=>Tick+t).ToArray();
         p.PlasmaReady=r.PlasmaCooldown.Select(t=>Tick+t).ToArray();p.MineReady=r.MineCooldown.Select(t=>Tick+t).ToArray();
         p.ShieldAt=Tick+r.ShieldDelay;p.HullAt=Tick+r.HullDelay;
     }
     private void ResetAfterDeath(Player p)
     {
         if(p.ResetComplete||p.ResetPending)return;
-        p.ResetPending=true;
+        p.ResetPending=true;p.Velocity=System.Numerics.Vector2.Zero;
         foreach(var shot in shots)if(shot.Owner==p.Id)shot.Expires=Tick;
         foreach(var mine in mines)if(mine.Payload.Owner==p.Id)mine.Payload.Cancelled=true;
         pendingEnergy.RemoveAll(e=>e.Owner==p.Id);pendingCredits.RemoveAll(e=>e.Owner==p.Id);pendingModules.RemoveAll(e=>e.Owner==p.Id);

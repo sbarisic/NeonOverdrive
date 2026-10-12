@@ -7,7 +7,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     for(const page of [victim,attacker])page.on('pageerror',e=>errors.push(String(e)));
     const origin=process.env.ARENA_URL||'http://localhost:5094', suffix=Date.now().toString(36);
     async function join(page,name,room=''){
-      await page.goto(`${origin}/?multiplayer=1${room?'&room='+room:''}`);
+      await page.goto(`${origin}/${room?'?room='+room:''}`);
       await page.locator('#nickname').fill(name);await page.getByRole('button',{name:'Join arena',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
     }
@@ -31,9 +31,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await join(attacker,'Attack'+suffix,room);await attacker.locator('#canvas').focus();
     await attacker.keyboard.down('d');await attacker.waitForTimeout(2800);await attacker.keyboard.up('d');await attacker.waitForTimeout(200);
     const now=await read(attacker), self=now.self, target=now.snapshot.players.find(p=>p.id===before.self.id);
-    const box=await attacker.locator('#canvas').boundingBox(), ox=Math.max(0,Math.min(12000-960,self.x-480)),oy=Math.max(0,Math.min(8000-540,self.y-270));
+    const box=await attacker.locator('#canvas').boundingBox(), ox=Math.max(0,Math.min(12000-1280,self.x-640)),oy=Math.max(0,Math.min(8000-720,self.y-360));
     const dx=target.x-self.x,dy=target.y-self.y,scale=200/Math.hypot(dx,dy);
-    await attacker.mouse.move(box.x+(self.x-ox+dx*scale)/960*box.width,box.y+(self.y-oy+dy*scale)/540*box.height);
+    await attacker.mouse.move(box.x+(self.x-ox+dx*scale)/1280*box.width,box.y+(self.y-oy+dy*scale)/720*box.height);
     await attacker.keyboard.down('Space');
     await victim.locator('#arena-respawn').waitFor({state:'visible',timeout:15000});await attacker.keyboard.up('Space');
     await victim.waitForFunction(()=>JSON.parse(document.querySelector('#network-info').dataset.snapshot).workshop.credits===100);

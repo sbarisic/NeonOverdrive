@@ -59,7 +59,7 @@ public class LifecycleTests
         Assert.Equal(3, fresh.Hull);
         Assert.Equal(2, fresh.Shield);
         Assert.True(fresh.Protected);
-        Assert.Equal(0, fresh.DashCooldown);
+        Assert.Equal(0, fresh.VelocityX);
         Assert.Equal(seq, fresh.Ack);
         Assert.False(room.Respawn(b, new(seq)));
         Assert.False(room.Input(b, new(seq, 0, 0, 0, true, false)));

@@ -46,8 +46,8 @@ public class SkillTreeTests
     }
     [Fact] public void StringSkillProtocolRejectsLegacyNumericChoicesAndUnknownIds()
     {
-        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("{\"v\":5,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"),out var m));Assert.Equal(new ChoiceMessage(1,"shield.1"),m);
-        foreach(var choice in new[]{"0","\"unknown\"","null"})Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"),out _));
+        Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes("{\"v\":6,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"),out var m));Assert.Equal(new ChoiceMessage(1,"shield.1"),m);
+        foreach(var choice in new[]{"0","\"unknown\"","null"})Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":6,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"),out _));
     }
     [Fact] public void AllShieldAndHullTiersRestoreOnlyTheirAddedPoint()
     {

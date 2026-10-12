@@ -11,7 +11,7 @@ namespace ArcadeDodger.Web;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class SnapshotJson : JsonSerializerContext { }
 
-// Isolated network-slice presentation. Single-player GameApp and model remain untouched.
+// WebAssembly presentation of the authoritative multiplayer sector.
 internal sealed class BrowserArena
 {
     private RoomSnapshot? snapshot;
@@ -21,6 +21,7 @@ internal sealed class BrowserArena
     private int ownId;
     private Vector2 origin;
     private Vector2 view = new(960, 540);
+    private const float WorldZoom = .75f;
     private float scale = 2;
     private readonly BrowserArenaWorld world = new();
     private bool menuOpen, reducedEffects;
@@ -31,15 +32,15 @@ internal sealed class BrowserArena
     {
         if (menu && !menuOpen)
             prediction.Input(0, 0, snapshot?.Players.FirstOrDefault(p => p.Id == ownId)?.Aim ?? 0,
-                false, clock.Elapsed.TotalSeconds);
+                true, clock.Elapsed.TotalSeconds);
         menuOpen = menu; reducedEffects = reduced;
     }
     public void Release()=>world.ReleaseSector();
     public void SetSector(string json) {var sector=JsonSerializer.Deserialize(json,SnapshotJson.Default.SectorDefinition);if(sector is not null){prediction.SetSector(sector);world.SetSector(sector);}}
     public void Welcome(int id) { ownId = id; prediction.Reset(); }
-    public void Input(double x, double y, double aim, bool dash) =>
+    public void Input(double x, double y, double aim, bool menu) =>
         prediction.Input(menuOpen ? 0 : (float)x, menuOpen ? 0 : (float)y, (float)aim,
-            !menuOpen && dash, clock.Elapsed.TotalSeconds);
+            menuOpen || menu, clock.Elapsed.TotalSeconds);
     public void SentInput(int sequence) => prediction.SentInput(sequence, clock.Elapsed.TotalSeconds);
     // Actual last-rendered position, not a JS transport estimate.
     public string Position()
@@ -83,7 +84,9 @@ internal sealed class BrowserArena
 
     public bool Frame()
     {
-        scale = MathF.Min(Raylib.GetScreenWidth() / 960f, Raylib.GetScreenHeight() / 540f);
+        var hudScale = MathF.Min(Raylib.GetScreenWidth() / 960f, Raylib.GetScreenHeight() / 540f);
+        var hudView = new Vector2(Raylib.GetScreenWidth() / hudScale, Raylib.GetScreenHeight() / hudScale);
+        scale = hudScale * WorldZoom;
         view = new(Raylib.GetScreenWidth() / scale, Raylib.GetScreenHeight() / scale);
         var seconds = clock.Elapsed.TotalSeconds;
         var started=System.Diagnostics.Stopwatch.GetTimestamp();
@@ -125,12 +128,12 @@ internal sealed class BrowserArena
                 world.Draw(snapshot, ownId, origin, view, (float)clock.Elapsed.TotalSeconds, reducedEffects);
             }
             finally { Raylib.EndMode2D(); }
-            BrowserArenaHud.Draw(snapshot, ownId, origin, view, scale, (float)clock.Elapsed.TotalSeconds, menuOpen, reducedEffects);
-            Raylib.BeginMode2D(new Camera2D { Zoom = scale });
+            BrowserArenaHud.Draw(snapshot, ownId, origin, hudView, view, hudScale, (float)clock.Elapsed.TotalSeconds, menuOpen, reducedEffects);
+            Raylib.BeginMode2D(new Camera2D { Zoom = hudScale });
             try
             {
                 if (self?.Hull > 0 && !menuOpen)
-                    NeonRendering.DrawReticle(Raylib.GetMousePosition() / scale, new Color(65, 245, 235, 255));
+                    NeonRendering.DrawReticle(Raylib.GetMousePosition() / hudScale, new Color(65, 245, 235, 255));
             }
             finally { Raylib.EndMode2D(); }
         }

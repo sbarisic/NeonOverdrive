@@ -36,7 +36,6 @@ export function createArenaAudio() {
        if(self&&old&&self.life===old.life){
          if(self.hull<old.hull||self.shield<old.shield)tone(140,35,.18,'sawtooth',.04);
          if(self.hull<=0&&old.hull>0)tone(220,25,.5,'sawtooth',.055);
-         if(self.dashTicks>old.dashTicks)tone(170,900,.15,'triangle',.035);
          if(self.experience>old.experience)tone(880,1320,.1,'sine',.035);
          if(self.level>old.level)for(let i=0;i<4;i++)tone(440*2**(i/3),440*2**(i/3),.18,'sine',.045,i*.09);
          if(JSON.stringify(self.skills)!==JSON.stringify(old.skills)||JSON.stringify(self.weapons)!==JSON.stringify(old.weapons))tone(550,1100,.16,'triangle',.045);

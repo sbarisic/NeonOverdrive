@@ -12,7 +12,7 @@ public class ExpandedSkillTests
     {
         var stats=Room.CalculateWeaponStats(All("strength","rate"),emitter);
         Assert.Equal(damage*1.75f*(emitter==2?1.5f:1),stats.Damage,4);Assert.Equal(1.75f,stats.StatusPower);
-        Assert.Equal((emitter==3?18:emitter==4?12:7)/1.5f,stats.Interval,4);
+        Assert.Equal((emitter==3?18:emitter==4?12:emitter==1?5:7)/1.5f,stats.Interval,4);
     }
     [Theory][InlineData(1,1.4f,1f/1.4f,1.25f,1f,1f,1)][InlineData(2,1.4f,1f,1f,1.2f,1.25f,0)][InlineData(3,1.15f,1.4f/1.15f,1.25f,1f,1f,0)][InlineData(4,1.4f,1f,1.2f,1f,1f,0)]
     public void EmitterMasteryEffectsAreAdditiveAndDoNotLeak(int emitter,float damage,float splash,float speed,float range,float shield,int pierce)
@@ -29,7 +29,7 @@ public class ExpandedSkillTests
     [Fact] public void FractionalCadenceDoesNotLoseRateToPerShotRounding()
     {
         var r=Start();Set(Player(r),"Skills",All("rate"));var shots=(IList)Get(r,"shots");int fired=0;
-        for(var i=0;i<300;i++){Fire(r,1,i+1);fired+=shots.Count;shots.Clear();}Assert.InRange(fired,64,65);
+        for(var i=0;i<300;i++){Fire(r,1,i+1);fired+=shots.Count;shots.Clear();}Assert.InRange(fired,90,91);
     }
     [Fact] public void StrengthScalesDotOnceAndLaserDamageIncludesFireRate()
     {
@@ -49,11 +49,11 @@ public class ExpandedSkillTests
         typeof(Room).GetMethod("Damage",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(r,[Player(r)]);Step(r,299);Assert.Equal(2,r.Snapshot().Players[0].Hull);r.Step();Assert.Equal(3,r.Snapshot().Players[0].Hull);
         Set(Player(r),"Hull",2);Step(r,interval-1);Assert.Equal(2,r.Snapshot().Players[0].Hull);r.Step();Assert.Equal(3,r.Snapshot().Players[0].Hull);Set(Player(r),"Hull",0);Step(r,300);Assert.Equal(0,r.Snapshot().Players[0].Hull);
     }
-    [Fact] public void MobilitySnapshotsAndNovaMatchPredictionAndStrength()
+    [Fact] public void MobilitySnapshotsMatchPredictionAndDoNotEmitShots()
     {
-        var r=Start();Set(Player(r),"Skills",All("phase","longphase","blink","slipstream","comet","nova","strength"));var p=r.Snapshot().Players[0];Assert.Equal(360,p.MoveSpeed);Assert.Equal(4,p.DashMultiplier);Assert.Equal(60,p.DashCooldownMax);Assert.Equal("long-phase",p.Ability);
-        r.Input(1,new(1,1,0,0,false,true));r.Step();Assert.Equal(1048,r.Snapshot().Players[0].X);Assert.Equal(8,r.Snapshot().Shots.Length);Assert.All(((IList)Get(r,"shots")).Cast<object>(),s=>Assert.Equal(1.75f,Get(s,"Damage")));
-        var prediction=new LocalPrediction();prediction.Receive(p,0,0);prediction.Input(1,0,0,true,0);Assert.Equal(1048,prediction.Sample(1d/30)!.X,2);
+        var r=Start();Set(Player(r),"Skills",All("thruster","vector","slipstream","cruise","impact"));var p=r.Snapshot().Players[0];Assert.Equal(390,p.MoveSpeed,2);Assert.Equal(1800,p.Acceleration);Assert.Equal(2700,p.Steering);
+        r.Input(1,new(1,1,0,0,false,false));r.Step();Assert.Empty(r.Snapshot().Shots);
+        var prediction=new LocalPrediction();prediction.Receive(p,0,0);prediction.Input(1,0,0,false,0);Assert.Equal(r.Snapshot().Players[0].X,prediction.Sample(1d/30)!.X,2);
     }
     [Fact] public void IncomeSkillsMultiplyCollectorPayoutAndNeverXp()
     {
@@ -67,8 +67,8 @@ public class ExpandedSkillTests
     }
     [Fact] public void CollectionHarvestSiphonAndSalvageApplyOnPickup()
     {
-        var r=Start();Set(Player(r),"Skills",All("collector","harvest","siphon","salvage"));Set(Player(r),"Shield",0);Set(Player(r),"ShieldAt",10000L);Set(Player(r),"DashReadyAt",100L);
-        Enemy(r,1080,hull:0);r.Step();Assert.Equal(15,r.Snapshot().Players[0].Experience);Assert.Equal(1,r.Snapshot().Players[0].Shield);Assert.Equal(84,r.Snapshot().Players[0].DashCooldown);Assert.Equal(105,r.Workshop(1).Credits);
+        var r=Start();Set(Player(r),"Skills",All("collector","harvest","siphon","fieldrepair"));Set(Player(r),"Shield",0);Set(Player(r),"ShieldAt",10000L);Set(Player(r),"Hull",2);
+        Enemy(r,1080,hull:0);r.Step();Assert.Equal(15,r.Snapshot().Players[0].Experience);Assert.Equal(1,r.Snapshot().Players[0].Shield);Assert.Equal(.75f,Get(Player(r),"HullFraction"));Assert.Equal(105,r.Workshop(1).Credits);
     }
     [Fact] public void LuckyPayoutRetriesDiskFailureWithoutRerollOrEarlyReceipt()
     {

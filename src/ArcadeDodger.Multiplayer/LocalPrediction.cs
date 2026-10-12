@@ -25,7 +25,7 @@ public sealed class LocalPrediction
     public int HistoryCount => history.Count;
     public int SentCount => sent.Count;
 
-    private readonly record struct Intent(double At, double RefreshedAt, Vector2 Direction, float Aim, bool Dash);
+    private readonly record struct Intent(double At, double RefreshedAt, Vector2 Direction, float Aim, bool Menu);
     private readonly record struct Sent(int Sequence, double At);
     private static bool Active(PlayerSnapshot p) => p.Connected && p.Hull > 0 && !p.Editing && p.Docked==0;
     private static Vector2 Clamp(Vector2 p) => Vector2.Clamp(p, new(Room.Radius),
@@ -41,7 +41,7 @@ public sealed class LocalPrediction
     }
 
     // Called promptly on local changes, and refreshed independently of packet frequency.
-    public void Input(float x, float y, float aim, bool dash, double seconds)
+    public void Input(float x, float y, float aim, bool menu, double seconds)
     {
         if (!double.IsFinite(seconds) || seconds < lastTime || !float.IsFinite(x) ||
             !float.IsFinite(y) || !float.IsFinite(aim) || authoritative is not { } p || !Active(p)) return;
@@ -51,11 +51,10 @@ public sealed class LocalPrediction
         aim = MathF.IEEERemainder(aim, MathF.Tau);
         // RAF, pointer movement and transport can all refresh the same held keys.
         // Preserve the start of that interval instead of evicting replay history at high event rates.
-        // Aim only changes movement for a stationary dash; retain those direction boundaries.
-        if (history.Count > 0 && history[^1] is var prior && prior.Direction == direction && prior.Dash == dash &&
-            (!dash || direction != Vector2.Zero || prior.Aim == aim) && seconds < prior.RefreshedAt + InputTimeoutSeconds)
+        if (history.Count > 0 && history[^1] is var prior && prior.Direction == direction && prior.Menu == menu &&
+            seconds < prior.RefreshedAt + InputTimeoutSeconds)
             history[^1] = prior with { RefreshedAt = seconds, Aim = aim };
-        else history.Add(new(seconds, seconds, direction, aim, dash));
+        else history.Add(new(seconds, seconds, direction, aim, menu));
         Trim(seconds);
     }
 
@@ -73,10 +72,10 @@ public sealed class LocalPrediction
     {
         if (!double.IsFinite(seconds) || seconds < lastTime || serverTick < 0 || serverTick <= tick ||
             !float.IsFinite(p.X) || !float.IsFinite(p.Y) || !float.IsFinite(p.Aim) ||
-            !float.IsFinite(p.DashX) || !float.IsFinite(p.DashY) ||
+            !float.IsFinite(p.VelocityX) || !float.IsFinite(p.VelocityY) ||
             !float.IsFinite(p.MoveSpeed) || p.MoveSpeed <= 0 ||
-            !float.IsFinite(p.DashMultiplier) || p.DashMultiplier <= 0 ||
-            p.DashCooldownMax <= 0) return;
+            !float.IsFinite(p.Acceleration) || p.Acceleration <= 0 ||
+            !float.IsFinite(p.Steering) || p.Steering <= 0) return;
         var old = Sample(seconds);
         var lifecycle = authoritative is not { } previous || previous.Id != p.Id ||
             previous.Life != p.Life || Active(previous) != Active(p);
@@ -114,12 +113,7 @@ public sealed class LocalPrediction
         if (!Active(p)) return p;
         var position = new Vector2(p.X, p.Y);
         var aim = p.Aim;
-        var dashDirection = new Vector2(p.DashX, p.DashY);
-        if (dashDirection.LengthSquared() > 1) dashDirection = Vector2.Normalize(dashDirection);
-        // At snapshot tick T, the next step dashes only if T+1 < DashUntil.
-        var duration = Room.DashDurationForAbility(p.Ability);
-        var dashLeft = Math.Clamp(p.DashTicks - 1, 0, Room.LongDashDuration) / (double)Room.TickRate;
-        var cooldown = Math.Clamp(p.DashCooldown, 0, p.DashCooldownMax) / (double)Room.TickRate;
+        var velocity=new Vector2(p.VelocityX,p.VelocityY);
         var end = Math.Min(seconds, anchorTime + MaxPredictionSeconds);
         var time = anchorTime;
         var index = -1;
@@ -133,33 +127,14 @@ public sealed class LocalPrediction
             var next = Math.Min(end, time + 1d / Room.TickRate);
             if (index + 1 < history.Count) next = Math.Min(next, history[index + 1].At);
             if (held) next = Math.Min(next, intent.RefreshedAt + InputTimeoutSeconds);
-            if (held && intent.Dash && cooldown <= 1e-9)
-            {
-                dashDirection = intent.Direction.LengthSquared() > 0 ? Vector2.Normalize(intent.Direction)
-                    : new(MathF.Cos(intent.Aim), MathF.Sin(intent.Aim));
-                dashLeft = duration / (double)Room.TickRate;
-                cooldown = p.DashCooldownMax / (double)Room.TickRate;
-            }
-            if (dashLeft > 1e-9) next = Math.Min(next, time + dashLeft);
-            var dt = next - time;
-            // A snapshot already in dash may arrive before any local intent. Continue
-            // its remaining movement. Explicit neutral intent (menu/focus/key release)
-            // stops local presentation immediately; remaining server dash reconciles.
-            var neutral = held && !intent.Dash && intent.Direction == Vector2.Zero;
-            if (held || (index < 0 && dashLeft > 1e-9))
-            {
-                if (held) aim = intent.Aim;
-                var movement = neutral ? Vector2.Zero : dashLeft > 1e-9
-                    ? dashDirection * p.DashMultiplier : intent.Direction;
-                position = geometry?.Move(position,position+movement*(float)(p.MoveSpeed*dt),Room.Radius)??Clamp(position + movement * (float)(p.MoveSpeed * dt));
-            }
-            dashLeft = Math.Max(0, dashLeft - dt);
-            cooldown = Math.Max(0, cooldown - dt);
+            var dt=(float)(next-time);
+            if(held)aim=intent.Aim;
+            Movement.Step(ref position,ref velocity,held?intent.Direction:Vector2.Zero,dt,p.MoveSpeed,p.Acceleration,p.Steering,geometry,held&&intent.Menu);
             time = next;
         }
         // Only visual residuals decay; authoritative gameplay fields are unchanged.
         position = Clamp(position + correction * (float)Math.Exp(-Math.Max(0, seconds - correctionAt) / .06));
-        return p with { X = position.X, Y = position.Y, Aim = aim };
+        return p with { X = position.X, Y = position.Y, Aim = aim, VelocityX=velocity.X,VelocityY=velocity.Y };
     }
 
     private void Trim(double seconds)

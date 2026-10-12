@@ -18,8 +18,8 @@ internal sealed class PackedSnapshot(double[] data,string[] text)
     {
         var version=Int();var tick=Long();
         var players=List(24,()=>new PlayerSnapshot(Int(),Text(),Float(),Float(),Float(),Int(),Int(),Int(),Bool(),Bool(),
-            Int(),Int(),Int(),Int(),Float(),Float(),Int(),Int(),MaxShield:Int(),Weapon:Text(),Ability:Text(),
-            MaxHull:Int(),MoveSpeed:Float(),DashMultiplier:Float(),DashCooldownMax:Int(),Editing:Bool(),Docked:Int()));
+            Float(),Int(),Int(),Float(),Float(),Float(),Int(),Int(),MaxShield:Int(),Weapon:Text(),
+            MaxHull:Int(),MoveSpeed:Float(),Menu:Bool(),Editing:Bool(),Docked:Int()));
         var shots=List(1024,()=>
         {
             var id=Int();var owner=Int();var x=Float();var y=Float();var dx=Float();var dy=Float();var born=Long();
@@ -36,8 +36,9 @@ internal sealed class PackedSnapshot(double[] data,string[] text)
         var explosions=List(32,()=>new ExplosionSnapshot(Int(),Float(),Float(),Float(),Long()));
         var locations=List(64,()=>new LocationState(Int(),Int(),Text(),Int()));
         var friends=List(1024,Text);
+        var wallet=Long();
         if(cursor!=data.Length)throw new FormatException();
         return new(version,"snapshot",tick,players,shots,enemies,energy,explosions,beams,
-            Social:new(friends,[],[]),Credits:credits,Mines:mines,Sector:new(locations),ModuleDrops:modules);
+            Social:new(friends,[],[]),Workshop:new(wallet,[],[]),Credits:credits,Mines:mines,Sector:new(locations),ModuleDrops:modules);
     }
 }

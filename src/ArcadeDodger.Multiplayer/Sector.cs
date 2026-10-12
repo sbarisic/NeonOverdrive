@@ -80,15 +80,19 @@ public sealed class SectorCollision
         return hit;
     }
     public Vector2 Move(Vector2 from,Vector2 to,float radius)
+    {var velocity=Vector2.Zero;return Move(from,to,radius,ref velocity);}
+    public Vector2 Move(Vector2 from,Vector2 to,float radius,ref Vector2 velocity)
     {
         for(var i=0;i<4;i++)
         {
             var hit=TraceShips(from,to,radius);
             if(hit is null)break;
+            velocity-=hit.Value.Normal*MathF.Min(0,Vector2.Dot(velocity,hit.Value.Normal));
             var at=Vector2.Lerp(from,to,MathF.Max(0,hit.Value.T-.0001f))+hit.Value.Normal*.02f;
             var left=to-at;left-=hit.Value.Normal*MathF.Min(0,Vector2.Dot(left,hit.Value.Normal));from=at;to=at+left;
         }
-        return Vector2.Clamp(to,new(radius),new(sector.Width-radius,sector.Height-radius));
+        var bounded=Vector2.Clamp(to,new(radius),new(sector.Width-radius,sector.Height-radius));
+        if(bounded.X!=to.X)velocity.X=0;if(bounded.Y!=to.Y)velocity.Y=0;return bounded;
     }
     public static float DistanceToSegment(Vector2 p,Vector2 a,Vector2 b)
     {var d=b-a;return Vector2.Distance(p,a+d*(d.LengthSquared()<.001f?0:Math.Clamp(Vector2.Dot(p-a,d)/d.LengthSquared(),0,1)));}

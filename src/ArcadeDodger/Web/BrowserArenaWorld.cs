@@ -88,7 +88,7 @@ internal sealed partial class BrowserArenaWorld
             Vector2 p = new(shot.X, shot.Y);
             if (!Visible(p, origin, 35)) continue;
             var size=Math.Clamp(MathF.Sqrt(shot.Power),.65f,4);
-            if(size>1)Raylib.DrawCircleV(p,5*size,Raylib.Fade(ProjectileColor(shot),.5f));
+            if(size>1&&shot.Kind!=1)Raylib.DrawCircleV(p,5*size,Raylib.Fade(ProjectileColor(shot),.5f));
             Color color = shot.Owner < 0 ? Hostile : ProjectileColor(shot);
             if (shot.Owner < 0)
             {
@@ -115,12 +115,12 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawCircleV(p, 6, color);
                 Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
             }
-            else if (!reducedEffects) NeonRendering.DrawProjectile(p, new(shot.Dx, shot.Dy), color);
             else
             {
                 Vector2 d = Direction(new(shot.Dx, shot.Dy));
-                Raylib.DrawLineEx(p - d * 12, p, 3, color);
-                Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
+                if(!reducedEffects)Raylib.DrawCircleV(p,3*size,Raylib.Fade(color,.18f));
+                Raylib.DrawLineEx(p-d*6,p,1.5f*size,color);
+                Raylib.DrawCircleV(p,1.5f*size,NeonRendering.Ink);
             }
         }
         foreach (var beam in snapshot.Beams ?? [])
@@ -233,7 +233,7 @@ internal sealed partial class BrowserArenaWorld
         if (p.Hull <= 0 || !Visible(position, origin, 65)) return;
         Color color = PlayerColor(p);
         if (p.Editing) color = Raylib.Fade(color, .35f);
-        Box box = new(p.X - 14, p.Y - 14, 28, 28);
+        Rectangle box = new(p.X - 14, p.Y - 14, 28, 28);
         if (!low) NeonRendering.GlowBox(box, color);
         else
         {

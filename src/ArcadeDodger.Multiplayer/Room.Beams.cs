@@ -10,7 +10,7 @@ public sealed partial class Room
         beams.Clear();
         foreach(var p in players.Values.Skip((int)(Tick%Math.Max(1,players.Count))).Concat(players.Values.Take((int)(Tick%Math.Max(1,players.Count)))))
         {
-            if(!p.Connected||p.Hull<=0||p.Editing||Safe(p)||p.Held?.Fire!=true)continue;
+            if(!p.Connected||p.Hull<=0||p.Editing||p.Menu||Safe(p)||p.Held?.Fire!=true)continue;
             var active=Enumerable.Range(0,4).Where(i=>Active(p,i)&&p.Weapons[i].Emitter==2).OrderBy(i=>(i+(int)Tick)%4).ToArray();
             if(active.Length==0)continue;
             foreach(var weapon in active)

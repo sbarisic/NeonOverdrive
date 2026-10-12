@@ -11,7 +11,7 @@ const {chromium} = require('../artifacts/browser-check/node_modules/playwright')
     // A stale unversioned skills module must never enter the new module graph.
     await page.route('**/skills.js', route => route.fulfill({contentType:'text/javascript',body:'throw new Error("Stale module loaded");'}));
     const origin = process.env.ARENA_URL || 'http://localhost:5088';
-    await page.goto(origin + '/?multiplayer=1');
+    await page.goto(origin + '/');
     await page.locator('#nickname').fill('Cache_' + Date.now().toString(36));
     await page.getByRole('button',{name:'Join arena',exact:true}).click();
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
@@ -34,7 +34,7 @@ const {chromium} = require('../artifacts/browser-check/node_modules/playwright')
         close(...args) { this.dispatchEvent(new Event('error')); return super.close(...args); }
       };
     });
-    await broken.goto(origin + '/?multiplayer=1');
+    await broken.goto(origin + '/');
     await broken.locator('#nickname').fill('Mismatch_' + Date.now().toString(36));
     await broken.getByRole('button',{name:'Join arena',exact:true}).click();
     await broken.getByText('The game files or server data are incompatible.',{exact:false}).waitFor();

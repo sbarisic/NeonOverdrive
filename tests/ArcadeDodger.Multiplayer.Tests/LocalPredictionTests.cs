@@ -16,91 +16,6 @@ public class LocalPredictionTests
     }
 
     [Fact]
-    public void MovesAtRenderTimeNotPacketFrequencyAndStaleIntentStops()
-    {
-        var a = Start();
-        var b = Start();
-        a.Input(1, 0, 0, false, 0);
-        b.Input(1, 0, 0, false, 0);
-        for (var i = 1; i <= 100; i++) b.SentInput(i, 0);
-        Assert.Equal(130, a.Sample(.1)!.X, 3);
-        Assert.Equal(a.Sample(.1)!.X, b.Sample(.1)!.X);
-        Assert.Equal(160, a.Sample(.2)!.X, 3);
-        Assert.Equal(180, a.Sample(100)!.X, 3); // 8/30 second held-intent timeout
-        Assert.Equal(a.Sample(100)!.X, b.Sample(100)!.X);
-    }
-
-    [Fact]
-    public void SameAckAcrossSeveralTicksAdvancesTimeInsteadOfReplayingPacketAsStep()
-    {
-        var prediction = Start();
-        prediction.Input(1, 0, 0, false, 0);
-        prediction.SentInput(1, 0);
-        prediction.Receive(Pilot(110, ack: 1), 1, .1);
-        Assert.Equal(130, prediction.Sample(.1)!.X, 3);
-        prediction.Receive(Pilot(140, ack: 1), 4, .2);
-        Assert.Equal(160, prediction.Sample(.2)!.X, 3);
-        Assert.Equal(175, prediction.Sample(.25)!.X, 3);
-        prediction.Receive(Pilot(170, ack: 1), 7, .3);
-        Assert.Equal(180, prediction.Sample(.3)!.X, 3);
-    }
-
-    [Fact]
-    public void LatestIntentBurstMatchesRoomAndDoesNotMultiplyMovement()
-    {
-        var room = new Room(false,sectorEnabled:false);
-        var id = room.Join("Pilot")!.Value;
-        var initial = room.Snapshot().Players.Single();
-        var prediction = Start(initial);
-        for (var seq = 1; seq <= 100; seq++)
-        {
-            Assert.True(room.Input(id, new(seq, 1, 0, 0, false, false)));
-            prediction.Input(1, 0, 0, false, 0);
-            prediction.SentInput(seq, 0);
-        }
-        room.Step();
-        var authoritative = room.Snapshot().Players.Single();
-        Assert.Equal(100, authoritative.Ack);
-        Assert.Equal(initial.X + Room.Speed / Room.TickRate, authoritative.X, 3);
-        prediction.Receive(authoritative, room.Tick, .1);
-        Assert.Equal(initial.X + 30, prediction.Sample(.1)!.X, 3);
-    }
-
-    [Fact]
-    public void ReplayUsesIntentDurationsAndKeyReleaseImmediatelyStops()
-    {
-        var prediction = Start();
-        prediction.Input(1, 0, 0, false, 0);
-        prediction.SentInput(1, 0);
-        prediction.Input(0, 1, MathF.PI / 2, false, .1);
-        prediction.Input(0, 0, MathF.PI / 2, false, .2);
-        prediction.Receive(Pilot(110, ack: 1), 1, .3);
-        // Reconstruct .033 -> .1 right, .1 -> .2 down, then neutral.
-        var sample = prediction.Sample(.9)!; // smoothing has settled
-        Assert.Equal(130, sample.X, 2);
-        Assert.Equal(130, sample.Y, 2);
-        Assert.Equal(MathF.PI / 2, sample.Aim, 3);
-        Assert.Equal(sample.X, prediction.Sample(10)!.X, 2);
-        Assert.Equal(sample.Y, prediction.Sample(10)!.Y, 2);
-    }
-
-    [Fact]
-    public void NormalizesClampsAndRejectsNonFiniteOrBackwardsInput()
-    {
-        var prediction = Start(Pilot(Room.Width - 1));
-        prediction.Input(20, 20, MathF.Tau * 2, false, 0);
-        var sample = prediction.Sample(.1)!;
-        Assert.Equal(Room.Width - Room.Radius, sample.X);
-        Assert.Equal(100 + 30 / MathF.Sqrt(2), sample.Y, 3);
-        prediction.Input(float.NaN, 0, 0, false, .1);
-        prediction.Input(0, 0, float.PositiveInfinity, false, .1);
-        prediction.Input(0, 0, 0, false, -1);
-        prediction.Receive(Pilot(float.NaN), 1, .1);
-        Assert.Equal(sample.Y, prediction.Sample(.1)!.Y, 3);
-        Assert.True(float.IsFinite(prediction.Sample(double.NaN)!.X));
-    }
-
-    [Fact]
     public void SmallCorrectionsSmoothButLargeCorrectionsAndTeleportsSnap()
     {
         var prediction = Start();
@@ -131,29 +46,6 @@ public class LocalPredictionTests
         var frozen = prediction.Sample(1)!;
         Assert.InRange(frozen.X, 100, 100 + Room.Speed * (float)LocalPrediction.MaxPredictionSeconds);
         Assert.Equal(frozen.X, prediction.Sample(1000)!.X);
-    }
-
-    [Fact]
-    public void HighFrequencyRefreshAndMouseAimDoNotDiscardHeldMovement()
-    {
-        var prediction = Start();
-        for (var i = 0; i <= 500; i++)
-            prediction.Input(1, 0, i / 1000f, false, i / 1000d);
-        // A half-second of holding right is still a full 150 units, regardless of event rate.
-        Assert.Equal(250, prediction.Sample(.5)!.X, 3);
-        Assert.Equal(.5f, prediction.Sample(.5)!.Aim, 3);
-        Assert.InRange(prediction.HistoryCount, 1, 4);
-    }
-
-    [Fact]
-    public void RefreshCompressionPreservesARealInputTimeoutAndDirectionChange()
-    {
-        var prediction = Start();
-        prediction.Input(1, 0, 0, false, 0);
-        prediction.Input(1, 0, 0, false, .4); // input actually stopped for longer than the timeout
-        prediction.Input(0, 1, 0, false, .45);
-        Assert.Equal(195, prediction.Sample(.5)!.X, 3);
-        Assert.Equal(115, prediction.Sample(.5)!.Y, 3);
     }
 
     [Fact]
@@ -190,44 +82,11 @@ public class LocalPredictionTests
     }
 
     [Fact]
-    public void DashUsesLockedDirectionCooldownAndSnapshotRemainingTicks()
-    {
-        var prediction = Start();
-        prediction.Input(1, 0, 0, true, 0);
-        Assert.Equal(190, prediction.Sample(.1)!.X, 3);
-        prediction.Input(0, 1, MathF.PI / 2, true, .1);
-        Assert.Equal(280, prediction.Sample(.2)!.X, 3); // direction remains locked
-        Assert.Equal(100, prediction.Sample(.2)!.Y, 3);
-        Assert.Equal(130, prediction.Sample(.3)!.Y, 3); // normal movement after dash
-
-        var resumed = Start(Pilot() with { DashTicks = 3, DashX = 1, DashCooldown = 80 });
-        Assert.Equal(160, resumed.Sample(.1)!.X, 3); // authoritative dash needs no new key event
-        resumed.Input(0, 1, MathF.PI / 2, true, 0);
-        Assert.Equal(160, resumed.Sample(.1)!.X, 3); // two remaining server steps
-        Assert.Equal(110, resumed.Sample(.1)!.Y, 3);
-        var cooling = Start(Pilot() with { DashCooldown = 10 });
-        cooling.Input(1, 0, 0, true, 0);
-        Assert.Equal(130, cooling.Sample(.1)!.X, 3);
-    }
-
-    [Fact]
-    public void StationaryDashUsesAimAndExplicitNeutralStopsLocalPresentation()
-    {
-        var prediction = Start();
-        prediction.Input(0, 0, MathF.PI / 2, true, 0);
-        Assert.Equal(100, prediction.Sample(.1)!.X, 3);
-        Assert.Equal(190, prediction.Sample(.1)!.Y, 3);
-        // Local menu/focus-neutral intent stops presentation immediately, then reconciles.
-        prediction.Input(0, 0, MathF.PI / 2, false, .1);
-        Assert.Equal(190, prediction.Sample(.2)!.Y, 3);
-    }
-
-    [Fact]
     public void OutOfOrderSnapshotsCannotRewindAndGameplayFieldsStayAuthoritative()
     {
         var prediction = Start();
         prediction.Input(1, 0, 0, true, 0);
-        var frame = Pilot(130) with { Hull = 2, Shield = 0, Experience = 50, Level = 3, DashCooldown = 60 };
+        var frame = Pilot(130) with { Hull = 2, Shield = 0, Experience = 50, Level = 3, Acceleration = 1500 };
         prediction.Receive(frame, 3, .1);
         prediction.Receive(Pilot(900), 2, .2);
         var sample = prediction.Sample(.2)!;
@@ -235,22 +94,31 @@ public class LocalPredictionTests
         Assert.Equal(frame.Shield, sample.Shield);
         Assert.Equal(frame.Experience, sample.Experience);
         Assert.Equal(frame.Level, sample.Level);
-        Assert.Equal(frame.DashCooldown, sample.DashCooldown);
+        Assert.Equal(frame.Acceleration, sample.Acceleration);
         Assert.True(sample.X < 900);
     }
-    [Fact]
-    public void RoomExportsRemainingDashStateForPrediction()
+
+    [Fact] public void AccelerationAndCoastingMatchSharedPhysicsAcrossInputBoundaries()
     {
-        var room = new Room(false,sectorEnabled:false);
-        var id = room.Join("Pilot")!.Value;
-        room.Input(id, new(1, 0, -1, 0, false, true));
-        room.Step();
-        var frame = room.Snapshot().Players.Single();
-        Assert.Equal(Room.DashDuration, frame.DashTicks);
-        Assert.Equal(Room.DashCooldownTicks, frame.DashCooldown);
-        Assert.Equal(0, frame.DashX);
-        Assert.Equal(-1, frame.DashY);
-        room.Step();
-        Assert.Equal(Room.DashDuration - 1, room.Snapshot().Players.Single().DashTicks);
+        var prediction=Start();prediction.Input(1,0,0,false,0);Assert.Equal(106,prediction.Sample(.1)!.X,3);
+        prediction.Input(0,0,0,false,.1);Assert.Equal(116.5f,prediction.Sample(.2)!.X,3);Assert.Equal(90,prediction.Sample(.2)!.VelocityX,3);
+        prediction.Input(0,0,0,true,.2);Assert.Equal(116.5f,prediction.Sample(.3)!.X,3);Assert.Equal(0,prediction.Sample(.3)!.VelocityX);
+    }
+    [Fact] public void PredictionMatchesServerAndIgnoresExtraPackets()
+    {
+        var room=new Room(false,sectorEnabled:false);var id=room.Join("Pilot")!.Value;
+        var p=Start(room.Snapshot().Players[0]);for(int seq=1;seq<=100;seq++){p.Input(-1,0,0,false,0);p.SentInput(seq,0);room.Input(id,new(seq,-1,0,0,false,false));}
+        room.Step();Assert.Equal(room.Snapshot().Players[0].X,p.Sample(1d/30)!.X,3);
+        Assert.Equal(room.Snapshot().Players[0].VelocityX,p.Sample(1d/30)!.VelocityX,3);
+    }
+    [Fact] public void CurrentVelocityCoastsWithoutInputAndRejectsInvalidSnapshots()
+    {
+        var p=Start(Pilot() with {VelocityX=300});Assert.Equal(128.5f,p.Sample(.1)!.X,3);
+        p.Receive(Pilot() with {VelocityX=float.NaN},1,.1);Assert.Equal(128.5f,p.Sample(.1)!.X,3);
+    }
+    [Fact] public void MouseRefreshDoesNotDiscardAccelerationHistory()
+    {
+        var p=Start();for(int i=0;i<=500;i++)p.Input(1,0,i/1000f,false,i/1000d);
+        Assert.InRange(p.Sample(.5)!.X,212.4f,212.6f);Assert.InRange(p.HistoryCount,1,4);
     }
 }

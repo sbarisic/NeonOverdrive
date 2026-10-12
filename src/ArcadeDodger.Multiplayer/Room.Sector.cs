@@ -137,7 +137,7 @@ public sealed partial class Room
             case "dock":
                 var station=Location(request.Target);
                 if(station?.Kind!="station"||Vector2.Distance(p.Position,station.Position)>180)result="out_of_range";
-                else {p.Docked=station.Id;state.LastStation=station.Id;p.Held=null;p.DashUntil=0;state.InteractionTarget=0;result="ok";}break;
+                else {p.Docked=station.Id;state.LastStation=station.Id;p.Held=null;p.Velocity=Vector2.Zero;state.InteractionTarget=0;result="ok";}break;
             case "undock":
                 if(p.Docked==0){result="not_docked";break;}
                 p.Position=Location(p.Docked)!.Position+new Vector2(150,0);p.Previous=p.Position;p.Docked=0;p.Held=null;result="ok";break;
@@ -187,7 +187,7 @@ public sealed partial class Room
             if(s.InteractionTarget!=0)
             {
                 var target=Location(s.InteractionTarget)!;
-                if(p.Editing||p.Docked!=0||p.Position!=p.Previous||p.Held is {X:not 0} or {Y:not 0} or {Dash:true}||p.Held?.Fire==true||Vector2.Distance(p.Position,target.Position)>100||p.LastDamage>=s.InteractionStart)s.InteractionTarget=0;
+                if(p.Editing||p.Docked!=0||p.Position!=p.Previous||p.Held is {X:not 0} or {Y:not 0}||p.Held?.Fire==true||Vector2.Distance(p.Position,target.Position)>100||p.LastDamage>=s.InteractionStart)s.InteractionTarget=0;
                 else if(Tick-s.InteractionStart>=90)
                 {if(target.Kind=="beacon"){s.Progress.Add(target.Id);s.Ready=s.Progress.Count>=3;}else {s.Carrying=true;s.Ready=true;}s.InteractionTarget=0;}
             }

@@ -13,7 +13,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
    });
    const page = await context.newPage(), errors=[];
    page.on('pageerror', e=>errors.push(String(e)));
-   await page.goto((process.env.ARENA_URL || 'http://localhost:5088')+'/?multiplayer=1');
+   await page.goto((process.env.ARENA_URL || 'http://localhost:5088')+'/');
    await page.locator('#nickname').fill('Viewport');
    await page.getByRole('button',{name:'Join arena',exact:true}).click();
    await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
@@ -25,7 +25,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const result = await page.evaluate(()=>{
      const c=document.querySelector('#canvas'), b=c.getBoundingClientRect(), host=window.__viewportHost;
      const [x,y]=host.ArenaPosition().split(',').map(Number);
-     const scale=Math.min(c.width/960,c.height/540),vw=c.width/scale,vh=c.height/scale;
+     const scale=Math.min(c.width/960,c.height/540)*.75,vw=c.width/scale,vh=c.height/scale;
      const ox=Math.max(0,Math.min(x-vw/2,Math.max(0,12000-vw)));
      const oy=Math.max(0,Math.min(y-vh/2,Math.max(0,8000-vh)));
      const errors=[[.05,.2],[.95,.8],[.5,.5]].map(([u,v])=>
@@ -38,6 +38,13 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(result.buffer[1],Math.round(height*deviceScaleFactor));
     assert(result.errors.every(e=>e<.0001),JSON.stringify(result));assert(!result.overflow);
     assert(await page.locator('#status').isHidden());
+    const hud=await page.locator('#network-info').evaluate(el=>({rect:el.getBoundingClientRect().toJSON(),layout:JSON.parse(el.dataset.layout),buttons:[...el.querySelectorAll('button')].map(b=>b.getBoundingClientRect().toJSON())}));
+    const [gx,gy,gw,gh,cell,,fx,fy,fw,fh,mx,,mw]=hud.layout;
+    assert(Math.abs(hud.rect.x-gx)<1&&Math.abs(hud.rect.y-gy)<1);
+    assert(gx>=fx+11&&gy>=fy+11&&gx+gw<=fx+fw-11&&gy+gh<=fy+fh-11,'grid stays within footer padding');
+    assert(Math.abs(mx+mw/2-width/2)<1,'minimap centered');
+    assert(hud.buttons.every(b=>b.width>=44&&b.height>=44&&b.x>=gx&&b.y>=gy&&b.right<=gx+gw&&b.bottom<=gy+gh),'touch buttons contained');
+
     if(width===2048){
      await page.keyboard.press('Escape');await page.waitForTimeout(100);
      await page.screenshot({path:`artifacts/browser-check/full-window-dpr${deviceScaleFactor}.png`});

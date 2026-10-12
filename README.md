@@ -1,107 +1,48 @@
-# Arcade Dodger
+# Neon Overdrive
 
-A small Windows x64 arcade game using C#/.NET 10 and **Raylib-cs 8.1.0**, pinned in the [application project](src/ArcadeDodger/ArcadeDodger.csproj).
+A WebAssembly multiplayer space combat game built with C#/.NET 10 and Raylib-cs. The browser renders the game; the ASP.NET Core server owns simulation, progression, combat, and persistence. There is no native or single-player game.
 
-Explore a bounded neon arena, blast attacking aliens, collect weapons and survive for a high score in **NEON OVERDRIVE**. A following camera, north-up minimap, attack telegraphs and offscreen threat indicators support one-hit bullet-hell survival. World-space stars/grid, alien engines, player trails, gold projectile streaks, destruction sparks/rings and bounded screen shake create a procedural presentation. The best score lasts only for the current process. No external art, audio, or saved data.
+## Run locally
 
-## Build and run
-
-Requires Windows x64, the .NET 10 SDK, NuGet access on first restore, and a working graphics driver supporting OpenGL 3.3.
-Run these commands from the repository root:
+Install the .NET 10 SDK and the WebAssembly tools workload, then build and launch:
 
 ```powershell
-dotnet restore ArcadeDodger.slnx
+dotnet workload install wasm-tools
 dotnet build ArcadeDodger.slnx -c Release
-dotnet run --project src/ArcadeDodger/ArcadeDodger.csproj -c Release
+$bundle = (Resolve-Path src/ArcadeDodger/Web/bin/Release/net10.0/browser-wasm/AppBundle).Path
+dotnet run --project src/ArcadeDodger.Server -c Release --no-build -- --BrowserRoot $bundle
 ```
 
-The window is **1920 × 1080** and targets 60 FPS. The **2880 × 1620** arena is three times the **960 × 540** logical viewport in each dimension; rendering is scaled 2×. The camera follows the player and clamps at arena edges; the HUD and minimap remain anchored to the screen. Pause freezes simulation, trails, particles, rings and combat timers. Decorative pulses and background animation continue; the barrel still follows the cursor.
+Open http://localhost:5088/ and choose a callsign. Share the room invitation link with other pilots. Old links containing `?multiplayer=1` still work. A server on the same origin is required; static hosting alone cannot run the game.
 
-| Key | Action |
-| --- | --- |
-| Enter | Start from the title screen / restart after game over |
-| WASD or arrow keys | Move |
-| Mouse movement | Aim at cursor |
-| Hold Space or left mouse button | Fire toward cursor |
-| P | Pause / resume |
-| F | Toggle reduced particles, flashes and shake (bullets/warnings remain visible) |
-| Escape or window close | Exit |
+For Visual Studio, select **ArcadeDodger.Server** as the startup project. F5 builds the browser dependency and starts the server and browser together. There is no separate browser-only launch profile.
 
-## Weapons and modular modifiers
+## Play
 
-Collect labeled gold weapon pickups to switch between **Blaster** (single shot), **Spread** (three-shot fan), and **Rapid** (faster single shots). Cyan modifier pickups stack independently up to three levels each and persist across weapon changes:
+- WASD or arrows: thrust; release to coast to a stop.
+- Mouse: aim; left click or Space: fire.
+- Tab: skills. I: modular weapon workshop. P: friends.
+- M: sector map and pings. E: dock, undock, or interact.
+- Escape: menu. R: reduced visual effects.
 
-- **Multishot** adds two projectiles per level to each volley.
-- **Pierce** lets each projectile hit one additional enemy per level; the same shot cannot repeatedly damage the same enemy.
-- **Overdrive** increases projectile speed and firing rate.
+Explore planets, stations, wrecks, and hostile installations. Enemies launch from bases and marked arrival corridors. Buy modules at stations and edit up to four weapon chains anywhere. Death starts a new run with starter equipment; reconnecting resumes the current run. Friendships remain saved by callsign.
 
-Walk over pickups to collect them. A random pickup appears nearby every six simulated seconds; destroyed enemies have a 28% chance to drop one. At most 24 pickups can be present. Uncollected pickups expire after twelve simulated seconds. Restart resets the loadout to Blaster with no modifiers. Survival time remains the score; kills are tracked separately in the HUD. Player-shot damage resolves before enemy/player collision that frame. Projectiles and pickups use world bounds, not viewport bounds.
+## Projects and verification
 
-Base weapon cooldowns are 0.22 seconds for Blaster, 0.30 for Spread, and 0.09 for Rapid. Each Overdrive level adds 70 world units/second to the base projectile speed of 650 and divides the cooldown by `1 + 0.25 × level`. Firing produces at most one volley per update. Aiming at the player center falls back to firing upward.
-
-## Gameplay and scoring
-
-- The 28 × 28 player moves at 300 world units/second, stays within world bounds, and moves at the same speed diagonally as along an axis.
-- Contact with a surviving alien or hostile bullet ends the run immediately. There is no player health system. Hostile collisions are swept, including relative player motion.
-- Score counts simulated survival seconds, not kills. The session best updates on game over, survives restarts, and is not saved when the process exits.
-- **Rammers** pursue the player (2 health). **Gunners**, introduced at 12 seconds, maintain distance and fire three locked-aim shots after a 0.9-second warning (3 health). **Spinners**, introduced at 28 seconds, orbit and fire two slow rotating fans with deliberate gaps (4 health).
-- The director uses `max(0.7, 2.3 - 0.012 × score)` seconds between spawn attempts. Candidates must be 420–1100 units away; spawning stops when six enemies are within 700 units. Caps: 24 enemies, 240 hostile bullets and three simultaneous ranged telegraphs/bursts. Attacks cancel beyond 700 units. Hostile bullets expire after six seconds or crossing arena bounds.
-- The north-up minimap shows arena boundaries, the viewport, player, pickups and enemies within 1000 units. Nearby offscreen enemies have edge indicators; an exclamation mark warns of a telegraphed attack. Pink/white hostile bullets differ from gold player shots and cyan modifier pickups.
-- Restart clears enemies, bullets, pickups, effects, kills, score and modifiers and returns the player to arena center.
-
-These rules are implemented in [GameModel.cs](src/ArcadeDodger/GameModel.cs), [ArenaModel.cs](src/ArcadeDodger/ArenaModel.cs) and [CombatModel.cs](src/ArcadeDodger/CombatModel.cs).
-
-## Tests
+- `src/ArcadeDodger.Multiplayer`: authoritative simulation, protocol, catalogs, persistence, and shared prediction.
+- `src/ArcadeDodger.Server`: WebSocket server and browser asset hosting.
+- `src/ArcadeDodger/Web`: WebAssembly renderer and browser interface.
+- `tests/ArcadeDodger.Multiplayer.Tests`: simulation, persistence, protocol, server, and performance tests.
 
 ```powershell
-dotnet test tests/ArcadeDodger.Tests/ArcadeDodger.Tests.csproj -c Release
+dotnet test tests/ArcadeDodger.Multiplayer.Tests -c Release
+npm install --prefix artifacts/browser-check playwright
+$env:ARENA_URL = 'http://localhost:5088'
+node tests/browser-multiplayer.cjs
+node tests/browser-viewport.cjs
+node tests/browser-inertia.cjs
 ```
 
-Tests exercise plain C# rules without raylib/display initialization: movement/world bounds, delta cap, deterministic spawning, director progression/safety/caps, telegraph timing, attack budget/expiry, camera transforms with shake, north-up radar mapping, swept/relative collisions, damage ordering, pause/reset, scoring and existing weapon/modifier/pickup behavior. These are not manual input or visual acceptance tests.
+Browser regressions use Playwright with Microsoft Edge. Use an isolated test server and profile store for gameplay tests. `BrowserRoot`, `ProfilesFile`, and `FriendsFile` configure deployment paths; protect the persistent profile and friendship files when deploying or restarting.
 
-## Publish for Windows x64
-
-```powershell
-dotnet publish src/ArcadeDodger/ArcadeDodger.csproj -c Release -p:PublishProfile=Windows
-.\artifacts\publish\win-x64\ArcadeDodger.exe
-```
-
-Copy the **entire** `artifacts/publish/win-x64` folder, not just the executable. The [Windows publish profile](src/ArcadeDodger/Properties/PublishProfiles/Windows.pubxml) creates a self-contained application, including .NET and the raylib native library. Trimming and single-file bundling are disabled. End users do not need the .NET SDK.
-
-For a short automated native/window check (opens a window, draws 120 gameplay frames, then exits):
-
-```powershell
-.\artifacts\publish\win-x64\ArcadeDodger.exe --smoke-test
-```
-
-A successful smoke check prints `SMOKE_OK`. It auto-fires with fixture pickups and all three alien types, requiring firing, at least two kills and hostile firing. This checks native loading and rendering startup, **not** manual input, visual quality or gameplay fairness.
-
-Manual acceptance checklist: title/start; WASD and arrows; cursor aim with Space/LMB while moving and at camera/arena edges; minimap player/viewport tracking; alien silhouettes/telegraphs; offscreen warnings; bullet contrast under destruction effects; F toggle without hiding warnings/bullets; pickup collection/modifier stacking; pause/resume; one-hit game over; restart/loadout/effect resets and best score; Escape/window-close. Review late-run density and spinner gaps for one-hit fairness.
-
-## Verification recorded during implementation
-
-Fresh expansion checks on Windows x64 (2026-10-10), separately from manual acceptance:
-
-- Release solution build: exit code 0, no warnings or errors.
-- Release model tests: 30 passed, 0 failed, 0 skipped; exit code 0.
-- Self-contained win-x64 expansion published successfully; exit code 0.
-- Published arena smoke: initialized a 1920 × 1080 Windows/OpenGL window, rendered 120 frames, fired 7 volleys, destroyed 2 enemies and fired 21 hostile shots; printed `SMOKE_OK` and closed cleanly; exit code 0.
-- Manual keyboard/mouse interactions and visual/playability review remain unverified. Use the checklist above before distributing.
-
-## Design
-
-- [Program.cs](src/ArcadeDodger/Program.cs): Windows guard and startup; recognizes `--smoke-test`.
-- [GameApp.cs](src/ArcadeDodger/GameApp.cs): raylib input, drawing, and loop; closes the window in `finally`.
-- [GameModel.cs](src/ArcadeDodger/GameModel.cs): display-independent state, movement, score and integration; injectable director randomness. Legacy obstacles remain only for regressions/fixtures, not automatic encounters.
-- [GameModelTests.cs](tests/ArcadeDodger.Tests/GameModelTests.cs) and [CombatTests.cs](tests/ArcadeDodger.Tests/CombatTests.cs): xUnit model regression tests, not renderer or input tests.
-- [CombatModel.cs](src/ArcadeDodger/CombatModel.cs): display-independent weapons, modifiers, pickups and nearest-first swept projectile collisions; pickup randomness uses its own seeded generator.
-- [CombatRendering.cs](src/ArcadeDodger/CombatRendering.cs): projectiles, pickups, aiming, combat effects and loadout HUD.
-- [ArenaModel.cs](src/ArcadeDodger/ArenaModel.cs): alien AI/director, hostile bullets and swept player collisions.
-- [ArenaView.cs](src/ArcadeDodger/ArenaView.cs) and [ArenaRendering.cs](src/ArcadeDodger/ArenaRendering.cs): camera/radar transforms, alien shapes, telegraphs, bullets and minimap.
-- [ArenaTests.cs](tests/ArcadeDodger.Tests/ArenaTests.cs) and [DirectorTests.cs](tests/ArcadeDodger.Tests/DirectorTests.cs): arena and director regressions.
-
-Movement uses delta time, capped at 0.05 seconds per frame to prevent jumps after stalls. Scores measure simulated survival time, so a long stall does not inflate them. Pause and menu states freeze simulation. Diagonal movement is normalized; difficulty is bounded.
-
-## Browser multiplayer sector
-
-Multiplayer features a seeded star sector with planets, stations, asteroid cover, patrols and contracts. Press **E** to dock or interact, **M** for the discovered sector map, **I** for modular weapons, and **Tab** for skills. Buy modules at stations; rearrange equipment anywhere. See [the inhabited sector guide](docs/inhabited-sector.md) for sector rules. The [v5 cooperative combat guide](docs/cooperative-combat.md) covers run resets, regional enemies, personal loot, map pings, and performance verification.
+See [sector rules](docs/inhabited-sector.md), [skills and workshop](docs/multiplayer-skills.md), and [current combat and performance verification](docs/cooperative-combat.md). Earlier implementation journals retain historical test results.

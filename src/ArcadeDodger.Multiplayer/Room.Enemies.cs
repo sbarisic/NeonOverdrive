@@ -59,7 +59,7 @@ public sealed partial class Room
                 else {enemy.Burst=0;enemy.FireAt=Tick+(enemy.Type=="sniper"?120:75);if(enemy.Type=="interceptor")enemy.RetreatUntil=Tick+45;}
             }
             if(!enemy.Gunner&&Tick>=enemy.FireAt&&Tick>=target.ProtectedUntil&&Intersection(enemy.Previous-target.Previous,enemy.Position-target.Position,Radius+EnemyRadius(enemy)).HasValue)
-            {Hit(new Shot{Owner=-enemy.Id},target,null,EnemyCatalog.Damage(enemy.Level));enemy.FireAt=Tick+30;}
+            {Hit(new Shot{Owner=-enemy.Id},target,null,EnemyCatalog.Damage(enemy.Level)*(1-Value(target,"impact")));enemy.FireAt=Tick+30;}
 
         }
     }

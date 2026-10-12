@@ -35,7 +35,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(String(error)));
-    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/?multiplayer=1');
+    await page.goto((process.env.ARENA_URL || 'http://localhost:5088') + '/');
     await page.locator('#nickname').fill('Prediction');
     await page.locator('#join-form button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
@@ -54,11 +54,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.keyboard.down('a');
     await page.waitForTimeout(120);
     const immediate = await read();
-    assert(immediate.x < before.x - 10, `local movement must precede delayed server snapshot: ${JSON.stringify({before, immediate})}`);
+    assert(immediate.x < before.x - 3, `local movement must precede delayed server snapshot: ${JSON.stringify({before, immediate})}`);
     assert(Math.abs(immediate.serverX - before.serverX) < 1, 'authoritative snapshot should still precede input during inbound delay');
     await page.waitForTimeout(450);
     await page.keyboard.up('a');
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1500);
     const settled = await read();
     assert(Math.abs(settled.x - settled.serverX) < 12, `prediction must settle to server: ${JSON.stringify(settled)}`);
     await page.keyboard.press('Escape');

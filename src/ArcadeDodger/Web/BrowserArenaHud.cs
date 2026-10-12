@@ -17,128 +17,66 @@ internal static class BrowserArenaHud
     private static readonly Color Enemy = new(255, 100, 95, 255);
     private static readonly Color Ink = NeonRendering.Ink;
 
-    public static void Draw(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 view, float scale, float time,
-        bool menuOpen, bool reducedEffects)
+    private static float width=960,height=540,cell=44,headerHeight=60;
+    private static Rectangle footer,grid,map;
+    private static readonly List<Vector2> groups=[];
+    public static string Configure(double w,double h)
     {
-        PlayerSnapshot? self = null;
-        var connected = 0;
-        if (snapshot is not null)
-            foreach (var player in snapshot.Players)
-            {
-                if (player.Id == ownId) self = player;
-                if (player.Connected) connected++;
-            }
-
-        var extra = view - new Vector2(960, 540);
-        Raylib.BeginMode2D(new Camera2D { Zoom = scale });
-        Panel(12, 8, (int)view.X - 24, 36, Cyan);
-        Text("LIVE SECTOR", 24, 14, 10, Muted);
-        Text(snapshot is null ? "AWAITING SNAPSHOT" : $"PILOTS {connected}/{Room.Capacity}", 24, 28, 10, Ink);
-        Raylib.DrawLine(310, 14, 310, 37, Border);
-        Center("NEON OVERDRIVE", 19, 16, Cyan, (int)view.X);
-        Raylib.DrawLine((int)view.X - 312, 14, (int)view.X - 312, 37, Border);
-        Text("PvPvE / SERVER AUTHORITATIVE", (int)view.X - 294, 14, 10, Muted);
-        Text("LIVE ROOM - NEVER PAUSED", (int)view.X - 294, 28, 10, Amber);
-
-        Panel(12, 50, 340, 55, Cyan);
-        if(snapshot?.Workshop is {} workshop) Text($"CREDITS {workshop.Credits}",24,112,10,Amber);
-        if (self is null)
+        width=(float)w;height=(float)h;cell=Math.Clamp(height*.05f,44,60);
+        var gridWidth=3*cell+24;var gridHeight=2*cell+19;
+        var stacked=width<700;
+        var footerHeight=gridHeight+24+(stacked?84:0);
+        footer=new(8,height-footerHeight-8,width-16,footerHeight);
+        grid=new(width-20-gridWidth,height-20-gridHeight,gridWidth,gridHeight);
+        map=new(width/2-90,stacked?footer.Y+12:footer.Y+(footerHeight-72)/2,180,52);
+        groups.Clear();float x=20,y=18;
+        foreach(var size in new float[]{90,188,60,210,140})
+        {if(x+size>width-16&&x>20){x=20;y+=46;}groups.Add(new(x,y));x+=size+12;}
+        headerHeight=y+38;
+        return System.FormattableString.Invariant($"{grid.X},{grid.Y},{grid.Width},{grid.Height},{cell},{headerHeight+8},{footer.X},{footer.Y},{footer.Width},{footer.Height},{map.X},{map.Y},{map.Width},{map.Height}");
+    }
+    public static void Draw(RoomSnapshot? snapshot,int ownId,Vector2 origin,Vector2 view,Vector2 worldView,float scale,float time,bool menuOpen,bool reducedEffects)
+    {
+        if(groups.Count==0)Configure(960,540);
+        var self=snapshot?.Players.FirstOrDefault(p=>p.Id==ownId);
+        Raylib.BeginMode2D(new Camera2D{Zoom=Raylib.GetScreenWidth()/width});
+        Panel(8,8,(int)width-16,(int)headerHeight-8,Cyan);
+        var p=groups[0];Text($"PILOTS {snapshot?.Players.Count(p=>p.Connected)??0}/{Room.Capacity}",(int)p.X,(int)p.Y+10,12,Muted);
+        if(self is not null)
         {
-            Text("PILOT TELEMETRY / WAITING", 24, 61, 10, Muted);
-            Text("Hull, shield and energy arrive with your pilot.", 24, 82, 10, Ink);
+            p=groups[1];Text($"HULL {self.Hull}/{self.MaxHull}",(int)p.X,(int)p.Y,12,Ink);Meter((int)p.X+110,(int)p.Y+4,66,5,self.Hull/(float)self.MaxHull,Cyan);
+            Text($"SHIELD {self.Shield}/{self.MaxShield}",(int)p.X,(int)p.Y+18,12,Ink);Meter((int)p.X+110,(int)p.Y+22,66,5,self.Shield/(float)self.MaxShield,new Color(100,165,255,255));
+            p=groups[2];if(self.Protected)Text("SAFE",(int)p.X,(int)p.Y+10,12,Amber);
+            p=groups[3];var level=Math.Clamp(self.Level,1,100);var floor=Room.ExperienceForLevel(level);var ceiling=Room.ExperienceForLevel(level+1);
+            Text($"LV {level}",(int)p.X,(int)p.Y,12,Cyan);Right(level==100?"MAX":$"XP {self.Experience}/{ceiling}",(int)p.X+198,(int)p.Y,12,Muted);
+            Meter((int)p.X,(int)p.Y+24,198,5,level==100?1:Math.Clamp((self.Experience-floor)/(float)(ceiling-floor),0,1),Cyan);
         }
-        else
-        {
-            Text($"HULL {self.Hull}/{self.MaxHull}", 24, 59, 10, self.Hull > 0 ? Ink : Pink);
-            Meter(94, 61, 36, 4, self.Hull / (float)self.MaxHull, Cyan);
-            Text($"SHIELD {self.Shield}/{self.MaxShield}", 139, 59, 10, Ink);
-            Meter(229, 61, 68, 4, self.Shield / (float)self.MaxShield, new Color(100, 165, 255, 255));
-            Text(self.Protected ? "SAFE" : self.Connected ? "ON" : "OFF", 308, 59, 10,
-                self.Protected ? Amber : self.Connected ? Cyan : Pink);
-            var level = Math.Clamp(self.Level, 1, 100);
-            var floor = Room.ExperienceForLevel(level);
-            var ceiling = Room.ExperienceForLevel(level + 1);
-            var progress = level >= 100 ? 1f : Math.Clamp((self.Experience - floor) / (float)(ceiling - floor), 0, 1);
-            Text($"LEVEL {self.Level} / ENERGY XP {self.Experience}", 24, 77, 10, Cyan);
-            Right(level >= 100 ? "MAX LEVEL" : $"NEXT {ceiling}", 340, 77, 10, Muted);
-            Meter(24, 94, 316, 3, progress, Cyan);
-        }
-
-        Raylib.EndMode2D();
-        // Keep the compact console contents centered, with its frame spanning the window.
-        Raylib.BeginMode2D(new Camera2D { Zoom = scale, Offset = new Vector2(extra.X / 2, extra.Y) * scale });
-        Panel(12 - (int)(extra.X / 2), 466, (int)view.X - 24, 66, Cyan);
-        // Leave the former primary-control section blank.
-        Raylib.DrawLine(151, 476, 151, 522, Border);
-        Text(self?.Ability is "phase" or "long-phase" ? "SHIFT / PHASE" : "SHIFT / DASH", 165, 477, 10, Muted);
-        var cooldown = self?.DashCooldown ?? 0;
-        Text(self is null ? "WAITING" : self.Hull <= 0 ? "OFFLINE" : cooldown > 0
-            ? $"{cooldown / (float)Room.TickRate:0.0}s" : "READY", 165, 491, 16,
-            self?.Hull > 0 && cooldown == 0 ? Cyan : Ink);
-        Meter(165, 513, 112, 4, self?.Hull > 0 ? 1 - Math.Clamp(cooldown / (float)self.DashCooldownMax, 0, 1) : 0, Cyan);
-        Raylib.DrawLine(294, 476, 294, 522, Border);
-        DrawRadar(snapshot, ownId, origin, view, time, reducedEffects);
-        Raylib.DrawLine(570, 476, 570, 522, Border);
-        Text($"WEAPON / {self?.Weapon.ToUpperInvariant() ?? "BLASTER"}", 590, 480, 10, Cyan);
-        Text(self?.SkillPoints > 0 ? $"TAB / {self.SkillPoints} SKILL POINTS" : "TAB / SKILLS   I / WEAPONS", 590, 501, 10,
-            self?.SkillPoints > 0 ? Amber : Muted);
-
-        Raylib.EndMode2D();
-        Raylib.BeginMode2D(new Camera2D { Zoom = scale });
-        if (menuOpen || self is null || self.Hull <= 0)
-            Raylib.DrawRectangle(0, 108, (int)view.X, (int)view.Y - 186, new Color(4, 12, 22, 165));
-        Raylib.EndMode2D();
-        Raylib.BeginMode2D(new Camera2D { Zoom = scale, Offset = extra / 2 * scale });
-        // The accessible DOM shell owns menu text and controls; do not draw a
-        // second panel underneath it. Keep only world dimming in the canvas.
-        if (!menuOpen && self is null)
-            DrawOverlay("JOINING ARENA", "Waiting for your pilot in the room snapshot.",
-                "Connection and join controls are in the browser.",
-                "ESC menu / R effects toggle", Cyan);
-        else if (!menuOpen && self?.Hull <= 0)
-            DrawOverlay("RUN ENDED", $"LEVEL {self.Level} / ENERGY XP {self.Experience}",
-                "Use the browser Respawn button to retry.",
-                "A new run resets hull, shield and energy. The room stays live.", Pink);
+        p=groups[4];Text($"{snapshot?.Workshop?.Credits??0} CREDITS",(int)p.X,(int)p.Y+10,12,Amber);
+        Panel((int)footer.X,(int)footer.Y,(int)footer.Width,(int)footer.Height,Cyan);
+        DrawRadar(snapshot,ownId,origin,worldView,time,reducedEffects);
+        if(menuOpen||self is null||self.Hull<=0)Raylib.DrawRectangle(0,(int)headerHeight,(int)width,Math.Max(0,(int)(footer.Y-headerHeight)),new Color(4,12,22,165));
         Raylib.EndMode2D();
     }
-
-    private static void DrawRadar(RoomSnapshot? snapshot, int ownId, Vector2 origin, Vector2 view, float time, bool reducedEffects)
+    private static void DrawRadar(RoomSnapshot? snapshot,int ownId,Vector2 origin,Vector2 view,float time,bool reducedEffects)
     {
-        var map = new Rectangle(307, 477, 160, 45);
-        Raylib.DrawRectangleRec(map, new Color(5, 12, 17, 255));
-        for (var i = 1; i < 4; i++)
-            Raylib.DrawLine(307 + i * 40, 477, 307 + i * 40, 522, Raylib.Fade(Border, .4f));
-        Raylib.DrawLine(307, 499, 467, 499, Raylib.Fade(Border, .4f));
-        Raylib.DrawRectangleLinesEx(map, 1, Border);
-        var top = Map(origin, map);
-        var bottom = Map(origin + view, map);
-        Raylib.DrawRectangleLinesEx(new Rectangle(top.X, top.Y, bottom.X - top.X, bottom.Y - top.Y), 1, Muted);
-        if (snapshot is not null)
+        Raylib.DrawRectangleRec(map,new Color(5,12,17,255));
+        for(var i=1;i<4;i++)Raylib.DrawLine((int)(map.X+i*map.Width/4),(int)map.Y,(int)(map.X+i*map.Width/4),(int)(map.Y+map.Height),Raylib.Fade(Border,.4f));
+        Raylib.DrawRectangleLinesEx(map,1,Border);
+        var top=Map(origin,map);var bottom=Map(origin+view,map);
+        Raylib.DrawRectangleLinesEx(new Rectangle(top.X,top.Y,bottom.X-top.X,bottom.Y-top.Y),1,Muted);
+        if(snapshot is not null)
         {
-            foreach (var drop in snapshot.Energy ?? [])
-                Raylib.DrawCircleV(Map(new Vector2(drop.X, drop.Y), map), 1.5f, Cyan);
-            foreach (var enemy in snapshot.Enemies ?? [])
-                if (enemy.Hull > 0)
-                    Raylib.DrawCircleV(Map(new Vector2(enemy.X, enemy.Y), map), 2, Enemy);
-            foreach (var player in snapshot.Players)
+            foreach(var drop in snapshot.Energy??[])Raylib.DrawCircleV(Map(new(drop.X,drop.Y),map),1.5f,Cyan);
+            foreach(var enemy in snapshot.Enemies??[])if(enemy.Hull>0)Raylib.DrawCircleV(Map(new(enemy.X,enemy.Y),map),2,Enemy);
+            foreach(var player in snapshot.Players)
             {
-                if (player.Hull <= 0) continue;
-                var point = Map(new Vector2(player.X, player.Y), map);
-                if (player.Id == ownId)
-                {
-                    if (!reducedEffects)
-                        Raylib.DrawCircleLines((int)point.X, (int)point.Y, 4 + MathF.Sin(time * 3), Cyan);
-                    Raylib.DrawCircleV(point, 2.5f, Ink);
-                }
-                else Raylib.DrawRectangle((int)point.X - 2, (int)point.Y - 2, 4, 4,
-                    player.Connected ? Pink : Muted);
+                if(player.Hull<=0)continue;var at=Map(new(player.X,player.Y),map);
+                if(player.Id==ownId){Raylib.DrawCircleLines((int)at.X,(int)at.Y,4,Cyan);Raylib.DrawCircleV(at,2.5f,Ink);}
+                else Raylib.DrawRectangle((int)at.X-2,(int)at.Y-2,4,4,player.Connected?Pink:Muted);
             }
         }
-        DotLabel(479, 481, Ink, "YOU");
-        DotLabel(519, 481, Pink, "PILOT");
-        DotLabel(479, 499, Enemy, "ALIEN");
-        DotLabel(519, 499, Cyan, "XP");
-        Text("RADAR / VIEW", 479, 514, 8, Muted);
+        var y=(int)(map.Y+map.Height+10);var x=(int)map.X;
+        DotLabel(x+3,y,Ink,"YOU");DotLabel(x+48,y,Pink,"PILOT");DotLabel(x+104,y,Enemy,"NPC");DotLabel(x+150,y,Cyan,"XP");
     }
 
     private static Vector2 Map(Vector2 world, Rectangle map)

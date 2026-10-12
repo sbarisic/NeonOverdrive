@@ -5,7 +5,7 @@ namespace ArcadeDodger.Multiplayer;
 public abstract record ClientMessage;
 public sealed record JoinMessage(string Name, string Room) : ClientMessage;
 public abstract record SequencedMessage(int Sequence) : ClientMessage;
-public sealed record InputMessage(int Sequence, float X, float Y, float Aim, bool Fire, bool Dash, bool Editing = false)
+public sealed record InputMessage(int Sequence, float X, float Y, float Aim, bool Fire, bool Menu, bool Editing = false)
     : SequencedMessage(Sequence);
 public sealed record ChoiceMessage(int Sequence, string Choice) : SequencedMessage(Sequence);
 public sealed record FriendMessage(int Sequence, string Name, string Action) : SequencedMessage(Sequence);
@@ -17,7 +17,7 @@ public sealed record RespawnMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 5;
+    public const int Version = 6;
     public const int MaxMessageBytes = 4096;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -49,15 +49,15 @@ public static class ClientProtocol
                     message = new JoinMessage(name.Length == 0 ? "Pilot" : name, room);
                     return true;
                 case "input":
-                    if (!(Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "dash") ||
-                        Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "dash", "editing")) ||
+                    if (!(Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "menu") ||
+                        Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "menu", "editing")) ||
                         !Sequence(root, out var sequence) ||
                         !Number(root, "x", -1, 1, out var x) || !Number(root, "y", -1, 1, out var y) ||
                         !Number(root, "aim", -MathF.PI, MathF.PI, out var aim) ||
-                        !Boolean(root, "fire", out var fire) || !Boolean(root, "dash", out var dash)) return false;
+                        !Boolean(root, "fire", out var fire) || !Boolean(root, "menu", out var menu)) return false;
                     var editing = false;
                     if (names.Contains("editing") && !Boolean(root, "editing", out editing)) return false;
-                    message = new InputMessage(sequence, x, y, aim, fire, dash, editing);
+                    message = new InputMessage(sequence, x, y, aim, fire, menu, editing);
                     return true;
                 case "choice":
                     if (!Fields(names, "v", "type", "seq", "choice") || !Sequence(root, out sequence) ||

@@ -9,7 +9,7 @@ export function presentSnapshot(host, f) {
   const a=[f.v,f.tick],text=[];
   const label=value=>{text.push(value||'');return text.length-1;};
   const list=(items,write)=>{a.push(items?.length||0);for(const item of items||[])write(item);};
-  list(f.players,p=>a.push(p.id,label(p.name),p.x,p.y,p.aim,p.hull,p.shield,p.ack,+p.protected,+p.connected,p.dashCooldown,p.experience,p.level,p.dashTicks,p.dashX,p.dashY,p.life,p.skillPoints,p.maxShield,label(p.weapon),label(p.ability),p.maxHull,p.moveSpeed,p.dashMultiplier,p.dashCooldownMax,+p.editing,p.docked));
+  list(f.players,p=>a.push(p.id,label(p.name),p.x,p.y,p.aim,p.hull,p.shield,p.ack,+p.protected,+p.connected,p.velocityX,p.experience,p.level,p.velocityY,p.acceleration,p.steering,p.life,p.skillPoints,p.maxShield,label(p.weapon),p.maxHull,p.moveSpeed,+p.menu,+p.editing,p.docked));
   list(f.shots,s=>{a.push(s.id,s.owner,s.x,s.y,s.dx,s.dy,s.born,s.kind,s.effects,+s.modular,s.parent,s.birthX,s.birthY,s.weapon,s.stage,s.power??1);list(s.ancestors,id=>a.push(id));});
   const kinds=['rammer','gunner','interceptor','sniper','tender','installation'];
   list(f.enemies,e=>a.push(e.id,kinds.indexOf(e.kind),e.x,e.y,e.aim,e.hull,+e.telegraph,e.effects,e.home,label(e.state),e.level??1,e.radius??20,e.maxHull??3));
@@ -21,5 +21,6 @@ export function presentSnapshot(host, f) {
   list(f.explosions,e=>a.push(e.id,e.x,e.y,e.radius,e.born));
   list(f.sector?.locations,l=>a.push(l.id,l.hull,label(l.state),l.launchTicks));
   list(f.social?.friends,n=>a.push(label(n)));
+  a.push(f.workshop?.credits??0);
   host.ArenaSnapshotPacked(a,text);
 }

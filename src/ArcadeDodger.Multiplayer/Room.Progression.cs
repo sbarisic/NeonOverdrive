@@ -35,7 +35,7 @@ public sealed partial class Room
         for (var i = energy.Count - 1; i >= 0; i--)
         {
             var drop = energy[i];
-            // Swept collection catches dashes. Closest contact wins, then stable player ID.
+            // Swept collection catches fast movement. Closest contact wins, then stable player ID.
             var collector = players.Values.Where(p => Eligible(p,drop.Owner))
                 .Select(p => (Player: p, Contact: Intersection(p.Previous - drop.Previous, p.Position - drop.Position,
                     Radius + 12 + Value(p,"collector"))))
@@ -44,7 +44,8 @@ public sealed partial class Room
             if (collector is null) continue;
             var reward = (int)MathF.Floor(drop.Value * (1+Value(collector,"harvest")));
             collector.Experience = Math.Min(MaxExperience, collector.Experience + reward);
-            if (HasSkill(collector, Salvage)) collector.DashReadyAt = Math.Max(Tick, collector.DashReadyAt - 15);
+            var repair=Value(collector,"fieldrepair");
+            if(repair>0){var health=MathF.Min(MaxHullFor(collector),collector.Hull-collector.HullFraction+repair);collector.Hull=(int)MathF.Ceiling(health);collector.HullFraction=collector.Hull-health;}
             if (HasSkill(collector, EnergySiphon))
                 collector.Shield = Math.Min(MaxShieldFor(collector), collector.Shield + 1);
             energy.RemoveAt(i);

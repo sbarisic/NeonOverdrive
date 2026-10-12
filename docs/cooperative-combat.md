@@ -1,6 +1,6 @@
-# Cooperative combat and run economy — protocol v5
+# Cooperative combat and run economy — protocol v6
 
-This release changes browser multiplayer. Single-player and the 69-skill catalog are unchanged.
+The game is WebAssembly multiplayer only; native and browser single-player have been removed. The skill catalog still has 69 unlocks, with the seven dash-dependent nodes replaced by passive movement and repair upgrades.
 
 ## Playing
 
@@ -49,15 +49,27 @@ Reproduce server measurements with `NEON_PERF_OUTPUT` set to an artifact directo
 
 Run `node tests/browser-combat-performance.cjs` against the built server using `ARENA_URL`. It feeds recorded combat through the actual WASM renderer at 1920×1080; it is a presentation fixture, not a WAN latency test. Reports and screenshots are written under `artifacts/combat-performance`.
 
-Measured on CARPPC, Ryzen 5 3600XT, .NET 10.0.12, Edge:
+Remeasured with v6 inertial movement and faster kinetic weapons on CARPPC, Ryzen 5 3600XT, .NET 10.0.12, Edge:
 
 | 512-projectile / 192-enemy scenario | 95th percentile |
 |---|---:|
-| Server simulation | 8.3 ms |
-| Full server test iteration, including serialization and queued persistence | 16.7 ms |
-| Browser frame work | 6.2 ms |
-| Browser snapshot handoff | 4.2 ms |
+| Server simulation | 8.5 ms |
+| Full server test iteration, including serialization and queued persistence | 15.9 ms |
+| Browser frame work | 8.3 ms |
+| Browser snapshot handoff | 6.7 ms |
 
-The initial JSON-to-WASM fixture took about 496 ms per snapshot at this load. The packed handoff removes that second JSON parse; indexed playback and cached beam transforms remove repeated per-frame searches. The 1,024-projectile stress recording measured 8.5 ms frame work and 7.4 ms handoff; that higher count remains a test configuration.
+The initial JSON-to-WASM fixture took about 496 ms per snapshot at this load. The packed handoff removes that second JSON parse; indexed playback and cached beam transforms remove repeated per-frame searches. The earlier v5 1,024-projectile stress recording measured 8.5 ms frame work and 7.4 ms handoff; that higher count remains a test configuration.
 
 These measurements are local acceptance results, not a guarantee for every device. Run the complete .NET suite and the multiplayer, sector, cooperation, run-reset, weapon, skills, friends, prediction, viewport, presentation, beam, enemy, and cache-version browser checks after changing protocol or simulation behavior.
+
+## Inertial movement and HUD update (v6)
+
+The server and prediction share acceleration (1,200 units/s²), counter-steering (1,800 units/s²), and passive deceleration (300 units/s²). Maximum base speed stays 300 units/s. Releasing WASD coasts for about one second; menus stop the ship, but Escape does not add protection. Collisions remove inward velocity and preserve sliding. Shift has no multiplayer action.
+
+Kinetic rounds travel at 1,300 units/s, fire six times per second before skills, and have a 1.5-unit collision/core radius with a six-unit visual trail. Other emitters and enemy cadence are unchanged. Conversions retain modifier multipliers while using the destination projectile's base speed.
+
+Thruster Tuning I–II replaces Phase Dash/Long Phase (+25/50% acceleration), Vector Control I–II replaces Blink Cycle (+25/50% steering), Cruise Engines replaces Comet Drive (+10% speed, additive with Slipstream), Impact Dampeners replaces Storm Nova (half enemy ramming damage), and Field Repairs replaces Salvage Cycle (+0.25 hull per XP pickup). Existing learned IDs map one-to-one on load without healing or changing points/resources. Old dash timers are ignored.
+
+Snapshots carry velocity, acceleration, steering, and menu state instead of dash state. Input carries `menu` separately from `editing`, so immobilization does not imply equipment cloak. Checkpoints save velocity; existing bodies retain it on reconnect, while arrival in a new sector starts at rest. Protocol v5 clients must refresh.
+
+The header uses compact, wrapping groups. The minimap is centered; the command grid and canvas footer share one CSS-pixel layout exported by the renderer, with a stacked mobile layout and 44-pixel minimum buttons. The world remains zoomed out 25%.

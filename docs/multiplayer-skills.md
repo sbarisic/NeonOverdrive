@@ -7,7 +7,7 @@ Current multiplayer protocol: **v5**. See [cooperative combat](cooperative-comba
 
 Press **Tab** or click **Skills** for the protected in-game skill tree. It contains **69 illustrated square tiles** in eight branches, with names, Roman-numeral tiers, level badges and prerequisite links. Branch buttons jump to a section; touch/scroll explores the complete tree. Arrow keys and Tab navigate, Enter/Space/click learns, and Escape returns to the arena. Locked nodes remain focusable. Snapshots preserve keyboard focus and scroll position.
 
-Earn **two points per level after level 1**. Every node costs one point and is purchased once. Skills and points reset with the run; there is no respec. Players can select **two emitter masteries** per run. The server validates level, prerequisites, ownership, points and the specialization limit before returning a private sequenced receipt. The menu preserves equipment cloak, hiding the ship from aliens and blocking damage, movement, fire, dash and pickups.
+Earn **two points per level after level 1**. Every node costs one point and is purchased once. Skills and points reset with the run; there is no respec. Players can select **two emitter masteries** per run. The server validates level, prerequisites, ownership, points and the specialization limit before returning a private sequenced receipt. The menu preserves equipment cloak, hiding the ship from aliens and blocking damage, movement, fire and pickups.
 
 | Branch | Skills and maximum effects |
 | --- | --- |
@@ -16,9 +16,9 @@ Earn **two points per level after level 1**. Every node costs one point and is p
 | Fire Rate | I–V add 10/20/30/40/50% firing frequency, or continuous laser DPS. Projectile cooldowns retain fractional timing. |
 | Weapon Bays | II/III/IV require both a purchased skill and level 5/10/15. Each requires the preceding bay. Weapon 1 is free. |
 | Masteries | Four tiers per emitter, guarded at levels 2/5/10/15. Learn roots in at most two emitter families. See below. |
-| Mobility | Phase Dash grants dash immunity; Long Phase extends it from 6 to 10 ticks. Blink Cycle I–II reduce cooldown to 2.5/2 seconds. Slipstream I–II add 10/20% movement speed. Comet Drive gives 4× dash speed. Storm Nova emits eight kinetic shots scaled by Strength, without attachments. |
+| Mobility | Thruster Tuning I–II adds 25/50% acceleration. Vector Control I–II adds 25/50% counter-steering acceleration. Slipstream I–II adds 10/20% speed; Cruise Engines adds another 10 percentage points. Impact Dampeners halves enemy ramming damage. |
 | Fortune | Fortune I–III grant +25/50/100% credits. Luck I–III have a 10/20/30% chance to double payouts. Lucky Find requires Luck III and level 8, raising the chance to 35%. |
-| Collection | Collector Field I–II add 30/60 units of pickup radius. Astral Harvest I–II add 25/50% XP. Salvage Cycle reduces dash cooldown by half a second per XP pickup. |
+| Collection | Collector Field I–II add 30/60 units of pickup radius. Astral Harvest I–II add 25/50% XP. Field Repairs restores 0.25 hull per XP pickup. |
 
 Mastery tiers, in order:
 
@@ -33,7 +33,7 @@ Ordinary independent tier series require levels 2/4/6/8/10/12. A dependent first
 
 Fortune/Luck apply to the collecting pilot after Salvage Beacon has determined the drop value: `floor(drop × Fortune multiplier × jackpot multiplier)`. The server uses a private deterministic roll per pickup/pilot, including failed-save retries. Only a successful wallet save consumes the pickup and produces a gold payout notification. XP is calculated and rounded independently.
 
-`SkillCatalog.cs` is the authoritative catalog; `Room.CalculateWeaponStats` supplies combat and workshop statistics. Clients receive skill IDs as arrays rather than an integer mask. The HUD and prediction consume authoritative movement/dash statistics. Native and browser single-player remain independent.
+`SkillCatalog.cs` is the authoritative catalog; `Room.CalculateWeaponStats` supplies combat and workshop statistics. Clients receive skill IDs as arrays rather than an integer mask. The HUD and prediction consume authoritative movement statistics. Only the WebAssembly multiplayer client is supported.
 
 ## Credit workshop (I)
 
@@ -41,7 +41,7 @@ Press **I** or click **Weapons** for the in-game workshop. **Shop** sells four e
 
 Each purchased copy can occupy one socket across all four rows. Disabled and level-locked rows also reserve copies. Drag from owned inventory, swap between weapon rows, or drag back to inventory to unequip. Click/Enter/Space selects and places; right-click or Delete clears. Left/right arrows navigate sockets; up/down changes weapon rows. All rows remain editable while locked. Scroll vertically through rows and horizontally on narrow screens. The preview shows the selected chain and cumulative damage/branch counts.
 
-**Apply loadout** saves all four rows together. Reset restores the applied configuration. Closing discards unapplied edits; completed purchases remain owned. Dragging and keyboard focus survive snapshots. Shop and Loadout both keep the existing equipment cloak and suppress movement, firing, dashing and collection.
+**Apply loadout** saves all four rows together. Reset restores the applied configuration. Closing discards unapplied edits; completed purchases remain owned. Dragging and keyboard focus survive snapshots. Shop and Loadout both keep the existing equipment cloak and suppress movement, firing and collection.
 
 A new callsign receives 100 credits and four kinetic emitters. Weapon 1 starts enabled; the other rows start disabled. Laser emitters cost 150, rockets and plasma 180 each. Emitter 1 is starter equipment, not an unlimited free purchase. There are no power budgets, heat penalties, selling, trading or random item rolls.
 

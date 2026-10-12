@@ -15,7 +15,7 @@ public class ModularWeaponTests
         Assert.All(children,c=>{Assert.Equal(1130,c.BirthX,2);Assert.True(c.X>1130);Assert.True(c.Parent>0);});
         Step(r,4);Assert.All(r.Snapshot().Shots,c=>Assert.Equal(1,c.Effects));Step(r,90);Assert.Empty(r.Snapshot().Shots);
     }
-    [Theory][InlineData(1,650)][InlineData(3,430)][InlineData(4,520)]
+    [Theory][InlineData(1,1300)][InlineData(3,430)][InlineData(4,520)]
     public void EmittersKeepTheirOwnVelocity(int emitter,float speed)
     {var r=Start();Equip(r,Weapon(emitter));Fire(r);Assert.Equal(speed/30,Assert.Single(r.Snapshot().Shots).Dx,3);}
     [Fact] public void PurchasesAndLoadoutsAreOwnedAtomicAndReplaySafe()
@@ -158,5 +158,5 @@ public class ModularWeaponTests
     }
     [Theory][InlineData(0,false)][InlineData(29,false)][InlineData(5,true)]
     public void PurchaseProtocolIsStrict(int module,bool valid)
-    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":5,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"),out _));}
+    {Assert.Equal(valid,ClientProtocol.TryParse(Encoding.UTF8.GetBytes($"{{\"v\":6,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"),out _));}
 }

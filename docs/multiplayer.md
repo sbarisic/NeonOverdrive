@@ -1,6 +1,6 @@
 # Multiplayer MVP implementation contract
 
-This document records the initial MVP contract and subsequent implementation slices. Earlier progression and weapon rules are historical; see [the current skills and workshop guide](multiplayer-skills.md) for the collectible-module system. The existing native and browser single-player modes remain independent. Values below are initial tuning values, not measured balance or capacity claims.
+This document records the initial MVP contract and subsequent implementation slices. Earlier progression and weapon rules are historical; see [the current skills and workshop guide](multiplayer-skills.md) for the collectible-module system. The game is now WebAssembly multiplayer only. Single-player references below describe historical verification. Values below are initial tuning values, not measured balance or capacity claims.
 
 ## Architecture and implementation gate
 
@@ -81,7 +81,7 @@ From repository root (PowerShell, .NET 10 with wasm-tools, Node and Edge install
 dotnet build ArcadeDodger.slnx -c Release
 $bundle = (Resolve-Path src/ArcadeDodger/Web/bin/Release/net10.0/browser-wasm/AppBundle).Path
 dotnet src/ArcadeDodger.Server/bin/Release/net10.0/ArcadeDodger.Server.dll --urls http://localhost:5088 --BrowserRoot $bundle
-# Another terminal: open http://localhost:5088/?multiplayer=1; root / is single-player.
+# Another terminal: open http://localhost:5088/?multiplayer=1; root / opens multiplayer.
 npm install --prefix artifacts/browser-check playwright
 node tests/browser-multiplayer.cjs
 $env:BROWSER_URL = 'http://localhost:5088'; node tests/browser-layout.cjs

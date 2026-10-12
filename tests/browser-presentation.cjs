@@ -166,7 +166,7 @@ async function effectsState(control) {
           assert.equal(frame.x, 0, 'menu must suppress horizontal input');
           assert.equal(frame.y, 0, 'menu must suppress vertical input');
           assert.equal(frame.fire, false, 'menu must suppress firing');
-          assert.equal(frame.dash, false, 'menu must suppress dash');
+          assert.equal(frame.menu, true, 'menu must immobilize the pilot');
         }
         await waitForTicks(page, beforeMenu.tick);
         await page.keyboard.up('d');
@@ -181,16 +181,16 @@ async function effectsState(control) {
           const clearOfLoadout = await page.evaluate(() => {
             const canvas = document.querySelector('#canvas').getBoundingClientRect();
             const info = document.querySelector('#network-info').getBoundingClientRect();
-            return info.bottom <= canvas.bottom - Math.min(canvas.width / 960, canvas.height / 540) * 74 + 1;
+            return info.bottom <= canvas.bottom && info.right <= canvas.right && getComputedStyle(document.querySelector('#network-info')).gridTemplateColumns.split(' ').length===3;
           });
-          assert(clearOfLoadout, 'transport controls must not overlap canvas loadout');
+          assert(clearOfLoadout, 'command grid must remain inside the footer with three columns');
           await page.screenshot({ path: path.join(output, `menu-${width}x${height}-dpr${deviceScaleFactor}.png`) });
           checks.push(`menu/transport containment and loadout clearance ${width}x${height} DPR ${deviceScaleFactor}`);
         }
         await page.setViewportSize({ width: 1280, height: 720 });
         await page.screenshot({ path: path.join(output, `live-menu-dpr${deviceScaleFactor}.png`) });
         checks.push(`primary mouse fire active and blocked by menu DPR ${deviceScaleFactor}`);
-        checks.push(`Escape suppresses input/fire/dash while authoritative snapshots tick DPR ${deviceScaleFactor}`);
+        checks.push(`Escape suppresses thrust/fire while authoritative snapshots tick DPR ${deviceScaleFactor}`);
 
         // Accept a semantic checkbox/switch or a stateful button. A constant label with no
         // checked/pressed state is deliberately not enough evidence that the setting changed.

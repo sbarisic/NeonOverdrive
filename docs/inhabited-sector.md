@@ -2,7 +2,7 @@
 
 **Current release:** [protocol v5](cooperative-combat.md) changes death/reconnect persistence, enemy populations, loot, cooperation, transport, and limits. Those rules supersede the corresponding v4 descriptions below.
 
-Browser multiplayer now runs in a seeded 12,000 × 8,000 sector. Single-player retains its original arena.
+Browser multiplayer now runs in a seeded 12,000 × 8,000 sector. The browser multiplayer sector is the only game mode.
 
 ## Playing
 

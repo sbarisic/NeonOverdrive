@@ -5,7 +5,7 @@ namespace ArcadeDodger.Web;
 
 public partial class BrowserHost
 {
-    private static GameApp? app;
+    private static bool initialized;
     private static BrowserArena? arena;
 
     [JSExport]
@@ -30,7 +30,9 @@ public partial class BrowserHost
     public static void ArenaPresentation(bool menuOpen, bool reducedEffects) => arena?.Presentation(menuOpen, reducedEffects);
 
     [JSExport]
-    public static void ArenaInput(double x, double y, double aim, bool dash) => arena?.Input(x, y, aim, dash);
+    public static string ArenaHudLayout(double width,double height)=>BrowserArenaHud.Configure(width,height);
+    [JSExport]
+    public static void ArenaInput(double x, double y, double aim, bool menu) => arena?.Input(x, y, aim, menu);
 
     [JSExport]
     public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);
@@ -43,8 +45,11 @@ public partial class BrowserHost
 
     public static void Main()
     {
-        app = new GameApp();
-        app.Initialize();
+        Raylib.InitWindow(1920, 1080, "Neon Overdrive");
+        if (!Raylib.IsWindowReady()) throw new InvalidOperationException("Raylib window initialization failed.");
+        Raylib.SetTargetFPS(0); // Yield to requestAnimationFrame instead of blocking the browser.
+        initialized = true;
+        ActivateArena();
     }
 
     [JSExport]
@@ -52,7 +57,7 @@ public partial class BrowserHost
     {
         // Web mouse events are canvas-relative CSS pixels, not backing-buffer pixels.
         // Refresh on every frame so resizing/zooming also remaps a stationary cursor.
-        if (displayWidth <= 0 || displayHeight <= 0) return app is not null;
+        if (displayWidth <= 0 || displayHeight <= 0) return initialized;
         if (arena is not null)
         {
             var density = Math.Clamp(pixelRatio, 1, 2);
@@ -63,14 +68,14 @@ public partial class BrowserHost
         }
         Raylib.SetMouseScale((float)(Raylib.GetScreenWidth() / displayWidth),
             (float)(Raylib.GetScreenHeight() / displayHeight));
-        return arena?.Frame() ?? app?.UpdateFrame() ?? false;
+        return arena?.Frame() ?? false;
     }
 
     [JSExport]
     public static void Close()
     {
-        app?.Close();
-        app = null;
         arena?.Release();arena = null;
+        if (initialized) Raylib.CloseWindow();
+        initialized = false;
     }
 }

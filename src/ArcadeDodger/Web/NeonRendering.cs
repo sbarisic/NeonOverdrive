@@ -1,17 +1,17 @@
 using System.Numerics;
 using Raylib_cs;
-namespace ArcadeDodger;
+namespace ArcadeDodger.Web;
 
-// Original game presentation shared by local and network state adapters.
+// WebAssembly arena presentation helpers.
 internal static class NeonRendering
 {
     private static readonly Color PlayerColor = new(65,245,235,255);
     internal static readonly Color Ink = new(235,240,250,255);
     private static readonly Color ConsoleFill = new(4,14,22,238);
     private static readonly Color ConsoleBorder = new(40,112,132,255);
-    internal static void DrawBackdrop(float clock, Vector2 cameraOrigin, int width, int height, Vector2? viewport = null)
+    internal static void DrawBackdrop(float clock, Vector2 cameraOrigin, int width, int height, Vector2 viewport)
     {
-        var view = viewport ?? new Vector2(GameModel.Width, GameModel.Height);
+        var view = viewport;
         for (int i = 0; i < 600; i++)
         {
             float x = (i * 137 + 31) % width;
@@ -46,7 +46,7 @@ internal static class NeonRendering
         Raylib.DrawLine(x + width - 1, y + height - corner, x + width - 1, y + height - 1, accent);
     }
 
-    internal static void GlowBox(Box box, Color color)
+    internal static void GlowBox(Rectangle box, Color color)
     {
         for (int padding = 9; padding >= 3; padding -= 3)
             Raylib.DrawRectangleRec(new Rectangle(box.X - padding, box.Y - padding,

@@ -6,7 +6,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),a=await context.newPage(),b=await context.newPage(),errors=[];
   for(const page of [a,b])page.on('pageerror',e=>errors.push(String(e)));
   const suffix=Date.now().toString(36),url=process.env.ARENA_URL||'http://localhost:5094';
-  async function join(page,name,room=''){await page.goto(`${url}/?multiplayer=1${room?'&room='+room:''}`);await page.locator('#nickname').fill(name);await page.getByRole('button',{name:'Join arena',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);}
+  async function join(page,name,room=''){await page.goto(`${url}/${room?'?room='+room:''}`);await page.locator('#nickname').fill(name);await page.getByRole('button',{name:'Join arena',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);}
   const state=page=>page.locator('#network-info').evaluate(e=>JSON.parse(e.dataset.snapshot));
   await join(a,'PingA'+suffix);const room=await a.locator('#network-info').getAttribute('data-room');await join(b,'PingB'+suffix,room);
   await a.bringToFront();await a.locator('#canvas').focus();await a.keyboard.press('m');const panel=a.locator('#sector-console');

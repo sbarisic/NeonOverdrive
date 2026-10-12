@@ -11,7 +11,7 @@ public sealed partial class Room
         return new Shot {Id=++nextShot,Owner=p.Id,OwnerName=p.Name,Weapon=weapon,Position=p.Position,BirthPosition=p.Position,
             Born=Tick,Expires=Tick+Math.Max(180,(int)MathF.Ceiling(range*MathF.Pow(1.3f,w.Attachments.Count(id=>id==7))/MathF.Min(speed,520)*TickRate)+30),Kind=kind,Program=(int[])w.Attachments.Clone(),Range=range,InitialRange=range,
             Velocity=new Vector2(MathF.Cos(aim),MathF.Sin(aim))*speed/TickRate,
-            SpeedMultiplier=speed/(kind==3?430:kind==4?520:650), Damage=stats.Damage, VisualPower=stats.Damage/(kind==2?4:kind>=3?2:1),
+            SpeedMultiplier=speed/(kind==3?430:kind==4?520:kind==1?1300:650), Damage=stats.Damage, VisualPower=stats.Damage/(kind==2?4:kind>=3?2:1),
             Blast=(kind==3?85:kind==4?45:0)*stats.RadiusMultiplier,RadiusMultiplier=stats.RadiusMultiplier,
             SplashMultiplier=stats.SplashMultiplier,ShieldMultiplier=stats.ShieldMultiplier,Pierce=stats.Pierce,StatusPower=stats.StatusPower};
     }
@@ -29,6 +29,7 @@ public sealed partial class Room
         }
     }
     // Budget is the remaining fraction of this tick for moving projectiles; beams trace immediately.
+    private static float ProjectileRadius(Shot s)=>s.Owner>0&&s.Kind==1?1.5f:3;
     private void Advance(Shot s,float budget,int firstSegment,int segmentLimit)
     {
         for(var guard=0;guard<96&&budget>.00001f&&s.Expires>Tick;guard++)
@@ -47,14 +48,14 @@ public sealed partial class Room
                 foreach(var c in Contacts(s,s.Position,s.Position)) {Contact(s,c.Pilot,c.Alien,s.Position);if(s.Pierce--<=0){s.Expires=Tick;break;}}
                 return;
             }
-            var direction=s.Velocity/speed;
-            var wallX=direction.X>.00001f?(Width-s.Position.X)/direction.X:direction.X<-.00001f?-s.Position.X/direction.X:float.PositiveInfinity;
-            var wallY=direction.Y>.00001f?(Height-s.Position.Y)/direction.Y:direction.Y<-.00001f?-s.Position.Y/direction.Y:float.PositiveInfinity;
+            var direction=s.Velocity/speed;var coverRadius=s.IsBeam?0:ProjectileRadius(s);
+            var wallX=direction.X>.00001f?(Width-coverRadius-s.Position.X)/direction.X:direction.X<-.00001f?(coverRadius-s.Position.X)/direction.X:float.PositiveInfinity;
+            var wallY=direction.Y>.00001f?(Height-coverRadius-s.Position.Y)/direction.Y:direction.Y<-.00001f?(coverRadius-s.Position.Y)/direction.Y:float.PositiveInfinity;
             var wall=MathF.Max(0,MathF.Min(wallX,wallY));
             var length=MathF.Min(s.IsBeam?float.PositiveInfinity:budget*speed,MathF.Min(wall,MathF.Min(Gate(s)-s.Distance,s.Program is null?float.PositiveInfinity:s.Range-s.Distance)));
             length=MathF.Max(0,length);
             var start=s.Position;var end=start+direction*length;
-            var cover=geometry?.Trace(start,end);float? sanctuary=null;
+            var cover=geometry?.Trace(start,end,coverRadius);float? sanctuary=null;
             if(Sector is not null)foreach(var station in Sector.Locations.Where(l=>l.Kind=="station"))
                 if(SectorCollision.Circle(start-station.Position,end-station.Position,300) is {} t&&(sanctuary is null||t<sanctuary))sanctuary=t;
             var boundary=cover?.T??2;var absorbed=sanctuary.HasValue&&sanctuary<=boundary;if(absorbed)boundary=sanctuary!.Value;
@@ -166,14 +167,14 @@ public sealed partial class Room
         var result=contactBuffer;result.Clear();
         foreach(var p in playerGrid.Query(start,end,140))
         {
-            if(p.Id==s.Owner||Friendly(s,p)||p.Hull<=0||p.Editing||Safe(p)||Tick<p.ProtectedUntil||s.HitPlayers.Contains(p.Id)||(s.IsBeam&&HasSkill(p,PhaseDash)&&Tick<p.DashUntil))continue;
-            var t=Intersection(start-Vector2.Lerp(p.Previous,p.Position,startTime),end-Vector2.Lerp(p.Previous,p.Position,endTime),s.Proximity?Definition(24).Radius:Radius+3);
+            if(p.Id==s.Owner||Friendly(s,p)||p.Hull<=0||p.Editing||Safe(p)||Tick<p.ProtectedUntil||s.HitPlayers.Contains(p.Id))continue;
+            var t=Intersection(start-Vector2.Lerp(p.Previous,p.Position,startTime),end-Vector2.Lerp(p.Previous,p.Position,endTime),s.Proximity?Definition(24).Radius:Radius+ProjectileRadius(s));
             if(t.HasValue)result.Add((t.Value,p,null));
         }
         if(s.Owner>0)foreach(var e in enemyGrid.Query(start,end,140))
         {
             if(e.Hull<=0||Sanctuary(e.Position)||s.HitEnemies.Contains(e.Id))continue;
-            var t=Intersection(start-Vector2.Lerp(e.Previous,e.Position,startTime),end-Vector2.Lerp(e.Previous,e.Position,endTime),s.Proximity?(e.Installation?85:0)+Definition(24).Radius:EnemyRadius(e)+3);
+            var t=Intersection(start-Vector2.Lerp(e.Previous,e.Position,startTime),end-Vector2.Lerp(e.Previous,e.Position,endTime),s.Proximity?(e.Installation?85:0)+Definition(24).Radius:EnemyRadius(e)+ProjectileRadius(s));
             if(t.HasValue)result.Add((t.Value,null,e));
         }
         result.Sort(static(a,b)=>{var time=a.Time.CompareTo(b.Time);return time!=0?time:(a.Pilot?.Id??a.Alien!.Id).CompareTo(b.Pilot?.Id??b.Alien!.Id);});return result;

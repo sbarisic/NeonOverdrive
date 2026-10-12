@@ -15,7 +15,7 @@ public sealed partial class Room
         float actual=0;
         if(p is not null)
         {
-            if(p.Hull<=0||p.Editing||Safe(p)||Tick<p.ProtectedUntil||Friendly(s,p)||(HasSkill(p,PhaseDash)&&Tick<p.DashUntil))return 0;
+            if(p.Hull<=0||p.Editing||Safe(p)||Tick<p.ProtectedUntil||Friendly(s,p))return 0;
             p.LastDamage=Tick;
             var shield=MathF.Min(MathF.Max(0,p.Shield-p.ShieldFraction),amount*s.ShieldMultiplier);
             amount-=shield/s.ShieldMultiplier;actual+=shield;p.ShieldFraction+=shield;
@@ -70,7 +70,7 @@ public sealed partial class Room
             for(var jump=0;jump<s.Relays;jump++)
             {
                 var candidates=new List<(Vector2 Pos,Player? P,Enemy? E)>();
-                candidates.AddRange(players.Values.Where(t=>t.Id!=s.Owner&&t.Hull>0&&!t.Editing&&Tick>=t.ProtectedUntil&&!Friendly(s,t)&&!visitedP.Contains(t.Id)&&!(HasSkill(t,PhaseDash)&&Tick<t.DashUntil)).Select(t=>(t.Position,(Player?)t,(Enemy?)null)));
+                candidates.AddRange(players.Values.Where(t=>t.Id!=s.Owner&&t.Hull>0&&!t.Editing&&Tick>=t.ProtectedUntil&&!Friendly(s,t)&&!visitedP.Contains(t.Id)).Select(t=>(t.Position,(Player?)t,(Enemy?)null)));
                 candidates.AddRange(enemies.Where(t=>t.Hull>0&&!visitedE.Contains(t.Id)).Select(t=>(t.Position,(Player?)null,(Enemy?)t)));
                 var next=candidates.Where(t=>VisibleLine(point,t.Pos)&&Vector2.DistanceSquared(t.Pos,point)<=Definition(16).Radius*Definition(16).Radius).OrderBy(t=>Vector2.DistanceSquared(t.Pos,point)).FirstOrDefault();
                 if(next.P is null&&next.E is null)break;
@@ -106,7 +106,7 @@ public sealed partial class Room
         {
             var m=mines[i];if(Tick>=m.Expires||m.Payload.Cancelled){mines.RemoveAt(i);continue;}if(Tick<m.ArmedAt)continue;
             var s=m.Payload;
-            if(enemyGrid.Query(s.Position,s.Position,140).Any(e=>e.Hull>0&&!Sanctuary(e.Position)&&VisibleLine(s.Position,e.Position)&&Vector2.DistanceSquared(e.Position,s.Position)<=MathF.Pow(e.Installation?140:55,2))||playerGrid.Query(s.Position,s.Position,55).Any(p=>p.Id!=s.Owner&&p.Hull>0&&!p.Editing&&!Safe(p)&&VisibleLine(s.Position,p.Position)&&Tick>=p.ProtectedUntil&&!Friendly(s,p)&&!(HasSkill(p,PhaseDash)&&Tick<p.DashUntil)&&Vector2.DistanceSquared(p.Position,s.Position)<=55*55))
+            if(enemyGrid.Query(s.Position,s.Position,140).Any(e=>e.Hull>0&&!Sanctuary(e.Position)&&VisibleLine(s.Position,e.Position)&&Vector2.DistanceSquared(e.Position,s.Position)<=MathF.Pow(e.Installation?140:55,2))||playerGrid.Query(s.Position,s.Position,55).Any(p=>p.Id!=s.Owner&&p.Hull>0&&!p.Editing&&!Safe(p)&&VisibleLine(s.Position,p.Position)&&Tick>=p.ProtectedUntil&&!Friendly(s,p)&&Vector2.DistanceSquared(p.Position,s.Position)<=55*55))
             {Explode(s,s.Position,null,null);mines.RemoveAt(i);}
         }
     }
