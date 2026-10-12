@@ -16,12 +16,12 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   const focused=panel.getByRole('button',{name:'Broadcast to room',exact:true});await focused.focus();await a.waitForTimeout(5200);assert(await focused.evaluate(e=>e===document.activeElement));await focused.click();
   await b.waitForFunction(()=>JSON.parse(document.querySelector('#network-info').dataset.snapshot).sector.pilot.pings.length===1);
   await b.bringToFront();await b.locator('#canvas').focus();await b.keyboard.press('m');await b.locator('#sector-console').getByRole('button',{name:/PingA.*Arrival Port/}).click();
-  assert.match(await b.locator('#sector-guide').innerText(),/Arrival Port/);await b.setViewportSize({width:390,height:844});assert(await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await b.screenshot({path:'artifacts/browser-check/cooperation-mobile.png'});await b.keyboard.press('Escape');await b.keyboard.press('e');
+  assert.match(await b.locator('#sector-guide').innerText(),/Arrival Port/);
+  await b.keyboard.press('Escape');await b.keyboard.press('e');
   const card=b.locator('.contract-card').filter({hasText:'INTERDICT'});await card.getByRole('button',{name:'Accept contract',exact:true}).click();
   await b.waitForFunction(()=>JSON.parse(document.querySelector('#network-info').dataset.snapshot).sector.pilot.contract===100);
   await b.reload();await b.getByRole('button',{name:'Join arena',exact:true}).click();await b.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
   assert.equal((await state(b)).sector.pilot.contract,100);assert.equal((await state(b)).sector.pilot.docked,10);
-  assert.deepEqual(errors,[]);console.log('PASS: private friend pings, explicit room broadcast, stable focus, mobile map, shared waypoint, repeatable patrol contract, docked reconnect.');
+  assert.deepEqual(errors,[]);console.log('PASS: private friend pings, explicit room broadcast, stable focus, shared waypoint, repeatable patrol contract, docked reconnect.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

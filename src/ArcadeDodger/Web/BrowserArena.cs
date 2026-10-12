@@ -36,7 +36,7 @@ internal sealed class BrowserArena
         menuOpen = menu; reducedEffects = reduced;
     }
     public void Release()=>world.ReleaseSector();
-    public void SetSector(string json) {var sector=JsonSerializer.Deserialize(json,SnapshotJson.Default.SectorDefinition);if(sector is not null){prediction.SetSector(sector);world.SetSector(sector);}}
+    public void SetSector(string json) {var sector=JsonSerializer.Deserialize(json,SnapshotJson.Default.SectorDefinition);if(sector is not null){prediction.SetSector(sector);world.SetSector(sector);BrowserArenaHud.SetSector(sector);}}
     public void Welcome(int id) { ownId = id; prediction.Reset(); }
     public void Input(double x, double y, double aim, bool menu) =>
         prediction.Input(menuOpen ? 0 : (float)x, menuOpen ? 0 : (float)y, (float)aim,

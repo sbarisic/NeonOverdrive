@@ -79,10 +79,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await panel.locator('[data-skill="rocket.1"]').focus();assert.match(await panel.locator('.tree-detail').innerText(),/Two specializations already selected/);
     await page.screenshot({path:'artifacts/browser-check/skills-specializations.png'});
     await page.evaluate(()=>window.__holdFrames=false);
-    await page.setViewportSize({width:390,height:844});await panel.getByRole('button',{name:'Fortune',exact:true}).click();
+    await panel.getByRole('button',{name:'Fortune',exact:true}).click();
     assert(await panel.evaluate(el=>{const b=el.getBoundingClientRect();return b.x>=0&&b.right<=innerWidth&&b.bottom<=innerHeight;}));
-    await page.screenshot({path:'artifacts/browser-check/skills-mobile.png'});await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
     assert.deepEqual(errors, []);
-    console.log('PASS: 69 illustrated square tiles, prerequisite links, branch navigation, real XP earned, two accepted skill purchases, receipts, focus across snapshots, mobile layout, locked/no-point purchases, live ticks, neutral movement, keyboard focus/close, no page errors.');
+    console.log('PASS: 69 illustrated square tiles, prerequisite links, branch navigation, real XP earned, two accepted skill purchases, receipts, focus across snapshots, locked/no-point purchases, live ticks, neutral movement, keyboard focus/close, no page errors.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

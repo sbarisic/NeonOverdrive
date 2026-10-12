@@ -1,6 +1,6 @@
 # Neon Overdrive
 
-A WebAssembly multiplayer space combat game built with C#/.NET 10 and Raylib-cs. The browser renders the game; the ASP.NET Core server owns simulation, progression, combat, and persistence. There is no native or single-player game.
+A WebAssembly multiplayer space combat game built with C#/.NET 10 and Raylib-cs. The browser renders the game; the ASP.NET Core server owns simulation, progression, combat, and persistence. There is no native or single-player game. Supported clients are desktop browsers with keyboard and mouse, at a viewport of 1280 × 720 or larger. Phone and portrait layouts are not supported; desktop resizing and high-DPI displays remain supported.
 
 ## Run locally
 

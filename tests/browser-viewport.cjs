@@ -19,7 +19,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
    await page.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
    // Stay protected during layout checks. Host aim mapping remains testable in-menu.
    await page.locator('#canvas').focus();await page.keyboard.press('i');
-   for (const [width,height] of [[2048,906],[2560,720],[1280,720],[800,900],[390,844]]) {
+   for (const [width,height] of [[2048,906],[2560,720],[1280,720]]) {
     await page.setViewportSize({width,height});
     await page.waitForFunction(({width,height,dpr})=>{const c=document.querySelector('#canvas');return c.width===Math.round(width*dpr)&&c.height===Math.round(height*dpr);},{width,height,dpr:deviceScaleFactor});
     const result = await page.evaluate(()=>{
@@ -43,7 +43,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert(Math.abs(hud.rect.x-gx)<1&&Math.abs(hud.rect.y-gy)<1);
     assert(gx>=fx+11&&gy>=fy+11&&gx+gw<=fx+fw-11&&gy+gh<=fy+fh-11,'grid stays within footer padding');
     assert(Math.abs(mx+mw/2-width/2)<1,'minimap centered');
-    assert(hud.buttons.every(b=>b.width>=44&&b.height>=44&&b.x>=gx&&b.y>=gy&&b.right<=gx+gw&&b.bottom<=gy+gh),'touch buttons contained');
+    assert(hud.buttons.every(b=>b.width>=44&&b.height>=44&&b.x>=gx&&b.y>=gy&&b.right<=gx+gw&&b.bottom<=gy+gh),'command buttons contained');
 
     if(width===2048){
      await page.keyboard.press('Escape');await page.waitForTimeout(100);
@@ -61,6 +61,6 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
    assert(Math.abs(aiming.actual-aiming.expected)<.02,`stationary cursor after resize: ${JSON.stringify(aiming)}`);
    assert.deepEqual(errors,[]);await context.close();
   }
-  console.log('PASS: full-window canvas and matching backing buffer at five aspect ratios and two pixel densities; accurate world aiming after resize; no scrolling or page errors.');
+  console.log('PASS: full-window canvas and matching backing buffer at three desktop sizes and two pixel densities; accurate world aiming after resize; no scrolling or page errors.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

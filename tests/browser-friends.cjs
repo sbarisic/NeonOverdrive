@@ -26,8 +26,6 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   await a.getByRole('button',{name:'Join arena',exact:true}).click();await a.waitForFunction(n=>document.querySelector('#network-info')?.dataset.snapshot&&JSON.parse(document.querySelector('#network-info').dataset.snapshot).social.friends.includes(n),bob);
   await a.locator('#canvas').focus();await a.keyboard.press('p');await a.locator('#arena-friends').waitFor({state:'visible'});
   await a.waitForFunction(()=>{const el=document.querySelector('#network-info');return JSON.parse(el.dataset.snapshot).players.find(p=>p.id===+el.dataset.player).editing;});
-  await a.setViewportSize({width:390,height:844});assert(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await a.screenshot({path:'artifacts/browser-check/friends-mobile.png'});
   await a.locator('#arena-friends .friend-row').filter({hasText:bob}).getByRole('button',{name:'Remove',exact:true}).click();
   await a.waitForFunction(()=>JSON.parse(document.querySelector('#network-info').dataset.snapshot).social.friends.length===0);
   await b.waitForFunction(()=>JSON.parse(document.querySelector('#network-info').dataset.snapshot).social.friends.length===0);

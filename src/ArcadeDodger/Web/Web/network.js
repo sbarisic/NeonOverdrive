@@ -37,8 +37,6 @@ export function startNetwork(host, canvas, status) {
     #arena-respawn{position:fixed;left:50%;top:65%;transform:translateX(-50%);max-width:calc(100vw - 32px);z-index:4;padding:14px 24px;background:#041622;color:#41f5eb;border:1px solid #41f5eb;cursor:pointer}
     .credit-payout{position:fixed;top:30%;left:50%;transform:translateX(-50%);color:#ffdd79;text-shadow:0 2px 4px #000;font:bold 22px monospace;pointer-events:none;z-index:8;background:#171208bb;padding:10px 16px;border:1px solid #baa35b}
     .arena-notice{color:#ffcd69;font-size:14px;overflow-wrap:anywhere}
-    @media(max-height:560px){.arena-panel{padding:12px;max-height:calc(100dvh - 80px);top:12px;transform:translateX(-50%);font-size:14px;line-height:1.25}.arena-shell p{margin:6px 0}.arena-shell h1,.arena-shell h2{font-size:24px;margin-bottom:6px}.arena-shell label{margin:6px 0}.arena-shell .actions{margin-top:8px}}
-    @media(max-width:480px){.arena-panel{padding:16px}.arena-shell .actions>*{flex:1;text-align:center}}
   `;
   document.head.append(style);
   function element(tag, text, className) {

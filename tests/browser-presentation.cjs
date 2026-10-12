@@ -9,7 +9,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
 
 const output = path.resolve('artifacts/browser-check/presentation');
 const timeout = 15000;
-const sizes = [[1760, 974], [1280, 720], [800, 900], [640, 480]];
+const sizes = [[1760, 974], [1280, 720]];
 const checks = [];
 
 async function snapshot(page) {

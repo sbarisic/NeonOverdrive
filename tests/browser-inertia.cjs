@@ -18,11 +18,7 @@ const {chromium}=require('../artifacts/browser-check/node_modules/playwright');
   await page.waitForFunction(()=>{const e=document.querySelector('#network-info'),p=JSON.parse(e.dataset.snapshot).players.find(p=>p.id===+e.dataset.player);return p.menu&&p.velocityX===0;});
   const menu=await read();assert.equal(menu.editing,false);await page.waitForTimeout(200);assert.equal((await read()).x,menu.x);
   await page.keyboard.press('Escape');await page.screenshot({path:'artifacts/browser-check/inertia-hud-desktop.png'});
-  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
-  const layout=await page.locator('#network-info').evaluate(e=>JSON.parse(e.dataset.layout));
-  assert.equal(layout[10]+layout[12]/2,195);assert(layout[11]+layout[13]<layout[1]);
-  await page.screenshot({path:'artifacts/browser-check/inertia-hud-mobile.png'});
   await page.locator('#network-info').getByRole('button',{name:'Skills [Tab]',exact:true}).click();await page.locator('#arena-skills').waitFor({state:'visible'});
-  assert.deepEqual(errors,[]);console.log('PASS: acceleration, release coasting, full stop, Shift has no action, Escape immobilizes without equipment cloak, centered mobile radar above command grid, icon activation.');
+  assert.deepEqual(errors,[]);console.log('PASS: acceleration, release coasting, full stop, Shift has no action, Escape immobilizes without equipment cloak, icon activation.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

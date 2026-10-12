@@ -38,8 +38,6 @@ export function createWeaponBench(element, info, equip, buy, onToggle) {
     #weapon-bench .bench-status{color:#a4dfca;font-size:12px;min-height:17px}
     #weapon-bench .forge-help{color:#a9b0c3;font-size:12px;line-height:1.5}
     .module-drag-ghost{position:fixed;z-index:20;pointer-events:none;width:64px;height:64px;display:grid;place-items:center;border:2px solid #ebce86;border-radius:5px;background:#1e2436e8;box-shadow:0 8px 30px #000a;font:36px Georgia;color:var(--part);transform:translate(-50%,-50%)}
-    @media(max-width:700px){#weapon-bench{inset:2vh 3vw;padding:14px}#weapon-bench h2{font-size:20px;letter-spacing:2px}#weapon-bench .module-catalog{grid-template-columns:repeat(4,minmax(58px,1fr))}#weapon-bench .forge-heading{align-items:start;flex-direction:column;gap:6px}}
-    @media(max-height:650px){#weapon-bench{inset:2vh 3vw;padding:12px;gap:8px}#weapon-bench h2{font-size:20px}#weapon-bench .bench-actions{padding-top:8px}}
   `));
 
   document.head.append(element('style', `

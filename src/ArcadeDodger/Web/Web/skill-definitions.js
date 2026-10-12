@@ -50,6 +50,4 @@ export const treeCss=`
 #arena-skills .skill-node[data-state*=locked] .skill-face{filter:saturate(.45);opacity:.6}
 #arena-skills .skill-node:focus-visible{outline:2px solid #fff0b5;outline-offset:3px}#arena-skills .skill-node:hover .skill-face{filter:brightness(1.3)}
 #arena-skills .tree-detail{border-top:1px solid #66707a;padding-top:8px;min-height:76px;font-size:12px;color:#bccbd7}.tree-detail strong{font:17px Georgia;color:#f1d69b}.tree-detail p{margin:5px 0}.tree-receipt{color:#a6f0bd;min-height:14px}.tree-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;color:#9dafbe}
-@media(max-width:650px){#arena-skills{inset:1vh 1vw;padding:10px;gap:7px}#arena-skills h2{font-size:17px;letter-spacing:1px}.tree-heading{align-items:flex-start!important;flex-direction:column}.tree-footer span{max-width:55%}.tree-help{font-size:10px!important}}
-@media(max-height:620px){#arena-skills{padding:8px;gap:4px}.tree-detail{min-height:60px!important}.tree-help{display:none}}
 `;
