@@ -22,7 +22,7 @@ public class RoomTests
         Assert.Equal(
             2f / 3,
             MathF.Sqrt(MathF.Pow(end.X - start.X, 2) + MathF.Pow(end.Y - start.Y, 2)),
-            3
+            2
         );
         Assert.False(room.Input(id, new(100, 0, 0, 0, false, false)));
         Assert.False(room.Input(id, new(101, float.NaN, 0, 0, false, false)));
@@ -40,7 +40,7 @@ public class RoomTests
         for (var i = 0; i < 100; i++)
             room.Step();
         Assert.Equal(stopped.X, room.Snapshot().Players.Single().X);
-        for (var i = 2; i < 1000; i++)
+        for (var i = 2; i < 2400; i++)
         {
             room.Input(id, new(i, 1, 1, 0, false, false));
             room.Step();

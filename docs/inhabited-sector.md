@@ -1,43 +1,47 @@
-# Inhabited sector (protocol v4 foundation)
+# Inhabited sector — protocol v9
 
-**Current release:** [protocol v5](cooperative-combat.md) changes death/reconnect persistence, enemy populations, loot, cooperation, transport, and limits. Those rules supersede the corresponding v4 descriptions below.
+Desktop browser multiplayer runs in a seeded **24,000 × 16,000** sector. New rooms use the expanded generator. Active rooms retain their geometry until restart or expiration; no live terrain migration occurs.
 
-Browser multiplayer now runs in a seeded 12,000 × 8,000 sector. The browser multiplayer sector is the only game mode.
+## Navigation and cover
 
-## Playing
+Haven, Cinder, and The Sundering have solid **1,160-unit** radii. Zephyr remains a non-solid, 760-unit gas giant. Ships slide around rocky rims without gravity or landing. Solid planets and asteroids block projectiles, beams, targeting, and damaging effects. Destroyed outposts remain solid cover.
 
-- **E** docks within 180 units of a friendly station, undocks, or starts a nearby contract interaction. Scans take three seconds and stop on movement, damage, firing, or opening equipment/map screens.
-- **M** opens the sector chart. Exploration reveals a 1,200-unit radius. Select a discovered destination to set a direction/distance waypoint; contract boards can also locate assigned objectives.
-- **I** edits the existing four weapon chains anywhere. The Shop tab is a read-only catalog until docked. Stations offer module purchases, hull repairs at 10 credits per missing point (including partial damage), and contracts.
-- **Tab** retains the 69-skill tree. Existing equipment cloak and neutral gameplay input remain active in equipment screens and the sector chart.
-- Station sanctuaries extend 300 units, suppress firing and damage, absorb incoming shots, and turn hostile pursuit away. Docked pilots cannot move, fire, or collect pickups. The shared world never pauses.
+Three stations, four hostile arrays, three friendly surface outposts, two boundary arrival corridors, eight asteroid fields, six wrecks, three survey probes, and a volcanic thermal zone occupy the sector. Rocky arrays and outposts sit on the rim; Zephyr's array stays in orbit. Interactions sit outside the solid discs. Shared obstacle-aware routes connect station approaches and objectives; every route segment is checked with swept collision. NPCs cache routes and follow the same geometry as player prediction.
 
-The sector has four themed planets below the flight plane, three stations, four hostile arrays, two boundary arrival corridors, eight asteroid fields, six wrecks, three survey probes and a volcanic thermal zone. Planets are scenery beneath combat; orbital asteroids and arrays block ship movement. Asteroids stop or reflect weapons and block splash/secondary effects. Destroyed arrays leave solid ruins.
+- **E** docks within 180 units of a station, undocks, or starts a nearby contract interaction. Scans take three seconds and stop on movement, damage, firing, or opening equipment/map screens. The objective has a visible scan bar.
+- **M** opens the sector chart. Planets and stations remain visible. Exploration reveals a 1,200-unit radius; hostile markers retain fog-of-war rules. Select a destination or radio beacon for a routed waypoint. The local minimap has zoom controls and the same route.
+- **I** opens the workshop. Modules can be bought only while docked. Bay and attachment availability depends on level; see [weapon progression](multiplayer-skills.md).
+- **Tab** opens the 66-skill tree. Equipment screens and the chart retain cloak; Escape only immobilizes the ship.
+- Station sanctuaries extend 300 units, suppress firing and damage, absorb incoming shots, and turn hostile pursuit away. Docked pilots cannot move, fire, or collect pickups. The room never pauses.
 
-The thermal vent warns for two seconds, erupts for four seconds at one damage per second, then rests for four seconds. Gas giant storms are cosmetic. All interactable destinations have asteroid-free connecting lanes. Shattered-world defenders have five hull instead of three.
+The thermal vent warns for two seconds, erupts for four seconds at one damage per second, then rests for four seconds. Gas storms are cosmetic. Regional levels and health/damage scaling remain unchanged.
 
-## Enemies and contracts
+## Surface combat
 
-There is no player-relative spawn timer. Each enemy snapshot records its source and AI state. Arrays start with two rammers and two gunners, support eight ships, and launch replacements every 20 seconds with a three-second warning. Corridors announce arrivals for five seconds and deliver three ships every minute, up to nine living ships each. Population saturation delays launches. Ships patrol, investigate attacks, engage visible exposed pilots, and return to their routes. Gunner acquisition includes an attack telegraph.
+Every rocky friendly and hostile outpost begins with two stationary turrets and two rovers. Rovers use regional gunner values and move around the circular surface; turrets have twice the gunner hull. Friendly ground units also have shields equal to their maximum hull. They face outward and fire only with clear sight. Player weapons pass through friendly units; hostile ships can attack them.
 
-Arrays have 120 hull. Damage and damaging statuses work; gravity, slow and stun do not. A destroyed array never launches again during that sector. Existing patrols survive their base. Corridors continue providing encounters after arrays are cleared.
+Outposts have 120 hull and remain destroyed for the sector. Turrets never regenerate. Surviving outposts can replace rovers within their two-unit quota. Surface loot ejects into clear exterior space. All ships, installations, turrets, and rovers share the **192-NPC** budget. The projectile cap stays **512**; beam and mine limits are unchanged.
 
-Each station offers one survey, recovery and suppression contract. A pilot can have one active contract. Survey three probes for 40 credits/30 XP; retrieve and return wreck data for 60/45; contribute damage to and destroy an array for 100/75. Rewards are fixed and claimed at the issuer. Progress and completed contracts are personal. A target destroyed without the pilot contributing clears that unavailable suppression contract. Recovery data is lost on death. Paid claims persist credits before consuming progress; retries cannot duplicate rewards.
+Hostile arrays support eight patrol ships and launch replacements every 20 seconds with a three-second warning. Corridors deliver three ships each minute, up to nine per corridor, after a five-second warning. Saturation delays launches. Existing patrols survive base destruction. NPC targets distinguish pilots from other combat NPCs.
 
-## Lifetime and implementation
+## Emergency rescues
 
-World state lasts until server restart or 15 minutes without connected pilots. Discovery and contracts are kept by normalized callsign within that room, including after death and rejoin. Respawn uses the last visited station and resets run progression; saved equipment, credits and friendships keep their prior persistence. This release adds no disk world save.
+Relief cruisers travel from station approaches through patrol shipping lanes. They have 240 hull and 120 shields times regional health scaling, speed 100, and a regional gunner weapon. Shields begin recharging after eight damage-free seconds.
 
-Protocol **v4** welcome carries static sector geometry and contract definitions. Player snapshots add docking state. Private sector snapshots carry discoveries, chart cells, contract progress, repair cost and sequenced action receipts. Dynamic source snapshots include hull, destroyed/launching state and warning time. Sector commands are `dock`, `undock`, `repair`, `accept`, `claim`, `interact`, and `cancel`, with a shared sequence and integer target. Old clients receive `refresh_required`.
+A cruiser engaged by six to eight existing hostile ships broadcasts a room-wide radio beacon. No acceptance action spawns enemies. Only one rescue can be active. Its objective panel shows hull, shields, and remaining designated attackers; station contracts remain independent. Clicking its map or minimap beacon tracks the moving cruiser without revealing terrain or hidden enemies.
 
-The server owns all interactions, damage and payments. Client prediction shares swept obstacle movement with the server. Static geometry and dynamic combat use spatial grids; snapshots filter distant non-player entities to 3,000 units, while preserving a pilot's own weapon presentation. Limits remain 256 projectiles, 1,536 beam segments (64 per pilot), 128 mines (32 per pilot), and 96 enemies including installations.
+Destroy every designated attacker while the cruiser survives. Each pilot/run dealing at least one actual damage, including statuses, receives personal pickups worth **80 × regional level credits** and **60 × level XP**. There is no rescue module roll. Pickup modifiers, expiry, collection restrictions, and ordered persistence follow normal personal loot. Outcomes are frozen once; death invalidates the old run's entitlement. If both the cruiser and final attacker die in one tick, the rescue fails. The beacon disappears immediately on failure. Resolved events impose a seeded four-to-six-minute cooldown; rescued cruisers continue toward their destination.
+
+## Contracts and lifetime
+
+Stations retain survey (40 credits/30 XP), recovery (60/45), suppression (100/75), and repeatable Patrol Interdiction (60/45). One station contract can be active per pilot. Rewards are claimed at the issuer. Interdiction credits actual damage participation against three designated-corridor ships and has a five-minute claim cooldown. Recovery data is lost on death. Destroyed suppression targets cannot regenerate.
+
+World state lasts until restart or 15 minutes without connected pilots. Same-room discovery and contract progress follow existing death rules. Fresh-run resets, permanent replay bonuses, and the strict 60-second reconnect window are documented in [cooperative combat](cooperative-combat.md).
+
+Protocol v8 welcome includes geometry, NPC definitions, and authoritative weapon requirements. JSON and packed presentation snapshots include NPC faction, health/shields, surface placement, and rescue state. Older clients receive `refresh_required`. Restart the server and refresh clients together; Visual Studio's server launch profile builds the browser bundle.
 
 ## Verification
 
-Run `dotnet test ArcadeDodger.slnx -c Release`. Sector coverage includes deterministic generation across 30 seeds, clear routes, swept collision/prediction, sourced patrols, permanent destruction, sanctuaries, all four emitters against cover, control immunity, contracts, interrupted scans, persistence failures, replay rejection, discovery, and respawn.
+Run `dotnet test tests/ArcadeDodger.Multiplayer.Tests -c Release`. Coverage includes many-seed generation, swept paths, planet cover, surface factions, weapon gates and profile migration, natural relief traffic, rescue outcomes, run invalidation, persistence, and protocol handling.
 
-With an isolated multiplayer server, set `ARENA_URL` and run `node tests/browser-sector.cjs`. It checks real WASM rendering, station-only shopping, docking, contract acceptance, map selection, snapshot-stable focus, mobile layout, exploration, cloak, and rejoin after the disconnected-ship grace period. Existing weapon, skill, friendship, prediction, viewport, presentation, enemy, PvP, audio and asset-version regressions also cover v4.
-
-The bounded-load model test spreads 24 pilots across the sector, each firing four extreme chains after source populations fill. On this development machine the isolated 180-tick sample averaged about 6 ms per simulation tick, with p95 about 9 ms. This excludes WebSocket serialization and network latency and is not a production capacity guarantee. Long-session balance and multiplayer playtesting remain useful follow-up work.
-
-Restart the server and refresh browsers together. Visual Studio's existing server launch profile builds the browser bundle; no profile migration is required.
+Use an isolated server/profile store for the desktop browser regressions. `browser-surface-expansion.cjs` checks WASM rendering, locked sockets, radio selection, terrain privacy, and failed-beacon removal. Existing menu, workshop, skills, sector, radar, prediction, combat, audio, lifecycle, and cache-version checks remain relevant. Performance commands and machine-specific measurements are in [cooperative combat](cooperative-combat.md).

@@ -7,10 +7,17 @@ public sealed partial class Room
 {
     private sealed class Player
     {
+        public int[] GearTiers = new int[12];
+        public int InventoryPage;
         public string LootNotice = "";
         public long LootNoticeUntil;
         public bool Menu;
         public string RunId = "";
+        public long DisconnectedAt;
+        public bool RecoveryDisabled;
+        public bool Recovered;
+        public int LeaveSequence;
+        public string ResetResult = "";
         public bool ResetPending,
             ResetComplete,
             CheckpointPending,
@@ -97,6 +104,7 @@ public sealed partial class Room
             Velocity;
         public long Expires,
             Born;
+        public bool FriendlyNpc;
         public int Kind = 1,
             Cursor,
             Pierce;

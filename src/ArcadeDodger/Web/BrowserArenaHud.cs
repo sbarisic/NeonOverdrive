@@ -37,7 +37,13 @@ internal static partial class BrowserArenaHud
         radarWidth = 3600 / (float)Math.Clamp(zoom, .5, 4);
     }
 
-    public static void SetSector(SectorDefinition value) => sector = value;
+    public static void SetSector(SectorDefinition value)
+    {
+        sector = value;
+        navigation = new(value, new SectorCollision(value));
+        route = [];
+        routeKnown = false;
+    }
 
     private static readonly List<Vector2> groups = [];
 

@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace ArcadeDodger.Multiplayer;
 
-/// <summary>Single-writer fixed-step network-slice simulation; no renderer or wall-clock dependency.</summary>
+/// <summary>Single-writer fixed-step simulation. An injectable clock bounds reconnect recovery.</summary>
 public sealed partial class Room
 {
     public const int TickRate = 30;
@@ -24,6 +24,7 @@ public sealed partial class Room
     public long Tick { get; private set; }
     public int PlayerCount => players.Count;
     private readonly bool enemiesEnabled;
+    private readonly TimeProvider clock;
 
     // Server rooms always use the default; isolated combat checks can disable AI.
     public Room(
@@ -33,17 +34,21 @@ public sealed partial class Room
         bool sectorEnabled = true,
         int? seed = null,
         int projectileLimit = ProjectileCapacity,
-        int enemyLimit = EnemyCapacity
+        int enemyLimit = EnemyCapacity,
+        TimeProvider? clock = null
     )
     {
         ProjectileLimit = Math.Clamp(projectileLimit, 256, 1024);
         EnemyLimit = Math.Clamp(enemyLimit, 96, 256);
         this.enemiesEnabled = enemiesEnabled;
+        this.clock = clock ?? TimeProvider.System;
         this.friends = friends ?? new();
         this.profiles = profiles ?? new();
         Sector = sectorEnabled ? SectorDefinition.Generate(seed ?? Random.Shared.Next()) : null;
         geometry = Sector is null ? null : new(Sector);
+        navigation = Sector is null ? null : new(Sector, geometry!);
         InitializeSector();
+        InitializeAllies();
     }
 
     public void Step()
@@ -67,18 +72,20 @@ public sealed partial class Room
         StepProjectiles();
         StepMines();
         beams.RemoveAll(b => players.TryGetValue(b.Owner, out var owner) && owner.Hull <= 0);
+        StepRescue();
         foreach (var enemy in enemies.Where(e => e.Hull <= 0))
         {
             CombatFx(0, 2, enemy.Position, EnemyRadius(enemy));
-            RewardEncounter(enemy);
+            if (!enemy.Allied)
+                RewardEncounter(enemy);
             DestroyInstallation(enemy);
-            if (!enemy.Installation)
+            if (!enemy.Installation && !enemy.Allied)
             {
                 DropEnergy(enemy);
                 DropCredits(enemy);
             }
         }
-        enemies.RemoveAll(e => e.Hull <= 0);
+        enemies.RemoveAll(e => e.Hull <= 0 || e.Type == "relief" && e.State == "arrived");
         AdmitPersonalDrops();
         StepPickupMotion();
         StepEnergy();

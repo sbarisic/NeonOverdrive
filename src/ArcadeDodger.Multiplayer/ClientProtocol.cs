@@ -32,11 +32,13 @@ public sealed record IncompatibleMessage : ClientMessage;
 
 public sealed record RespawnMessage(int Sequence) : SequencedMessage(Sequence);
 
+public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
+
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 6;
-    public const int MaxMessageBytes = 4096;
+    public const int Version = 9;
+    public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
     public static bool TryParse(ReadOnlyMemory<byte> utf8, out ClientMessage? message)
@@ -62,6 +64,13 @@ public static class ClientProtocol
                 return false;
             switch (type)
             {
+                case "leave":
+                    if (
+                        !Fields(names, "v", "type", "seq") || !Sequence(root, out var leaveSequence)
+                    )
+                        return false;
+                    message = new LeaveMessage(leaveSequence);
+                    return true;
                 case "join":
                     if (
                         !Fields(names, "v", "type", "name", "room")
@@ -138,42 +147,45 @@ public static class ClientProtocol
                         return false;
                     message = new BuyMessage(sequence, item);
                     return true;
-                case "equip":
+                case "equipment":
                     if (
-                        !Fields(names, "v", "type", "seq", "weapons")
-                        || !Sequence(root, out sequence)
-                        || !root.TryGetProperty("weapons", out var weapons)
-                        || weapons.ValueKind != JsonValueKind.Array
-                        || weapons.GetArrayLength() != 4
+                        !Sequence(root, out sequence)
+                        || !Text(root, "action", out var equipmentAction)
+                        || equipmentAction is not ("apply" or "sell" or "page")
+                        || names.Any(n =>
+                            n
+                                is not (
+                                    "v"
+                                    or "type"
+                                    or "seq"
+                                    or "action"
+                                    or "revision"
+                                    or "edits"
+                                    or "bays"
+                                    or "ship"
+                                    or "item"
+                                    or "module"
+                                    or "quantity"
+                                    or "page"
+                                )
+                        )
                     )
                         return false;
-                    var configs = new List<WeaponConfig>();
-                    foreach (var w in weapons.EnumerateArray())
-                    {
-                        if (w.ValueKind != JsonValueKind.Object)
-                            return false;
-                        var props = w.EnumerateObject().Select(p => p.Name).ToArray();
-                        if (
-                            props.Length != 3
-                            || !Fields(props.ToHashSet(), "emitter", "attachments", "enabled")
-                            || !Integer(w, "emitter", out var emitter)
-                            || emitter is < 0 or > 4
-                            || !Boolean(w, "enabled", out var enabled)
-                            || !w.TryGetProperty("attachments", out var attachments)
-                            || attachments.ValueKind != JsonValueKind.Array
-                            || attachments.GetArrayLength() != 8
-                        )
-                            return false;
-                        var parts = new List<int>();
-                        foreach (var part in attachments.EnumerateArray())
-                        {
-                            if (!part.TryGetInt32(out var id) || id != 0 && id is < 5 or > 28)
-                                return false;
-                            parts.Add(id);
-                        }
-                        configs.Add(new(emitter, parts.ToArray(), enabled));
-                    }
-                    message = new EquipMessage(sequence, configs.ToArray());
+                    if (!StrictEquipment(root, equipmentAction))
+                        return false;
+                    var equipment = root.Deserialize<EquipmentMessage>(
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                    );
+                    if (
+                        equipment is null
+                        || equipment.Revision < 0
+                        || equipment.Page < 0
+                        || equipment.Page > 1000000
+                        || equipment.Quantity < 1
+                        || equipment.Edits?.Length > 32
+                    )
+                        return false;
+                    message = equipment with { Sequence = sequence };
                     return true;
                 case "sector":
                     if (
@@ -217,6 +229,68 @@ public static class ClientProtocol
             return false;
         } // Includes invalid UTF-8 decoded strings.
     }
+
+    private static bool StrictEquipment(JsonElement root, string action)
+    {
+        if (action == "page")
+            return root.TryGetProperty("page", out var page) && page.TryGetInt32(out _);
+        if (!root.TryGetProperty("revision", out var revision) || !revision.TryGetInt64(out _))
+            return false;
+        if (action == "sell")
+            return true;
+        if (
+            !root.TryGetProperty("edits", out var edits)
+            || edits.ValueKind != JsonValueKind.Array
+            || edits.GetArrayLength() > 32
+            || !root.TryGetProperty("bays", out var bays)
+            || bays.ValueKind != JsonValueKind.Array
+            || bays.GetArrayLength() != 4
+            || !root.TryGetProperty("ship", out var ship)
+            || ship.ValueKind != JsonValueKind.Array
+            || ship.GetArrayLength() != 6
+        )
+            return false;
+        foreach (var edit in edits.EnumerateArray())
+        {
+            if (
+                edit.ValueKind != JsonValueKind.Object
+                || edit.EnumerateObject().Count() != 2
+                || !Fields(
+                    edit.EnumerateObject().Select(p => p.Name).ToHashSet(),
+                    "id",
+                    "attachments"
+                )
+                || !Text(edit, "id", out var id)
+                || !Guid.TryParseExact(id, "N", out _)
+                || !edit.TryGetProperty("attachments", out var parts)
+                || parts.ValueKind != JsonValueKind.Array
+                || parts.GetArrayLength() != 8
+            )
+                return false;
+            foreach (var part in parts.EnumerateArray())
+                if (!part.TryGetInt32(out var n) || n != 0 && n is < 5 or > 28)
+                    return false;
+        }
+        foreach (var bay in bays.EnumerateArray())
+            if (
+                bay.ValueKind != JsonValueKind.Object
+                || bay.EnumerateObject().Count() != 2
+                || !Fields(
+                    bay.EnumerateObject().Select(p => p.Name).ToHashSet(),
+                    "weapon",
+                    "enabled"
+                )
+                || !Boolean(bay, "enabled", out _)
+                || !ItemId(bay.GetProperty("weapon"))
+            )
+                return false;
+        return ship.EnumerateArray().All(ItemId);
+    }
+
+    private static bool ItemId(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Null
+        || value.ValueKind == JsonValueKind.String
+            && Guid.TryParseExact(value.GetString(), "N", out _);
 
     private static bool Fields(HashSet<string> actual, params string[] expected) =>
         actual.SetEquals(expected);

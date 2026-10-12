@@ -297,7 +297,15 @@ public static class ModuleCatalog
 
     public static bool Valid(int id) => id is >= 1 and <= 28;
 
-    public static int[] UnlockLevels { get; } = [1, 5, 10, 15];
+    public static int ModSlots(int level, int bay) => Math.Clamp(level - UnlockLevels[bay], 0, 8);
+
+    public static bool LevelAllows(WeaponConfig[] weapons, int level) =>
+        weapons.Length == 4
+        && weapons
+            .Select((w, i) => w.Attachments.Length == 8 && (!w.Enabled || level >= UnlockLevels[i]))
+            .All(ok => ok);
+
+    public static int[] UnlockLevels { get; } = [1, 8, 16, 24];
 }
 
 public sealed record WeaponConfig(int Emitter, int[] Attachments, bool Enabled = true)
@@ -326,17 +334,27 @@ public sealed record PilotProfile(
     int[] Owned,
     WeaponConfig[] Weapons,
     string RunId = "",
-    RunCheckpoint? Run = null
+    RunCheckpoint? Run = null,
+    long ReplayCount = 0,
+    bool RunPrepared = false,
+    EquipmentState? Equipment = null
 )
 {
-    public static PilotProfile Starter()
+    public long StartingCredits => StartingCreditsFor(ReplayCount);
+
+    public const long MaxReplayCount = (long.MaxValue - 100) / 5;
+
+    public static long StartingCreditsFor(long replayCount) => checked(100 + 5 * replayCount);
+
+    public static PilotProfile Starter(long replayCount = 0)
     {
         var owned = new int[29];
         owned[1] = 4;
         return new(
-            100,
+            StartingCreditsFor(replayCount),
             owned,
-            Enumerable.Range(0, 4).Select(i => new WeaponConfig(1, new int[8], i == 0)).ToArray()
+            Enumerable.Range(0, 4).Select(i => new WeaponConfig(1, new int[8], i == 0)).ToArray(),
+            ReplayCount: replayCount
         );
     }
 
@@ -345,6 +363,7 @@ public sealed record PilotProfile(
         {
             Owned = (int[])Owned.Clone(),
             Weapons = Weapons.Select(w => w.Copy()).ToArray(),
+            Equipment = Equipment?.Copy(),
             Run = Run is null
                 ? null
                 : Run with
@@ -362,5 +381,8 @@ public sealed record WorkshopSnapshot(
     int[] Owned,
     WeaponConfig[] Weapons,
     int Sequence = 0,
-    string Result = ""
+    string Result = "",
+    long ReplayCount = 0,
+    long StartingCredits = 100,
+    InventoryPage? Inventory = null
 );

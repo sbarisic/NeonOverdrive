@@ -112,7 +112,8 @@ internal sealed partial class BrowserArenaWorld
                 ? NeonRendering.Ink
                 : EnemyColor(e);
         var radius = e.Radius;
-        var gunner = e.Kind is "gunner" or "sniper" or "interceptor";
+        var gunner =
+            e.Kind is "gunner" or "sniper" or "interceptor" or "turret" or "rover" or "relief";
         var reach = e.Kind == "sniper" ? 850 : 650;
         if (e.Telegraph && gunner && SegmentVisible(p, p + d * reach, origin))
             Raylib.DrawLineEx(
@@ -127,12 +128,30 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawCircleV(p, radius + 6, Raylib.Fade(color, .12f));
         var sides = e.Kind switch
         {
+            "turret" => 4,
+            "rover" => 6,
+            "relief" => 8,
             "gunner" => 6,
             "sniper" => 4,
             "tender" => 8,
             _ => 3,
         };
         var angle = e.Aim * 180 / MathF.PI;
+        if (
+            e.SurfacePlanet != 0
+            && sector?.Locations.FirstOrDefault(l => l.Id == e.SurfacePlanet) is { } planet
+        )
+        {
+            var normal = Vector2.Normalize(p - planet.Position);
+            var tangent = new Vector2(-normal.Y, normal.X);
+            angle = MathF.Atan2(normal.Y, normal.X) * 180 / MathF.PI;
+            var foot = p - normal * 29;
+            Raylib.DrawLineEx(p, foot, e.Kind == "turret" ? 8 : 4, color);
+            Raylib.DrawLineEx(foot - tangent * radius, foot + tangent * radius, 5, color);
+            if (e.Kind == "rover")
+                for (var wheel = -1; wheel <= 1; wheel++)
+                    Raylib.DrawCircleV(foot + tangent * radius * wheel, 5, color);
+        }
         Raylib.DrawPoly(p, sides, radius, angle, Raylib.Fade(color, .4f));
         Raylib.DrawPolyLinesEx(p, sides, radius, angle, 2, color);
         if (gunner)
@@ -144,6 +163,19 @@ internal sealed partial class BrowserArenaWorld
         }
         if (e.Kind == "interceptor")
             Raylib.DrawLineEx(p - d * radius, p - d * (radius + 12), 3, color);
+        if (e.MaxShield > 0 && e.Shield > 0)
+            Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 5, Raylib.Fade(Cyan, .6f));
+        if (e.Faction == "friendly")
+        {
+            Raylib.DrawRectangle((int)p.X - 25, (int)(p.Y + radius + 8), 50, 3, MutedMine);
+            Raylib.DrawRectangle(
+                (int)p.X - 25,
+                (int)(p.Y + radius + 8),
+                (int)(50f * e.Hull / e.MaxHull),
+                3,
+                Cyan
+            );
+        }
         if (e.Effects != 0)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 4, Gold);
         Raylib.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
@@ -162,6 +194,7 @@ internal sealed partial class BrowserArenaWorld
             Vector2 p = new(e.X, e.Y);
             if (
                 e.Hull <= 0
+                || e.Faction == "friendly"
                 || Visible(p, origin, 0)
                 || Vector2.DistanceSquared(p, pilot) > 700 * 700
             )

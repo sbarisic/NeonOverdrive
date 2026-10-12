@@ -10,7 +10,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       const response = await route.fetch();
       let s = (await response.text()).replaceAll('\r\n', '\n');
       s = s
-        .replace('  return {\n    get open()', '  return window.__sectorFixture={\n    get open()')
+        .replace(
+          '  return {\n    trackRescue()',
+          '  return window.__sectorFixture={\n    trackRescue()',
+        )
         .replace(
           /update\(p,\s*snapshot,\s*connected\)\s*\{/,
           'update(p,snapshot,connected){if(window.__holdSector)return;',

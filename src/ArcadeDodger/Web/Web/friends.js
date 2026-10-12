@@ -1,4 +1,5 @@
 import { friendStyles } from './friends.styles.js';
+import { control } from './interface.js';
 export function createFriendsMenu(element, info, send, onToggle) {
   document.head.append(element('style', friendStyles));
   const opener = element('button', 'Friends [P]');
@@ -30,9 +31,13 @@ export function createFriendsMenu(element, info, send, onToggle) {
   label.append(name);
   const request = element('button', 'Send request');
   request.type = 'submit';
+  control(request, 'friends', 'primary');
   form.append(label, request);
   const close = element('button', 'Return to arena [P / Esc]');
   close.type = 'button';
+  control(close, 'exit');
+  const footer = element('div', '', 'friends-footer');
+  footer.append(close);
   panel.append(
     title,
     element(
@@ -43,7 +48,7 @@ export function createFriendsMenu(element, info, send, onToggle) {
     form,
     body,
     state,
-    close,
+    footer,
   );
   document.body.append(panel);
   let opened = false,
@@ -79,6 +84,11 @@ export function createFriendsMenu(element, info, send, onToggle) {
       for (const [caption, kind] of actions) {
         const button = element('button', caption);
         button.type = 'button';
+        control(
+          button,
+          kind === 'request' ? 'friends' : kind === 'accept' ? 'apply' : 'clear',
+          kind === 'accept' ? 'primary' : 'secondary',
+        );
         button.dataset.action = kind;
         button.addEventListener('click', () => action(name, kind));
         row.append(button);
@@ -167,7 +177,7 @@ export function createFriendsMenu(element, info, send, onToggle) {
         return true;
       }
       if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll('input,button')];
+        const controls = [...panel.querySelectorAll('input:not(:disabled),button:not(:disabled)')];
         if (
           e.shiftKey &&
           (document.activeElement === controls[0] || !controls.includes(document.activeElement))

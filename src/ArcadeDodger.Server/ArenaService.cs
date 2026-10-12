@@ -10,6 +10,7 @@ public sealed class Peer
     public int PlayerId { get; set; }
     public string RoomId { get; set; } = "";
     public string Name { get; set; } = "";
+    public string JoinKind { get; set; } = "fresh";
     public SectorDefinition? Sector { get; set; }
     public ContractDefinition[] Contracts { get; set; } = [];
     public bool Closed => Volatile.Read(ref closed) != 0;
@@ -17,6 +18,22 @@ public sealed class Peer
     private InputMessage? latest;
     private RespawnMessage? respawn;
     private EquipMessage? equip;
+    private readonly Channel<EquipmentMessage> equipmentCommands =
+        Channel.CreateBounded<EquipmentMessage>(16);
+
+    public void Submit(EquipmentMessage request) => equipmentCommands.Writer.TryWrite(request);
+
+    private LeaveMessage? leave;
+
+    public void Submit(LeaveMessage request) => Interlocked.Exchange(ref leave, request);
+
+    public void Disconnect(Room room)
+    {
+        if (Interlocked.Exchange(ref leave, null) is { } request)
+            room.Leave(PlayerId, request);
+        room.Disconnect(PlayerId);
+    }
+
     private readonly Channel<SectorActionMessage> sectorActions =
         Channel.CreateBounded<SectorActionMessage>(16);
 
@@ -70,6 +87,8 @@ public sealed class Peer
             messages.Add(loadout);
         if (TakeRespawn() is { } request)
             messages.Add(request);
+        if (Interlocked.Exchange(ref leave, null) is { } leaveRequest)
+            messages.Add(leaveRequest);
         for (var i = 0; i < ChoiceCapacity && choices.Reader.TryRead(out var choice); i++)
             messages.Add(choice);
         for (var i = 0; i < 16 && social.Reader.TryRead(out var friendship); i++)
@@ -78,11 +97,19 @@ public sealed class Peer
             messages.Add(buy);
         for (var i = 0; i < 16 && sectorActions.Reader.TryRead(out var sector); i++)
             messages.Add(sector);
+        for (var i = 0; i < 16 && equipmentCommands.Reader.TryRead(out var equipmentRequest); i++)
+            messages.Add(equipmentRequest);
         messages.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
         foreach (var message in messages)
         {
             switch (message)
             {
+                case EquipmentMessage command:
+                    room.Equipment(PlayerId, command);
+                    break;
+                case LeaveMessage leaveCommand:
+                    room.Leave(PlayerId, leaveCommand);
+                    break;
                 case SectorActionMessage sector:
                     room.SectorAction(PlayerId, sector);
                     break;
@@ -150,6 +177,7 @@ public sealed class ArenaService : BackgroundService
     private readonly Dictionary<string, Arena> arenas = new();
     private readonly SemaphoreSlim admissions = new(256);
     private readonly Channel<JoinRequest> joins = Channel.CreateBounded<JoinRequest>(256);
+    private readonly Dictionary<string, JoinRequest> waitingJoins = [];
 
     public async Task<string?> JoinAsync(JoinMessage message, Peer peer, CancellationToken token)
     {
@@ -183,6 +211,8 @@ public sealed class ArenaService : BackgroundService
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 // Bound admission work per tick even under a sustained connection flood.
+                foreach (var pending in waitingJoins.Values.ToArray())
+                    Admit(pending);
                 for (var i = 0; i < 32 && joins.Reader.TryRead(out var request); i++)
                     Admit(request);
                 foreach (var (id, arena) in arenas.ToArray())
@@ -191,7 +221,7 @@ public sealed class ArenaService : BackgroundService
                     {
                         if (peer.Closed)
                         {
-                            arena.Model.Disconnect(peer.PlayerId);
+                            peer.Disconnect(arena.Model);
                             arena.Peers.Remove(peer);
                             peer.Snapshots.Writer.TryComplete();
                         }
@@ -213,6 +243,8 @@ public sealed class ArenaService : BackgroundService
                                     Workshop = arena.Model.Workshop(peer.PlayerId),
                                     SkillReceipt = arena.Model.SkillAction(peer.PlayerId),
                                     CreditReward = arena.Model.LastCreditReward(peer.PlayerId),
+                                    LeaveSequence = arena.Model.LeaveSequence(peer.PlayerId),
+                                    RunResetResult = arena.Model.ResetResult(peer.PlayerId),
                                 }
                             );
                     }
@@ -234,6 +266,8 @@ public sealed class ArenaService : BackgroundService
             joins.Writer.TryComplete();
             while (joins.Reader.TryRead(out var pending))
                 pending.Result.TrySetResult("server_stopping");
+            foreach (var pending in waitingJoins.Values)
+                pending.Result.TrySetResult("server_stopping");
             foreach (var peer in arenas.Values.SelectMany(a => a.Peers))
                 peer.Snapshots.Writer.TryComplete();
         }
@@ -241,8 +275,17 @@ public sealed class ArenaService : BackgroundService
 
     private void Admit(JoinRequest request)
     {
+        var key = FriendBook.Key(request.Message.Name);
+        if (waitingJoins.TryGetValue(key, out var waiting) && !ReferenceEquals(waiting, request))
+        {
+            request.Result.TrySetResult("name_in_use");
+            return;
+        }
+        waitingJoins.Remove(key);
         if (request.Peer.Closed)
         {
+            foreach (var candidate in arenas.Values)
+                candidate.Model.CancelPendingJoin(request.Message.Name);
             request.Result.TrySetResult("cancelled");
             return;
         }
@@ -265,8 +308,14 @@ public sealed class ArenaService : BackgroundService
         }
         // Rejoining can arrive before the tick-loop removes a closed peer.
         foreach (var a in arenas.Values)
-        foreach (var p in a.Peers.Where(p => p.Closed))
-            a.Model.Disconnect(p.PlayerId);
+        foreach (var p in a.Peers.Where(p => p.Closed).ToArray())
+        {
+            p.Disconnect(a.Model);
+            // Retire the old transport now: later cleanup must not disconnect the
+            // replacement session when recovery reuses the same player ID.
+            a.Peers.Remove(p);
+            p.Snapshots.Writer.TryComplete();
+        }
         var id = request.Message.Room;
         var previous = arenas.FirstOrDefault(a => a.Value.Model.ContainsRun(request.Message.Name));
         if (previous.Key is not null)
@@ -289,7 +338,9 @@ public sealed class ArenaService : BackgroundService
         }
         else
         {
-            var available = arenas.FirstOrDefault(a => a.Value.Model.PlayerCount < Room.Capacity);
+            var available = arenas.FirstOrDefault(a =>
+                a.Value.Model.AdmissionCount < Room.Capacity
+            );
             id = available.Key;
             arena = available.Value;
             if (arena is null)
@@ -307,14 +358,18 @@ public sealed class ArenaService : BackgroundService
                 arenas.Add(id, arena);
             }
         }
-        var player = arena.Model.Join(request.Message.Name);
+        var player = arena.Model.TryJoin(request.Message.Name, out var joinError);
         if (player is null)
         {
-            request.Result.TrySetResult("room_full");
+            if (joinError == "pending")
+                waitingJoins[key] = request;
+            else
+                request.Result.TrySetResult(joinError);
             return;
         }
         request.Peer.Name = request.Message.Name;
         request.Peer.PlayerId = player.Value;
+        request.Peer.JoinKind = arena.Model.JoinKind(player.Value);
         request.Peer.RoomId = id!;
         request.Peer.Sector = arena.Model.Sector;
         request.Peer.Contracts = arena.Model.Contracts;

@@ -14,6 +14,9 @@ public static class EnemyCatalog
 {
     public static readonly EnemyDefinition[] Items =
     [
+        new("turret", "Surface Turret", 1, 24, 6, 0, "Fixed outward surface defense."),
+        new("rover", "Surface Rover", 1, 20, 3, 100, "Patrols the planetary rim."),
+        new("relief", "Relief Cruiser", 1, 32, 240, 100, "Friendly relief vessel."),
         new("rammer", "Rammer", 1, 20, 3, 145, "Closes in for a collision attack."),
         new("gunner", "Gunner", 1, 20, 3, 100, "Keeps distance and fires single rounds."),
         new(

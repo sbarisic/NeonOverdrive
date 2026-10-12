@@ -42,6 +42,10 @@ public partial class BrowserHost
         BrowserArenaHud.Radar(x, y, active, zoom);
 
     [JSExport]
+    public static string ArenaRoute(double x, double y, double tx, double ty) =>
+        BrowserArenaHud.Navigation(x, y, tx, ty);
+
+    [JSExport]
     public static string ArenaHudLayout(double width, double height) =>
         BrowserArenaHud.Configure(width, height);
 

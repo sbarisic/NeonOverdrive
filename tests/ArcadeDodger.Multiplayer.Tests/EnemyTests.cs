@@ -8,11 +8,14 @@ public sealed class EnemyTests
     public void SectorHasGarrisonsBeforeAnyPilotArrives()
     {
         var room = new Room(seed: 42);
-        Assert.Equal(20, room.Snapshot().Enemies!.Length);
+        Assert.Equal(47, room.Snapshot().Enemies!.Length);
         for (var i = 0; i < 600; i++)
             room.Step();
-        Assert.Equal(24, room.Snapshot().Enemies!.Length);
-        Assert.All(room.Snapshot().Enemies!, e => Assert.InRange(e.Home, 20, 23));
+        Assert.InRange(room.Snapshot().Enemies!.Length, 47, 51);
+        Assert.All(
+            room.Snapshot().Enemies!,
+            e => Assert.Contains(e.Home, new[] { 20, 21, 22, 23, 80, 81, 83 })
+        );
     }
 
     [Fact]

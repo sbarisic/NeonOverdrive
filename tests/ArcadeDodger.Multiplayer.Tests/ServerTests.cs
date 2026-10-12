@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using ArcadeDodger.Server;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace ArcadeDodger.Multiplayer.Tests;
@@ -39,10 +40,89 @@ public sealed class ServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ClosedPeerCleanupCannotDisconnectItsImmediateReplacement()
+    {
+        var service = app.Services.GetRequiredService<ArenaService>();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var peer = new Peer();
+        Assert.Null(await service.JoinAsync(new("FastRejoin", ""), peer, timeout.Token));
+        for (var i = 0; i < 5; i++)
+        {
+            var snapshot = await peer.Snapshots.Reader.ReadAsync(timeout.Token);
+            Assert.True(snapshot.Players.Single(p => p.Id == peer.PlayerId).Connected);
+            var id = peer.PlayerId;
+            peer.Close();
+            peer = new Peer();
+            Assert.Null(await service.JoinAsync(new("FastRejoin", ""), peer, timeout.Token));
+            Assert.Equal(id, peer.PlayerId);
+            Assert.Equal("recovered", peer.JoinKind);
+        }
+        var last = await peer.Snapshots.Reader.ReadAsync(timeout.Token);
+        Assert.True(last.Players.Single(p => p.Id == peer.PlayerId).Connected);
+        peer.Close();
+    }
+
+    [Fact]
+    public async Task SimultaneousJoinsAdmitOnlyOneNormalizedName()
+    {
+        using var a = await Connect();
+        using var b = await Connect();
+        await Task.WhenAll(
+            Send(a, """{"v":9,"type":"join","name":"Together","room":""}"""),
+            Send(b, """{"v":9,"type":"join","name":"TOGETHER","room":""}""")
+        );
+        var replies = await Task.WhenAll(Read(a), Read(b));
+        Assert.Single(replies, x => x.GetProperty("type").GetString() == "welcome");
+        var rejected = Assert.Single(replies, x => x.GetProperty("type").GetString() == "error");
+        Assert.Equal("name_in_use", rejected.GetProperty("code").GetString());
+        var accepted = replies[0].GetProperty("type").GetString() == "welcome" ? a : b;
+        var snapshot = await Until(accepted, x => x.TryGetProperty("workshop", out _));
+        Assert.Single(snapshot.GetProperty("players").EnumerateArray());
+        Assert.Equal(100, snapshot.GetProperty("workshop").GetProperty("credits").GetInt64());
+        Assert.Equal(0, snapshot.GetProperty("workshop").GetProperty("replayCount").GetInt64());
+    }
+
+    [Fact]
+    public async Task SocketRecoveryPreservesRunAndAcknowledgedLeaveStartsFresh()
+    {
+        const string join = """{"v":9,"type":"join","name":"ReplayPilot","room":""}""";
+        using var first = await Connect();
+        await Send(first, join);
+        Assert.Equal("fresh", (await Read(first)).GetProperty("joinKind").GetString());
+        var initial = await Until(first, x => x.TryGetProperty("workshop", out _));
+        var run = initial.GetProperty("players")[0].GetProperty("runId").GetString();
+        first.Abort();
+        await Task.Delay(100);
+        using var recovered = await Connect();
+        await Send(recovered, join);
+        Assert.Equal("recovered", (await Read(recovered)).GetProperty("joinKind").GetString());
+        var resumed = await Until(recovered, x => x.TryGetProperty("workshop", out _));
+        Assert.Equal(run, resumed.GetProperty("players")[0].GetProperty("runId").GetString());
+        await Send(recovered, """{"v":9,"type":"leave","seq":1}""");
+        var acknowledged = await Until(
+            recovered,
+            x => x.GetProperty("leaveSequence").GetInt32() == 1
+        );
+        Assert.False(acknowledged.GetProperty("players")[0].GetProperty("connected").GetBoolean());
+        recovered.Abort();
+        await Task.Delay(100);
+        using var fresh = await Connect();
+        await Send(fresh, join);
+        Assert.Equal("fresh", (await Read(fresh)).GetProperty("joinKind").GetString());
+        var restarted = await Until(fresh, x => x.TryGetProperty("workshop", out _));
+        Assert.NotEqual(run, restarted.GetProperty("players")[0].GetProperty("runId").GetString());
+        Assert.Equal(0, restarted.GetProperty("workshop").GetProperty("replayCount").GetInt64());
+        Assert.Equal(
+            100,
+            restarted.GetProperty("workshop").GetProperty("startingCredits").GetInt64()
+        );
+    }
+
+    [Fact]
     public async Task RealSocketsJoinSameRoomApplyInputAndRetainDisconnectedShip()
     {
         using var a = await Connect();
-        await Send(a, "{\"v\":6,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(a, "{\"v\":9,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         var welcomeA = await Read(a);
         var idA = welcomeA.GetProperty("id").GetInt32();
         var room = welcomeA.GetProperty("room").GetString();
@@ -52,7 +132,7 @@ public sealed class ServerTests : IAsyncLifetime
             JsonSerializer.Serialize(
                 new
                 {
-                    v = 6,
+                    v = 9,
                     type = "join",
                     name = "B",
                     room,
@@ -65,7 +145,7 @@ public sealed class ServerTests : IAsyncLifetime
         var x0 = initial.GetProperty("players")[0].GetProperty("x").GetSingle();
         await Send(
             a,
-            "{\"v\":6,\"type\":\"input\",\"seq\":1,\"x\":-1,\"y\":0,\"aim\":0,\"fire\":true,\"menu\":false}"
+            "{\"v\":9,\"type\":\"input\",\"seq\":1,\"x\":-1,\"y\":0,\"aim\":0,\"fire\":true,\"menu\":false}"
         );
         var moved = await Until(
             b,
@@ -83,13 +163,13 @@ public sealed class ServerTests : IAsyncLifetime
 
     [Theory]
     [InlineData(
-        "{\"v\":6,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"menu\":false,\"damage\":100}"
+        "{\"v\":9,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"menu\":false,\"damage\":100}"
     )]
-    [InlineData("{\"v\":6,\"type\":\"join\",\"name\":\"Again\",\"room\":\"\"}")]
+    [InlineData("{\"v\":9,\"type\":\"join\",\"name\":\"Again\",\"room\":\"\"}")]
     public async Task ForgedAuthorityAndRepeatedJoinDisconnect(string invalid)
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":6,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(socket, "{\"v\":9,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         await Read(socket);
         await Send(socket, invalid);
         await AssertDisconnected(socket);
@@ -100,7 +180,7 @@ public sealed class ServerTests : IAsyncLifetime
     {
         using var socket = await Connect();
         await socket.SendAsync(
-            Encoding.UTF8.GetBytes("{\"v\":6,\"type\":\"join\","),
+            Encoding.UTF8.GetBytes("{\"v\":9,\"type\":\"join\","),
             WebSocketMessageType.Text,
             false,
             CancellationToken.None
@@ -137,7 +217,7 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task MissingInviteRoomReportsError()
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":6,\"type\":\"join\",\"name\":\"A\",\"room\":\"00000000\"}");
+        await Send(socket, "{\"v\":9,\"type\":\"join\",\"name\":\"A\",\"room\":\"00000000\"}");
         var error = await Read(socket);
         Assert.Equal(ClientProtocol.Version, error.GetProperty("v").GetInt32());
         Assert.Equal("error", error.GetProperty("type").GetString());
@@ -158,17 +238,17 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task LiveRespawnRequestDoesNotDisconnectOrResetShip()
     {
         using var socket = await Connect();
-        await Send(socket, "{\"v\":6,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
+        await Send(socket, "{\"v\":9,\"type\":\"join\",\"name\":\"A\",\"room\":\"\"}");
         await Read(socket);
         await Send(
             socket,
-            "{\"v\":6,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":true,\"menu\":false}"
+            "{\"v\":9,\"type\":\"input\",\"seq\":1,\"x\":0,\"y\":0,\"aim\":0,\"fire\":true,\"menu\":false}"
         );
         await Until(socket, x => x.GetProperty("players")[0].GetProperty("ack").GetInt32() == 1);
-        await Send(socket, "{\"v\":6,\"type\":\"respawn\",\"seq\":2}");
+        await Send(socket, "{\"v\":9,\"type\":\"respawn\",\"seq\":2}");
         await Send(
             socket,
-            "{\"v\":6,\"type\":\"input\",\"seq\":3,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"menu\":false}"
+            "{\"v\":9,\"type\":\"input\",\"seq\":3,\"x\":0,\"y\":0,\"aim\":0,\"fire\":false,\"menu\":false}"
         );
         var snapshot = await Until(
             socket,
@@ -189,7 +269,7 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task SkillPurchaseIntentKeepsSocketAndPilotAlive(int choice)
     {
         using var socket = await Connect();
-        await Send(socket, """{"v":6,"type":"join","name":"Buyer","room":""}""");
+        await Send(socket, """{"v":9,"type":"join","name":"Buyer","room":""}""");
         var welcome = await Read(socket);
         var id = welcome.GetProperty("id").GetInt32();
         await Send(
@@ -197,7 +277,7 @@ public sealed class ServerTests : IAsyncLifetime
             JsonSerializer.Serialize(
                 new
                 {
-                    v = 6,
+                    v = 9,
                     type = "choice",
                     seq = 1,
                     choice = SkillCatalog.Items[choice].Id,
@@ -206,7 +286,7 @@ public sealed class ServerTests : IAsyncLifetime
         );
         await Send(
             socket,
-            """{"v":6,"type":"input","seq":2,"x":0,"y":0,"aim":0,"fire":false,"menu":false}"""
+            """{"v":9,"type":"input","seq":2,"x":0,"y":0,"aim":0,"fire":false,"menu":false}"""
         );
         var snapshot = await Until(
             socket,
@@ -232,16 +312,16 @@ public sealed class ServerTests : IAsyncLifetime
     public async Task WelcomeCatalogUsesCamelCaseAndPurchasesReturnPrivateReceipts()
     {
         using var a = await Connect();
-        await Send(a, """{"v":6,"type":"join","name":"Buyer","room":""}""");
+        await Send(a, """{"v":9,"type":"join","name":"Buyer","room":""}""");
         var welcome = await Read(a);
-        Assert.Equal(69, welcome.GetProperty("skills").GetArrayLength());
+        Assert.Equal(66, welcome.GetProperty("skills").GetArrayLength());
         Assert.Equal(28, welcome.GetProperty("catalog").GetArrayLength());
         Assert.Equal(6, welcome.GetProperty("catalog")[5].GetProperty("id").GetInt32());
         await Send(
             a,
-            """{"v":6,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"editing":true}"""
+            """{"v":9,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"editing":true}"""
         );
-        await Send(a, """{"v":6,"type":"buy","seq":2,"module":6}""");
+        await Send(a, """{"v":9,"type":"buy","seq":2,"module":6}""");
         var rejected = await Until(
             a,
             m => m.GetProperty("workshop").GetProperty("sequence").GetInt32() == 2
@@ -250,21 +330,23 @@ public sealed class ServerTests : IAsyncLifetime
             "not_docked",
             rejected.GetProperty("workshop").GetProperty("result").GetString()
         );
-        await Send(a, """{"v":6,"type":"sector","seq":3,"action":"dock","target":10}""");
-        await Send(a, """{"v":6,"type":"buy","seq":4,"module":6}""");
+        await Send(a, """{"v":9,"type":"sector","seq":3,"action":"dock","target":10}""");
+        await Send(a, """{"v":9,"type":"buy","seq":4,"module":6}""");
         var receipt = await Until(
             a,
-            m => m.GetProperty("workshop").GetProperty("sequence").GetInt32() == 4
+            m =>
+                m.GetProperty("workshop").GetProperty("sequence").GetInt32() == 4
+                && m.GetProperty("workshop").GetProperty("result").GetString() != "pending"
         );
         Assert.Equal(40, receipt.GetProperty("workshop").GetProperty("credits").GetInt32());
         Assert.Equal("ok", receipt.GetProperty("workshop").GetProperty("result").GetString());
         using var b = await Connect();
-        await Send(b, """{"v":6,"type":"join","name":"Observer","room":""}""");
+        await Send(b, """{"v":9,"type":"join","name":"Observer","room":""}""");
         await Read(b);
         var other = await Until(b, _ => true);
         Assert.Equal(100, other.GetProperty("workshop").GetProperty("credits").GetInt32());
         using var duplicate = await Connect();
-        await Send(duplicate, """{"v":6,"type":"join","name":"buyer","room":""}""");
+        await Send(duplicate, """{"v":9,"type":"join","name":"buyer","room":""}""");
         Assert.Equal("name_in_use", (await Read(duplicate)).GetProperty("code").GetString());
     }
 
@@ -272,6 +354,11 @@ public sealed class ServerTests : IAsyncLifetime
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
     public async Task OldBrowserGetsRefreshRequiredInsteadOfJoiningWithWrongProtocol(int version)
     {
         using var socket = await Connect();

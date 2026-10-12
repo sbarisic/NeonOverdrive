@@ -49,9 +49,19 @@ public class SectorTests
                     l.Kind is "station" or "base" or "wreck" or "beacon" or "corridor"
                 )
                 .ToArray();
-            foreach (var from in nodes)
-            foreach (var to in nodes)
-                Assert.Null(geometry.Trace(from.Position, to.Position, Room.Radius));
+            var navigation = new SectorNavigation(a, geometry);
+            var from = nodes.First(l => l.Kind == "station");
+            foreach (var to in nodes.Where(l => l.Id != from.Id))
+            {
+                var route = navigation.Route(from.Position, to.Position, Room.Radius);
+                Assert.NotEmpty(route);
+                var previous = from.Position;
+                foreach (var point in route)
+                {
+                    Assert.Null(geometry.TraceShips(previous, point, Room.Radius));
+                    previous = point;
+                }
+            }
             foreach (var port in nodes.Where(l => l.Kind == "station"))
                 Assert.Null(
                     geometry.Trace(port.Position, port.Position + new Vector2(180, 0), Room.Radius)
@@ -159,7 +169,7 @@ public class SectorTests
         Assert.Equal(empty.Snapshot().Enemies, occupied.Snapshot().Enemies);
         Assert.All(
             empty.Snapshot().Enemies!,
-            e => Assert.Contains(e.Home, new[] { 20, 21, 22, 23, 30, 31 })
+            e => Assert.Contains(e.Home, new[] { 20, 21, 22, 23, 30, 31, 80, 81, 83 })
         );
     }
 
@@ -208,8 +218,12 @@ public class SectorTests
         r.SectorAction(1, new(2, "accept", 3));
         r.SectorAction(1, new(3, "undock"));
         var target = Position(r, 20);
-        At(r, target - new Vector2(250, 0));
-        Fire(r, 20, 4);
+        At(r, target + new Vector2(250, 0));
+        for (var i = 0; i < 20; i++)
+        {
+            r.Input(1, new(4 + i, 0, 0, MathF.PI, true, false));
+            r.Step();
+        }
         var e = ((IList)Get(r, "enemies")).Cast<object>().First(e => (int)Get(e, "Home") == 20);
         Assert.True(Health(e) < 120);
         Set(e, "Hull", 0);
@@ -297,10 +311,14 @@ public class SectorTests
         r.SectorAction(1, new(3, "undock"));
         At(r, Position(r, 50));
         r.SectorAction(1, new(4, "interact", 50));
+        Step(r, 30);
+        Assert.Equal(50, r.SectorSnapshot(1)!.Pilot!.InteractionTarget);
+        Assert.InRange(r.SectorSnapshot(1)!.Pilot!.Interaction, .32f, .34f);
         r.Input(1, new(5, 1, 0, 0, false, false));
         r.Step();
         Step(r, 90);
         Assert.Empty(r.SectorSnapshot(1)!.Pilot!.Progress);
+        Assert.Equal(0, r.SectorSnapshot(1)!.Pilot!.InteractionTarget);
         var heat = World();
         At(heat, Position(heat, 60));
         Step(heat, 59);
@@ -369,10 +387,14 @@ public class SectorTests
     {
         var r = World();
         var at = Position(r, 20);
-        At(r, at - new Vector2(650, 0));
+        At(r, at + new Vector2(650, 0));
         Equip(r, Weapon(2, 17, 18, 19, 20, 21, 22, 5));
         var e = ((IList)Get(r, "enemies")).Cast<object>().First(e => (int)Get(e, "Home") == 20);
-        Fire(r, 30);
+        for (var i = 0; i < 30; i++)
+        {
+            r.Input(1, new(3 + i, 0, 0, MathF.PI, true, false));
+            r.Step();
+        }
         Assert.True(Health(e) < 116);
         Assert.Equal(at, (Vector2)Get(e, "Position"));
         Assert.Equal(0L, Get(e, "SlowUntil"));
@@ -410,7 +432,7 @@ public class SectorTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":6,"type":"sector","seq":1,"action":"dock","target":10}"""
+                    """{"v":9,"type":"sector","seq":1,"action":"dock","target":10}"""
                 ),
                 out _
             )
@@ -418,7 +440,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":6,"type":"sector","seq":1,"action":"teleport","target":10}"""
+                    """{"v":9,"type":"sector","seq":1,"action":"teleport","target":10}"""
                 ),
                 out _
             )
@@ -426,7 +448,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":6,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
+                    """{"v":9,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
                 ),
                 out _
             )

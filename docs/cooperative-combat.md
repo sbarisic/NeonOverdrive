@@ -1,12 +1,14 @@
-# Cooperative combat and run economy — protocol v6
+# Cooperative combat and run economy — protocol v9
 
-The game is WebAssembly multiplayer only; native and browser single-player have been removed. The skill catalog still has 69 unlocks, with the seven dash-dependent nodes replaced by passive movement and repair upgrades.
+The game is desktop WebAssembly multiplayer only. Protocol v8 adds level-gated weapon sockets, solid planets, surface factions, and relief-ship rescues. The skill catalog has 66 unlocks: the three purchasable Weapon Bay nodes have been removed and refunded. See [sector rules](inhabited-sector.md) and [weapon progression](multiplayer-skills.md).
 
 ## Playing
 
-- Death starts a new economic run: 100 credits, four kinetic emitters, empty attachment chains, and only weapon 1 enabled. Skills and XP reset. Existing profiles keep their purchases until their next death.
-- Refreshing or reconnecting resumes the same pilot, including damage, skills, equipment, and cooldowns. A disconnected ship remains exposed for five seconds. Changing rooms cannot bypass that body or its death reset.
-- Live run checkpoints are saved every second and on disconnect. After a restart or expired sector, the last saved run resumes at the arrival port. An abrupt process failure can lose progression since the last checkpoint; acknowledged purchases and payouts are already durable.
+- Every fresh run resets level, XP, skills, health, equipment, and wallet. Restore four kinetic emitters, empty attachment chains, and only weapon 1 enabled. Starting credits replace the previous wallet: **100 + 5 × ReplayCount**.
+- Only death increases the permanent replay count. Death resets are atomic and guarded by the previous run ID; retries and respawn reuse that reset. Fresh joins use the arrival port; death respawn uses the last visited station.
+- Refresh or unexpected disconnect resumes the existing pilot for **strictly less than 60 seconds** from the first disconnect, including damage, progression, purchases, and cooldowns. The disconnected body remains exposed for five seconds. Repeated disconnect notifications cannot extend recovery.
+- Explicit Leave uses a sequenced command and server acknowledgement, disables recovery immediately, and adds no replay. Expired recovery, server restart, and sector expiration start fresh without increasing the counter. Friendships and remembered names persist; same-sector discovery and contracts follow their existing death rules.
+- Fresh admission and respawn wait for durable reset success. Failed saves allow retry without partial changes. Pending purchases, rewards, and checkpoints are guarded by run identity. Private profiles include replay count and starting allowance; v7 and older clients must refresh.
 - Drops eject outside solid wrecks and slide against obstacles. Gold pickups contain credits, cyan pickups contain XP, and square MOD pickups grant an owned module copy. Equipment screens, docking, death, and disconnection prevent collection.
 - The map's **Ping friends** shares a selected landmark with mutual friends. **Broadcast to room** explicitly shares it with everyone. Sharing reveals the marker without revealing surrounding terrain. Signals last 30 seconds, with a five-second sending cooldown.
 - Select a friend and use **Defend ally** to mark that pilot and the threatening patrol. Its waypoint follows the ally while their ship remains visible in player state. Pings never fire weapons or alter friendship/PvP rules.
@@ -45,20 +47,21 @@ Personal rewards belong to the contributing run. Death invalidates unclaimed rew
 
 ## Verification and performance
 
-Reproduce server measurements with `NEON_PERF_OUTPUT` set to an artifact directory, then run the `CombatPerformanceTests` filter in Release. The test records 24 pilots with four extreme chains, actual simulation snapshots, per-viewer encoding, persistence completion, allocations, bytes, and playback. It includes 300 warm-up ticks and 600 measured ticks at 256/96, 512/192, and 1,024/256 projectile/enemy limits.
+Reproduce server measurements with `NEON_PERF_OUTPUT` set to an artifact directory and `NEON_PERF_ENFORCE=1`, then run the `CombatPerformanceTests` filter in Release. The test records 24 pilots with four extreme chains, actual simulation snapshots, per-viewer encoding, persistence completion, allocations, bytes, and playback. It includes 300 warm-up ticks and 600 measured ticks at 256/96, 512/192, and 1,024/256 projectile/enemy limits. Stop other test servers before measuring; the enforcement flag asserts the production 25 ms end-to-end gate. The browser fixture asserts the production 20 ms frame-work and frame-interval gates.
 
-Run `node tests/browser-combat-performance.cjs` against the built server using `ARENA_URL`. It feeds recorded combat through the actual WASM renderer at 1920×1080; it is a presentation fixture, not a WAN latency test. Reports and screenshots are written under `artifacts/combat-performance`.
+Run `node tests/browser-combat-performance.cjs` against the Release browser bundle using `ARENA_URL`. It feeds recorded, interest-filtered viewer packets through JSON expansion, private-state merging, packed handoff, and the actual WASM renderer at 1920×1080. This is a local transport/presentation fixture, not a WAN latency test. Reports and screenshots are written under `artifacts/combat-performance`. Set `PERF_LIMIT=512` for production or `1024` for stress. Set `PERF_FULL_WORLD=1` separately to bypass the server's normal interest filtering; that intentionally over-delivers distant combat and is not the production network path.
 
-Remeasured with v6 inertial movement and faster kinetic weapons on CARPPC, Ryzen 5 3600XT, .NET 10.0.12, Edge:
+Remeasured with the expanded v8 world and mixed NPC population on CARPPC, Ryzen 5 3600XT, .NET 10.0.12, Edge (2026-10-12):
 
 | 512-projectile / 192-enemy scenario | 95th percentile |
 |---|---:|
-| Server simulation | 8.5 ms |
-| Full server test iteration, including serialization and queued persistence | 15.9 ms |
-| Browser frame work | 8.3 ms |
-| Browser snapshot handoff | 6.7 ms |
+| Server simulation | 7.0 ms |
+| Full server test iteration, including serialization and queued persistence | 13.5 ms |
+| Browser frame work | 6.4 ms |
+| Browser packet processing and snapshot handoff | 4.0 ms |
+| Browser frame interval, including packet-processing contention | 8.4 ms |
 
-The initial JSON-to-WASM fixture took about 496 ms per snapshot at this load. The packed handoff removes that second JSON parse; indexed playback and cached beam transforms remove repeated per-frame searches. The earlier v5 1,024-projectile stress recording measured 8.5 ms frame work and 7.4 ms handoff; that higher count remains a test configuration.
+The 1,024-projectile / 256-NPC viewer stress recording measured 8.9 ms frame work, 6.6 ms packet processing, and 12.6 ms frame intervals. Both viewer recordings had zero intervals above 50 ms. The separate unfiltered whole-room stress at production population measured 12 ms frame work and roughly 21–25 ms frame intervals; production uses nearby-entity filtering. Limits remain 192 combined combat NPCs and 512 projectiles.
 
 These measurements are local acceptance results, not a guarantee for every device. Run the complete .NET suite and the multiplayer, sector, cooperation, run-reset, weapon, skills, friends, prediction, viewport, presentation, beam, enemy, and cache-version browser checks after changing protocol or simulation behavior.
 
@@ -72,4 +75,18 @@ Thruster Tuning I–II replaces Phase Dash/Long Phase (+25/50% acceleration), Ve
 
 Snapshots carry velocity, acceleration, steering, and menu state instead of dash state. Input carries `menu` separately from `editing`, so immobilization does not imply equipment cloak. Checkpoints save velocity; existing bodies retain it on reconnect, while arrival in a new sector starts at rest. Protocol v5 clients must refresh.
 
-The header uses compact, wrapping groups. The minimap is centered; the command grid and canvas footer share one CSS-pixel layout exported by the renderer, with a stacked mobile layout and 44-pixel minimum buttons. The world remains zoomed out 25%.
+The header uses compact groups. The local minimap is centered; the command grid and canvas footer share one CSS-pixel layout exported by the renderer. Desktop viewports of at least 1280×720 and high-DPI scaling are supported; mobile layouts were removed. The world remains zoomed out 25%.
+
+
+## Inventory expansion verification (v9)
+
+The slot-inventory update adds persistent weapon objects, six typed ship systems, personal equipment drops, dormant mod assembly, and station sales. See [equipment rules](equipment.md). Existing run/replay and world rules are unchanged.
+
+Rechecked on CARPPC (.NET 10.0.12, Edge, 1920 × 1080) with the four-weapon split workload at 192 NPCs / 512 projectiles:
+
+- Server simulation p95: 10.18 ms; end-to-end p95 including 24-peer serialization and ordered persistence: 19.72 ms (gate: below 25 ms).
+- Browser render p95: 10.20 ms; receive/expansion p95: 7.40 ms; frame-interval p95: 16.60 ms (render and interval gates: below 20 ms).
+- Measurements use actual viewer packets with JSON expansion and private-state merge. Raw results and recordings are in `artifacts/combat-performance/combat-512.json`, `frames-512.json`, and `browser-512.json`.
+- Browser checks cover 1280 × 720 and 1920 × 1080, pixel densities 1/2, a 3,000-weapon virtual inventory, ship sockets, stored builds, incoming-loot draft merges, purchases, dormant mods, recovery, and station sales.
+
+Final verification: 408 .NET regressions passed in Release; Debug and Release builds completed with zero warnings/errors. Desktop browser regressions and formatting checks passed. The isolated Debug host used the same Development/UseLocalBrowserBundle settings as the Visual Studio launch profile and reported protocol 9.

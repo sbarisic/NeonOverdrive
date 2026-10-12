@@ -2,11 +2,11 @@
 export const friendStyles = `
 #arena-friends {
   position: fixed;
-  inset: 5vh 8vw;
+  inset: 5vh max(24px, calc((100vw - 1160px) / 2));
   z-index: 8;
   padding: 22px;
   border: 1px solid #9d875a;
-  border-radius: 14px;
+  border-radius: 4px;
   background: radial-gradient(ellipse at top, #282641, #0b101d 75%);
   box-shadow: 0 0 0 100vmax #02050bd9;
   display: flex;
@@ -43,14 +43,6 @@ export const friendStyles = `
   flex: 1;
   min-width: 120px;
 }
-#arena-friends button {
-  font-size: 12px;
-  padding: 8px 12px;
-  border-color: #a68c54;
-  background: #252333;
-  color: #ecd59e;
-  border-radius: 3px;
-}
 #arena-friends .friend-note {
   color: #93a9bf;
   font-size: 12px;
@@ -67,10 +59,20 @@ export const friendStyles = `
   flex-wrap: wrap;
 }
 #arena-friends label {
-  flex: 1;
+  flex: 0 1 360px;
   margin: 0;
 }
 #arena-friends input {
+  width: 100%;
   max-width: 400px;
 }
+#arena-friends .friends-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex: none;
+  border-top: 1px solid #655b45;
+  padding-top: 12px;
+}
+#arena-friends h2:focus { outline: none; }
+#arena-friends form { padding: 12px; border: 1px solid #354959; background: #0a1623; }
 `;

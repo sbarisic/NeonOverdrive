@@ -9,8 +9,9 @@ public sealed partial class Room
     {
         if (Sector is null || !players.TryGetValue(id, out var p))
             return frame;
+        var interest = MathF.Max(1400, Detection(p) + 200);
         bool Near(float x, float y) =>
-            Vector2.DistanceSquared(p.Position, new(x, y)) <= 1400 * 1400;
+            Vector2.DistanceSquared(p.Position, new(x, y)) <= interest * interest;
         return frame with
         {
             Players = frame
@@ -39,7 +40,7 @@ public sealed partial class Room
                         p.Position,
                         new(e.X, e.Y),
                         new(e.EndX, e.EndY)
-                    ) < 1400
+                    ) < interest
                 )
                 .ToArray(),
             ModuleDrops = frame.ModuleDrops?.Where(e => e.Owner == id && Near(e.X, e.Y)).ToArray(),
@@ -92,7 +93,8 @@ public sealed partial class Room
                         && contribution.Damage >= 1
                     )
                     .Select(e => e.Home)
-                    .ToArray()
+                    .ToArray(),
+                InteractionTarget: s.InteractionTarget
             );
         }
         return new(
@@ -111,7 +113,8 @@ public sealed partial class Room
                     s.Warning > 0 ? (int)Math.Max(0, s.NextLaunch - Tick) : 0
                 ))
                 .ToArray(),
-            pilot
+            pilot,
+            RescueState()
         );
     }
 }

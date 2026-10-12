@@ -78,6 +78,13 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert(outside.s.cells.length > 20);
     await page.screenshot({ path: 'artifacts/browser-check/sector-planet.png' });
     await page.keyboard.press('i');
+    await page.waitForFunction(() => {
+      const info = document.querySelector('#network-info');
+      const pilot = JSON.parse(info.dataset.snapshot).players.find(
+        (p) => p.id === +info.dataset.player,
+      );
+      return pilot.editing && pilot.velocityX === 0 && pilot.velocityY === 0;
+    });
     const before = await read();
     await page.keyboard.down('d');
     await page.keyboard.down('Space');
@@ -97,7 +104,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(rejoined.s.contract, 1);
     assert.equal(rejoined.f.workshop.credits, 40);
     assert(rejoined.s.cells.length >= outside.s.cells.length);
-    assert(Math.hypot(rejoined.p.x - outside.p.x, rejoined.p.y - outside.p.y) < 50);
+    assert(Math.hypot(rejoined.p.x - before.p.x, rejoined.p.y - before.p.y) < 50);
     assert.deepEqual(errors, []);
     console.log(
       'PASS: station-only shop, E docking, purchase receipt, contract acceptance, M waypoint map, snapshot-stable focus, undocking and exploration, equipment cloak, room rejoin persistence, planet render, no page errors.',

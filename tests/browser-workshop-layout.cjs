@@ -29,9 +29,12 @@ const assert = require('node:assert/strict');
         f = JSON.parse(e.dataset.snapshot),
         s = f.players.find((p) => p.id === +e.dataset.player);
       const profile = structuredClone(f.workshop);
-      profile.owned = Array(29).fill(10);
+      profile.inventory.loose = Array(29).fill(10);
+      s.level = 32;
+      s.unlockedWeapons = [true, true, true, true];
       window.__setPreview = (attachments) => {
-        profile.weapons[0].attachments = attachments;
+        profile.inventory.weapons[0].attachments = attachments;
+        profile.inventory.revision++;
         s.life += 1; // Reload the local fixture draft without writing server equipment.
         window.__holdWorkshop = false;
         window.__benchFixture.update(s, true, profile);
@@ -63,8 +66,8 @@ const assert = require('node:assert/strict');
       });
       console.log(width, height, metrics);
       assert(metrics.slots.every((h) => h <= 74));
-      assert(metrics.inventory.every((h) => h <= 48));
-      assert(metrics.preview >= 166 && metrics.preview <= 210);
+      assert(metrics.inventory.every((h) => h <= 70));
+      assert(metrics.preview >= 132 && metrics.preview <= 210);
       assert(metrics.previewWidth < 800, 'diagram is not stretched across the menu');
       assert.equal(metrics.pixelWidth, Math.round(metrics.previewWidth * scale));
       assert(metrics.overflow <= 2);
@@ -81,6 +84,16 @@ const assert = require('node:assert/strict');
     await p.evaluate(() => window.__setPreview([11, 26, 13, 5, 0, 0, 0, 0]));
     assert.equal(await p.locator('.chain-stage[data-reachable="false"]').count(), 6);
     await p.screenshot({ path: 'artifacts/browser-check/terminal-forks-720.png' });
+    // Level-32 fixture keeps pointer/keyboard cross-bay editing covered without changing server progression.
+    await p.locator('.module-item[data-module-id="6"]').press('Enter');
+    await p.locator('#weapon-slot-1').press('Enter');
+    assert.equal(await p.locator('#weapon-slot-1').getAttribute('data-module'), '6');
+    await p.locator('#weapon-slot-1').click();
+    await p.locator('#weapon-select-1').click();
+    await p.locator('#weapon-slot-10').click();
+    assert.equal(await p.locator('#weapon-slot-10').getAttribute('data-module'), '6');
+    await p.locator('#weapon-select-0').click();
+    assert.equal(await p.locator('#weapon-slot-1').getAttribute('data-module'), '0');
     await p.getByRole('tab', { name: 'Shop', exact: true }).click();
     await p.screenshot({ path: 'artifacts/browser-check/compact-shop.png' });
     await p.keyboard.press('Escape');

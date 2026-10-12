@@ -110,7 +110,7 @@ public sealed partial class Room
     private bool Safe(Player p) => p.Docked != 0 || Sanctuary(p.Position);
 
     private bool VisibleLine(Vector2 from, Vector2 to) =>
-        geometry?.Trace(from, to) is null
+        TraceCover(from, to) is null
         && !(
             Sector?.Locations.Any(l =>
                 l.Kind == "station"
@@ -118,6 +118,30 @@ public sealed partial class Room
             )
             ?? false
         );
+
+    private (float T, Vector2 Normal)? TraceCover(Vector2 from, Vector2 to, float radius = 0)
+    {
+        var hit = geometry?.Trace(from, to, radius);
+        foreach (var source in sources.Values)
+        {
+            if (!source.Destroyed)
+                continue;
+            var location = source.Location;
+            if (
+                SectorCollision.Circle(
+                    from - location.Position,
+                    to - location.Position,
+                    location.Radius + radius
+                )
+                    is not { } t
+                || hit is not null && t >= hit.Value.T
+            )
+                continue;
+            var offset = Vector2.Lerp(from, to, t) - location.Position;
+            hit = (t, offset.LengthSquared() > .001f ? Vector2.Normalize(offset) : Vector2.UnitX);
+        }
+        return hit;
+    }
 
     private Vector2 MoveShip(Vector2 from, Vector2 to, float radius) =>
         geometry?.Move(from, to, radius)
@@ -140,17 +164,26 @@ public sealed partial class Room
                 continue;
             }
             foreach (var l in Sector.Locations)
-                if (Vector2.DistanceSquared(p.Position, l.Position) <= 1200 * 1200)
+                if (Vector2.DistanceSquared(p.Position, l.Position) <= Survey(p) * Survey(p))
                     s.Discovered.Add(l.Id);
             var cx = (int)p.Position.X / 200;
             var cy = (int)p.Position.Y / 200;
-            for (var x = Math.Max(0, cx - 6); x <= Math.Min(59, cx + 6); x++)
-            for (var y = Math.Max(0, cy - 6); y <= Math.Min(39, cy + 6); y++)
+            var cellRadius = (int)MathF.Ceiling(Survey(p) / 200);
+            for (
+                var x = Math.Max(0, cx - cellRadius);
+                x <= Math.Min((int)(Sector.Width / 200) - 1, cx + cellRadius);
+                x++
+            )
+            for (
+                var y = Math.Max(0, cy - cellRadius);
+                y <= Math.Min((int)(Sector.Height / 200) - 1, cy + cellRadius);
+                y++
+            )
                 if (
                     Vector2.DistanceSquared(p.Position, new(x * 200 + 100, y * 200 + 100))
-                    <= 1200 * 1200
+                    <= Survey(p) * Survey(p)
                 )
-                    s.Cells.Add(y * 60 + x);
+                    s.Cells.Add(y * (int)(Sector.Width / 200) + x);
             if (s.InteractionTarget != 0)
             {
                 var target = Location(s.InteractionTarget)!;

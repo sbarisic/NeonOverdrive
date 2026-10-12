@@ -32,7 +32,8 @@ public sealed record SectorSessionSnapshot(
     MapPing[]? Pings = null,
     string LootNotice = "",
     int[]? CoolingContracts = null,
-    int[]? Contributions = null
+    int[]? Contributions = null,
+    int InteractionTarget = 0
 );
 
 public sealed record MapPing(
@@ -48,4 +49,8 @@ public sealed record MapPing(
     int Patrol = 0
 );
 
-public sealed record SectorState(LocationState[] Locations, SectorSessionSnapshot? Pilot = null);
+public sealed record SectorState(
+    LocationState[] Locations,
+    SectorSessionSnapshot? Pilot = null,
+    RescueSnapshot? Rescue = null
+);

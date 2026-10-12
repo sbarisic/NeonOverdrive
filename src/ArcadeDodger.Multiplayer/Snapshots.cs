@@ -34,7 +34,9 @@ public sealed record PlayerSnapshot(
     bool[]? UnlockedWeapons = null,
     WeaponStats[]? WeaponStats = null,
     int Docked = 0,
-    string RunId = ""
+    string RunId = "",
+    float DetectionRadius = 1200,
+    float SurveyRadius = 1200
 );
 
 public sealed record ShotSnapshot(
@@ -76,5 +78,7 @@ public sealed record RoomSnapshot(
     SectorState? Sector = null,
     ModuleDropSnapshot[]? ModuleDrops = null,
     int PrivateRevision = 0,
-    CombatEvent[]? CombatEvents = null
+    CombatEvent[]? CombatEvents = null,
+    int LeaveSequence = 0,
+    string RunResetResult = ""
 );

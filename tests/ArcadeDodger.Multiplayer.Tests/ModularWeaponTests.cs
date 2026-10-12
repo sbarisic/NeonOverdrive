@@ -50,7 +50,7 @@ public class ModularWeaponTests
     [Fact]
     public void PurchasesAndLoadoutsAreOwnedAtomicAndReplaySafe()
     {
-        var r = Start();
+        var r = Start(2);
         var w = Loadout(Weapon(1, 6));
         Assert.False(r.Equip(1, new(1, w)));
         r.Input(1, new(2, 0, 0, 0, false, false, true));
@@ -63,7 +63,7 @@ public class ModularWeaponTests
         Assert.Equal(40, r.Workshop(1).Credits);
         w[1] = Weapon(1, 6);
         Assert.False(r.Equip(1, new(6, w)));
-        w[1] = Weapon(1);
+        w[1] = Weapon(1) with { Enabled = false };
         Assert.True(r.Equip(1, new(7, w)));
         w[0].Attachments[0] = 5;
         Assert.Equal(6, r.Snapshot().Players[0].Weapons![0].Attachments[0]);
@@ -76,7 +76,7 @@ public class ModularWeaponTests
     [Fact]
     public void ServerMailboxOrdersPurchaseAndEquipAfterEditingIntent()
     {
-        var r = Start();
+        var r = Start(2);
         var peer = new Peer { PlayerId = 1 };
         peer.Submit(new InputMessage(1, 0, 0, 0, false, false, true));
         peer.Submit(new BuyMessage(2, 6));
@@ -89,14 +89,13 @@ public class ModularWeaponTests
 
     [Theory]
     [InlineData(1, 1)]
-    [InlineData(5, 2)]
-    [InlineData(10, 3)]
-    [InlineData(15, 4)]
+    [InlineData(8, 2)]
+    [InlineData(16, 3)]
+    [InlineData(24, 4)]
     public void WeaponsUnlockPerRunAndResetConfigurationsOnRespawn(int level, int count)
     {
         var r = Start(level);
-        Equip(r, Weapon(1), Weapon(1), Weapon(1), Weapon(1));
-        Set(Player(r), "Skills", new HashSet<string> { "bay.2", "bay.3", "bay.4" });
+        Equip(r, Enumerable.Range(0, count).Select(_ => Weapon(1)).ToArray());
         Fire(r);
         Assert.Equal(count, r.Snapshot().Shots.Length);
         Set(Player(r), "Hull", 0);
@@ -498,7 +497,7 @@ public class ModularWeaponTests
             valid,
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    $"{{\"v\":6,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
+                    $"{{\"v\":9,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
                 ),
                 out _
             )

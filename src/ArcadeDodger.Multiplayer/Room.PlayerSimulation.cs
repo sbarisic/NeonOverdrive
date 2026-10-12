@@ -29,7 +29,7 @@ public sealed partial class Room
             p.Shield = Math.Min(MaxShieldFor(p), p.Shield + 1);
             if (p.Shield == MaxShieldFor(p))
                 p.ShieldFraction = 0;
-            p.ShieldAt = Tick + (int)(TickRate / Value(p, "flux", 1));
+            p.ShieldAt = Tick + (int)(TickRate / (Value(p, "flux", 1) + .1f * Gear(p, 11)));
         }
         if (
             p.Hull > 0

@@ -55,7 +55,8 @@ public sealed partial class Room
         p.EconomyPending = true;
         result = "pending";
         state.Receipt = new(request.Sequence, "pending");
-        Persist(
+        PersistForRun(
+            p,
             () => profiles.Debit(p.Name, cost),
             r =>
             {

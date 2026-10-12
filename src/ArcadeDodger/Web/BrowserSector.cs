@@ -172,7 +172,7 @@ internal sealed partial class BrowserArenaWorld
                     }
                     Raylib.DrawPoly(p, 6, 58, 30, new Color(22, 38, 56, 255));
                     Raylib.DrawPolyLinesEx(p, 6, 58, 30, 3, Cyan);
-                    Raylib.DrawCircleV(p, 20, Raylib.Fade(Cyan, .4f));
+                    DrawStationCore(p, 36, Cyan, time, reduced);
                     Raylib.DrawText(l.Name, (int)p.X - 95, (int)p.Y - 145, 18, Cyan);
                     Raylib.DrawText(
                         "E / DOCK   SANCTUARY",
@@ -182,9 +182,13 @@ internal sealed partial class BrowserArenaWorld
                         Cyan
                     );
                     break;
+                case "outpost":
                 case "base":
                     var destroyed = state?.State == "destroyed";
-                    var c = destroyed ? MutedMine : Hostile;
+                    var c =
+                        destroyed ? MutedMine
+                        : l.Faction == "friendly" ? Cyan
+                        : Hostile;
                     Raylib.DrawPoly(p, 6, 85, 0, new Color(35, 19, 35, 255));
                     Raylib.DrawPolyLinesEx(p, 6, 85, 0, 4, c);
                     for (var i = 0; i < 3; i++)
@@ -204,6 +208,7 @@ internal sealed partial class BrowserArenaWorld
                     );
                     if (!destroyed)
                     {
+                        DrawStationCore(p, 48, c, time, reduced);
                         Raylib.DrawRectangle((int)p.X - 60, (int)p.Y + 104, 120, 5, MutedMine);
                         Raylib.DrawRectangle(
                             (int)p.X - 60,
@@ -222,6 +227,7 @@ internal sealed partial class BrowserArenaWorld
                     Raylib.DrawPoly(p, 5, 40, 25, new Color(60, 63, 76, 255));
                     Raylib.DrawLineEx(p - new Vector2(30, 20), p + new Vector2(20, 35), 4, Gold);
                     Raylib.DrawText("SALVAGE", (int)p.X - 35, (int)p.Y - 62, 12, Gold);
+                    DrawScanProgress(snapshot, l, p - new Vector2(0, 92));
                     break;
                 case "beacon":
                     Raylib.DrawPoly(p, 4, 18, 0, Cyan);
@@ -231,6 +237,7 @@ internal sealed partial class BrowserArenaWorld
                         reduced ? 40 : 40 + MathF.Sin(time * 2) * 8,
                         Cyan
                     );
+                    DrawScanProgress(snapshot, l, p - new Vector2(0, 70));
                     break;
                 case "thermal":
                     var phase = snapshot.Tick % 300;
@@ -293,5 +300,41 @@ internal sealed partial class BrowserArenaWorld
                 new Color(53, 62, 77, 255)
             );
         }
+    }
+
+    private static void DrawScanProgress(RoomSnapshot snapshot, SectorLocation location, Vector2 p)
+    {
+        var scan = snapshot.Sector?.Pilot;
+        if (scan is null || scan.InteractionTarget != location.Id)
+            return;
+        var progress = Math.Clamp(scan.Interaction, 0, 1);
+        const int width = 148;
+        var x = (int)p.X - width / 2;
+        var y = (int)p.Y;
+        Raylib.DrawRectangle(x - 7, y - 24, width + 14, 44, new Color(4, 12, 23, 235));
+        var label = $"SCANNING {(int)(progress * 100)}%";
+        Raylib.DrawText(label, (int)p.X - Raylib.MeasureText(label, 14) / 2, y - 19, 14, Cyan);
+        Raylib.DrawRectangle(x, y, width, 10, new Color(33, 52, 66, 255));
+        Raylib.DrawRectangle(x, y, (int)(width * progress), 10, Cyan);
+        Raylib.DrawRectangleLines(x - 1, y - 1, width + 2, 12, Raylib.Fade(Cyan, .65f));
+    }
+
+    private static void DrawStationCore(
+        Vector2 p,
+        float radius,
+        Color color,
+        float time,
+        bool reduced
+    )
+    {
+        var pulse = reduced ? 1 : 1 + MathF.Sin(time * 2.4f) * .06f;
+        Raylib.DrawCircleV(p, radius * 1.25f, Raylib.Fade(color, .09f));
+        Raylib.DrawCircleV(p, radius, new Color(9, 20, 33, 235));
+        Raylib.DrawCircleV(p, radius * .8f * pulse, Raylib.Fade(color, .23f));
+        Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius, Raylib.Fade(color, .65f));
+        var angle = reduced ? 30 : time * 18;
+        Raylib.DrawPolyLinesEx(p, 6, radius * .7f, angle, 2, color);
+        Raylib.DrawPoly(p, 6, radius * .34f * pulse, -angle, Raylib.Fade(color, .85f));
+        Raylib.DrawCircleV(p, radius * .14f, NeonRendering.Ink);
     }
 }

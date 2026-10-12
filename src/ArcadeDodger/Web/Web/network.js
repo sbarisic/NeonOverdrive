@@ -12,6 +12,7 @@ import { createSkillTree } from './skills.js';
 import { createWeaponBench } from './weapons.js';
 import { createArenaAudio } from './audio.js';
 import { createFriendsMenu } from './friends.js';
+import { createMenuNavigation } from './menu-navigation.js';
 export function startNetwork(host, canvas, status) {
   document.body.classList.add('arena-fullscreen');
   const audio = createArenaAudio();
@@ -33,18 +34,30 @@ export function startNetwork(host, canvas, status) {
   let lastCredit = 0,
     lastCreditLife = -1,
     payoutTimer;
-  const { info, connection, link, menuButton, radarControls, setWaypoint } = createHudControls(
+  const {
+    info,
+    connection,
+    link,
+    menuButton,
+    radarControls,
+    setWaypoint,
+    rescueButton,
+    setRescue,
+  } = createHudControls(element, canvas, host);
+  const { menu, resume, leave, effects, sound, replayScore } = createPauseMenu(
     element,
-    canvas,
-    host,
+    audio,
+    connection,
+    link,
   );
-  const { menu, resume, leave, effects, sound } = createPauseMenu(element, audio, connection, link);
   const retry = element('button', 'Ship destroyed — respawn', 'arena-shell');
   retry.id = 'arena-respawn';
   retry.type = 'button';
   retry.hidden = true;
   document.body.append(retry);
   let socket,
+    pendingLeave = 0,
+    leaveTimeout,
     timer,
     joinTimeout,
     seq = 0,
@@ -76,7 +89,20 @@ export function startNetwork(host, canvas, status) {
     !!target.closest(
       'input:not([type=checkbox]),textarea,select,[contenteditable]:not([contenteditable=false])',
     );
-  let bench, friends, sector;
+  let bench, friends, sector, navigation, currentPilot;
+  const activeMenu = () =>
+    menuOpen
+      ? 'pilot'
+      : skills.open
+        ? 'skills'
+        : bench?.open
+          ? 'arsenal'
+          : friends?.open
+            ? 'alliances'
+            : sector?.mode || '';
+  function updateMenuNavigation() {
+    navigation?.update(activeMenu(), joined && currentPilot?.hull > 0, !!currentPilot?.docked);
+  }
   const skills = createSkillTree(
     element,
     info,
@@ -86,7 +112,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 6, type: 'choice', seq: ++seq, choice: id }));
+      socket.send(JSON.stringify({ v: 9, type: 'choice', seq: ++seq, choice: id }));
     },
     (open) => {
       if (open && sector?.open) sector.setOpen('');
@@ -102,14 +128,14 @@ export function startNetwork(host, canvas, status) {
   bench = createWeaponBench(
     element,
     info,
-    (weapons) => {
+    (command) => {
       if (!joined || dead || socket?.readyState !== WebSocket.OPEN) return;
       if (socket.bufferedAmount > 4096 || seq >= 2147483647) {
         socket.close();
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 6, type: 'equip', seq: ++seq, weapons }));
+      socket.send(JSON.stringify({ v: 9, type: 'equipment', seq: ++seq, ...command }));
       return seq;
     },
     (module) => {
@@ -119,7 +145,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 6, type: 'buy', seq: ++seq, module }));
+      socket.send(JSON.stringify({ v: 9, type: 'buy', seq: ++seq, module }));
       return seq;
     },
     (open) => {
@@ -142,7 +168,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 6, type: 'friend', seq: ++seq, name, action }));
+      socket.send(JSON.stringify({ v: 9, type: 'friend', seq: ++seq, name, action }));
       return seq;
     },
     (open) => {
@@ -165,7 +191,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 6, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 9, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (open) => {
@@ -182,8 +208,30 @@ export function startNetwork(host, canvas, status) {
     },
     () => bench.openShop(),
     setWaypoint,
+    (from, to) =>
+      host.ArenaRoute ? JSON.parse(host.ArenaRoute(from.x, from.y, to.x, to.y)) : [to],
   );
   decorateCommandButtons(info);
+  rescueButton.onclick = () => sector.trackRescue();
+  navigation = createMenuNavigation(
+    element,
+    [
+      menu,
+      ...['arena-skills', 'weapon-bench', 'arena-friends', 'sector-console'].map((id) =>
+        document.getElementById(id),
+      ),
+    ],
+    (destination) => {
+      if (destination === activeMenu() || pendingLeave) return;
+      if (menuOpen) setMenu(false);
+      if (destination === 'pilot') setMenu(true);
+      else if (destination === 'skills') skills.setOpen(true);
+      else if (destination === 'arsenal') bench.setOpen(true);
+      else if (destination === 'alliances') friends.setOpen(true);
+      else sector.setOpen(destination);
+      updateMenuNavigation();
+    },
+  );
   const inputBlocked = () =>
     sector?.open ||
     friends?.open ||
@@ -197,6 +245,7 @@ export function startNetwork(host, canvas, status) {
     (document.activeElement instanceof Element &&
       !!document.activeElement.closest('button,a,input'));
   function presentation() {
+    updateMenuNavigation();
     host.ArenaPresentation(
       !!sector?.open || menuOpen || skills.open || !!bench?.open || !!friends?.open,
       reducedEffects,
@@ -223,13 +272,13 @@ export function startNetwork(host, canvas, status) {
     return intent;
   }
   function sendInput() {
-    if (!joined || socket?.readyState !== WebSocket.OPEN) return;
+    if (!joined || pendingLeave || socket?.readyState !== WebSocket.OPEN) return;
     if (socket.bufferedAmount > 4096 || seq >= 2147483647) {
       socket.close();
       return;
     }
     const intent = localInput();
-    socket.send(JSON.stringify({ v: 6, type: 'input', seq: ++seq, ...intent }));
+    socket.send(JSON.stringify({ v: 9, type: 'input', seq: ++seq, ...intent }));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -246,12 +295,14 @@ export function startNetwork(host, canvas, status) {
     sendInput();
   }
   function setMenu(open) {
+    if (sector?.open) sector.setOpen('');
     if (skills.open) skills.setOpen(false);
     if (bench?.open) bench.setOpen(false);
     if (friends?.open) friends.setOpen(false);
     menuOpen = open && joined;
     menu.hidden = !menuOpen;
     menuButton.setAttribute('aria-expanded', String(menuOpen));
+    info.inert = menuOpen;
     canvas.inert = menuOpen || !form.hidden;
     link.inert = menuOpen;
     menuButton.inert = menuOpen;
@@ -270,6 +321,10 @@ export function startNetwork(host, canvas, status) {
   resume.addEventListener('click', () => setMenu(false));
   effects.addEventListener('change', () => setEffects(effects.checked));
   function resetConnection(message) {
+    clearTimeout(leaveTimeout);
+    pendingLeave = 0;
+    leave.disabled = false;
+    resume.disabled = false;
     joined = false;
     radarControls.hidden = true;
     clearInterval(timer);
@@ -299,13 +354,18 @@ export function startNetwork(host, canvas, status) {
     name.focus();
   }
   leave.addEventListener('click', () => {
+    if (pendingLeave || socket?.readyState !== WebSocket.OPEN) return;
     clearInput();
-    const previous = socket;
-    socket = undefined;
-    previous?.close();
-    resetConnection(
-      'You left the live room. Your ship may remain briefly. Rejoin starts a fresh run.',
-    );
+    pendingLeave = ++seq;
+    leave.disabled = true;
+    resume.disabled = true;
+    connection.textContent = 'Ending run…';
+    socket.send(JSON.stringify({ v: 9, type: 'leave', seq: pendingLeave }));
+    const leaving = socket;
+    leaveTimeout = setTimeout(() => {
+      if (socket === leaving && pendingLeave)
+        connection.textContent = 'Waiting for the server to confirm Leave…';
+    }, 5000);
   });
   retry.addEventListener('click', () => {
     if (!joined || menuOpen || socket?.readyState !== WebSocket.OPEN || retry.disabled) return;
@@ -316,7 +376,7 @@ export function startNetwork(host, canvas, status) {
     clearInput();
     retry.disabled = true;
     retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({ v: 6, type: 'respawn', seq: ++seq }));
+    socket.send(JSON.stringify({ v: 9, type: 'respawn', seq: ++seq }));
     canvas.focus();
   });
   window.addEventListener('keydown', (e) => {
@@ -373,13 +433,13 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     if (menuOpen && e.key === 'Tab') {
-      const controls = [effects, sound, resume, leave, solo];
+      const controls = [...menu.querySelectorAll('button:not(:disabled),input:not(:disabled)')];
       if (e.shiftKey && document.activeElement === controls[0]) {
         e.preventDefault();
-        solo.focus();
-      } else if (!e.shiftKey && document.activeElement === solo) {
+        controls.at(-1).focus();
+      } else if (!e.shiftKey && document.activeElement === controls.at(-1)) {
         e.preventDefault();
-        effects.focus();
+        controls[0].focus();
       }
       return;
     }
@@ -478,7 +538,7 @@ export function startNetwork(host, canvas, status) {
     current.addEventListener('open', () => {
       if (socket === current)
         current.send(
-          JSON.stringify({ v: 6, type: 'join', name: name.value, room: params.get('room') || '' }),
+          JSON.stringify({ v: 9, type: 'join', name: name.value, room: params.get('room') || '' }),
         );
     });
     current.addEventListener('message', (e) => {
@@ -487,13 +547,13 @@ export function startNetwork(host, canvas, status) {
         if (typeof e.data !== 'string' || e.data.length > 524288)
           throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 6) throw new Error('Protocol mismatch');
+        if (message.v !== 9) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit = 0;
           lastCreditLife = -1;
           payout.hidden = true;
           if (joined) throw new Error('Duplicate welcome');
-          bench.setCatalog(message.catalog, message.unlockLevels);
+          bench.setCatalog(message.catalog, message.unlockLevels, message.shipCatalog);
           skills.setCatalog(message.skills);
           sector.setup(message.sector, message.contracts);
           host.ArenaSector(JSON.stringify(message.sector));
@@ -511,7 +571,10 @@ export function startNetwork(host, canvas, status) {
           link.href = invite.href;
           link.textContent = `Room ${message.room} • invite link`;
           link.hidden = false;
-          connection.textContent = 'Connected • LIVE';
+          connection.textContent =
+            message.joinKind === 'recovered'
+              ? 'Connected • Run resumed'
+              : 'Connected • New run: level 1';
           menuButton.hidden = false;
           info.dataset.player = message.id;
           info.dataset.room = message.room;
@@ -526,9 +589,20 @@ export function startNetwork(host, canvas, status) {
           if (message.sector && message.sector.pilot == null)
             message.sector.pilot = current.privateState?.sector?.pilot ?? null;
           current.privateState = message;
+          if (message.workshop)
+            replayScore.textContent = `Replays: ${message.workshop.replayCount} · Starting credits: ${message.workshop.startingCredits}`;
+          if (pendingLeave && message.leaveSequence >= pendingLeave) {
+            socket = undefined;
+            current.close();
+            resetConnection(
+              `Run ended. ${replayScore.textContent}. Rejoining resets level and equipment; leaving adds no bonus.`,
+            );
+            return;
+          }
           const fullSnapshot = JSON.stringify(message);
           presentSnapshot(host, message);
           const self = message.players.find((p) => p.id === Number(info.dataset.player));
+          currentPilot = self;
           const nowDead = !!self && self.hull <= 0;
           if (nowDead && !dead) {
             clearInput();
@@ -536,6 +610,15 @@ export function startNetwork(host, canvas, status) {
             retry.textContent = 'Ship destroyed — respawn';
           }
           dead = nowDead;
+          if (dead) {
+            retry.disabled = message.runResetResult === 'pending';
+            retry.textContent =
+              message.runResetResult === 'pending'
+                ? 'Saving run reset…'
+                : message.runResetResult && message.runResetResult !== 'ok'
+                  ? 'Reset could not be saved — retry respawn'
+                  : `Respawn · ${replayScore.textContent}`;
+          }
           retry.hidden = !dead || menuOpen;
           if (self?.life !== lastCreditLife) {
             lastCredit = 0;
@@ -551,9 +634,11 @@ export function startNetwork(host, canvas, status) {
             payoutTimer = setTimeout(() => (payout.hidden = true), 1600);
           }
           sector.update(self, message, joined);
+          setRescue(message.sector?.rescue, self);
           friends.update(self, message, joined);
           skills.update(self, joined, message.skillReceipt);
           bench.update(self, joined, message.workshop);
+          updateMenuNavigation();
           audio.observe(message, Number(info.dataset.player));
           // Read-only transport diagnostics also used by browser acceptance tests.
           info.dataset.tick = message.tick;
@@ -586,7 +671,7 @@ export function startNetwork(host, canvas, status) {
       if (socket !== current) return;
       resetConnection(
         failure ||
-          'Disconnected. Rejoin starts a fresh run; the server retains your previous ship briefly.',
+          `Disconnected. Rejoin within 60 seconds to resume. After that, level, credits and equipment reset. ${replayScore.textContent}. Your ship remains exposed for five seconds.`,
       );
     });
     current.addEventListener('error', () => {

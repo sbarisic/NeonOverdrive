@@ -6,7 +6,8 @@ public sealed partial class Room
 {
     public bool ContainsRun(string name) =>
         players.Values.Any(p => FriendBook.Key(p.Name) == FriendBook.Key(name))
-        || suspended.ContainsKey(FriendBook.Key(name));
+        || suspended.ContainsKey(FriendBook.Key(name))
+        || pendingJoins.ContainsKey(FriendBook.Key(name));
 
     public void SaveRuns()
     {
@@ -70,32 +71,39 @@ public sealed partial class Room
         Persist(() => profiles.SaveRun(p.Name, run, checkpoint), _ => p.CheckpointPending = false);
     }
 
-    private void RestoreCheckpoint(Player p, RunCheckpoint? r)
-    {
-        if (r is null)
-            return;
-        p.Experience = r.Experience;
-        p.Skills = r.Skills.Where(s => SkillCatalog.Get(s) != null).ToHashSet();
-        p.Hull = r.Hull;
-        p.Shield = r.Shield;
-        p.HullFraction = r.HullFraction;
-        p.ShieldFraction = r.ShieldFraction;
-        p.WeaponReady = r.WeaponCooldown.Select(t => Tick + t).ToArray();
-        p.PlasmaReady = r.PlasmaCooldown.Select(t => Tick + t).ToArray();
-        p.MineReady = r.MineCooldown.Select(t => Tick + t).ToArray();
-        p.ShieldAt = Tick + r.ShieldDelay;
-        p.HullAt = Tick + r.HullDelay;
-    }
-
     private void ResetAfterDeath(Player p)
     {
         if (p.ResetComplete || p.ResetPending)
             return;
         p.ResetPending = true;
+        p.ResetResult = "";
+        RetireRun(p);
+        var run = p.RunId;
+        Persist(
+            () => profiles.ResetRun(p.Name, run),
+            result =>
+            {
+                p.ResetPending = false;
+                p.ResetResult = result;
+                if (result != "ok")
+                    return;
+                p.ResetComplete = true;
+                p.Experience = 0;
+                p.Skills.Clear();
+                LoadEquipment(p, profiles.Get(p.Name));
+            }
+        );
+    }
+
+    private void RetireRun(Player p)
+    {
         p.Velocity = System.Numerics.Vector2.Zero;
         foreach (var shot in shots)
             if (shot.Owner == p.Id)
+            {
                 shot.Expires = Tick;
+                shot.Cancelled = true;
+            }
         foreach (var mine in mines)
             if (mine.Payload.Owner == p.Id)
                 mine.Payload.Cancelled = true;
@@ -118,18 +126,23 @@ public sealed partial class Room
                 enemy.RadiationSource = null;
             }
         }
+        beams.RemoveAll(b => b.Owner == p.Id);
+        foreach (var enemy in enemies)
+            enemy.Contributors.Remove(p.Id);
+    }
+
+    private void PersistForRun(Player p, Func<string> operation, Action<string> complete)
+    {
         var run = p.RunId;
         Persist(
-            () => profiles.ResetRun(p.Name, run),
+            () => profiles.ForRun(p.Name, run, operation),
             result =>
             {
-                p.ResetPending = false;
-                if (result != "ok")
-                    return;
-                p.ResetComplete = true;
-                p.Experience = 0;
-                p.Skills.Clear();
-                p.Weapons = profiles.Get(p.Name).Weapons.ToImmutableArray();
+                // Stale callbacks still release pickup/economy reservations, but cannot grant
+                // effects or complete a contract for the next life.
+                complete(
+                    p.RunId == run && profiles.Get(p.Name).RunId == run ? result : "stale_run"
+                );
             }
         );
     }

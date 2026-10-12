@@ -7,13 +7,14 @@ public sealed partial class Room
 {
     private void RecordContribution(Enemy enemy, Shot? shot, float amount)
     {
-        if (
-            amount <= 0
-            || shot is null
-            || !players.TryGetValue(shot.Owner, out var attacker)
-            || attacker.Hull <= 0
-        )
+        if (amount <= 0 || shot is null || shot.Owner <= 0)
             return;
+        var attacker =
+            players.GetValueOrDefault(shot.Owner)
+            ?? suspended.Values.FirstOrDefault(p => p.Id == shot.Owner);
+        if (attacker is null || attacker.Hull <= 0 || attacker.RecoveryDisabled)
+            return;
+        RecordRescueContribution(enemy, attacker, amount);
         var old = enemy.Contributors.GetValueOrDefault(attacker.Id);
         enemy.Contributors[attacker.Id] = (
             attacker.RunId,

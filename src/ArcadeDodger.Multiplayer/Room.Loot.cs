@@ -2,7 +2,16 @@ using System.Numerics;
 
 namespace ArcadeDodger.Multiplayer;
 
-public sealed record ModuleDropSnapshot(int Id, float X, float Y, int Module, int Owner);
+public sealed record ModuleDropSnapshot(
+    int Id,
+    float X,
+    float Y,
+    int Module,
+    int Owner,
+    string Kind = "module",
+    int Tier = 0,
+    int GearKind = -1
+);
 
 public sealed partial class Room
 {
@@ -12,7 +21,9 @@ public sealed partial class Room
         int Module,
         long Expires,
         int Owner,
-        string RunId
+        string RunId,
+        WeaponItem? Weapon = null,
+        ShipItem? Gear = null
     )
     {
         public Vector2 Previous = Position,
@@ -50,10 +61,18 @@ public sealed partial class Room
 
     private (Vector2 Position, Vector2 Velocity) Eject(Enemy enemy, int seed)
     {
+        var surface = Location(
+            enemy.SurfacePlanet != 0 ? enemy.SurfacePlanet : Location(enemy.Home)?.Parent ?? 0
+        );
+        var outward = surface is { Solid: true }
+            ? MathF.Atan2(enemy.Position.Y - surface.Y, enemy.Position.X - surface.X)
+            : (float?)null;
         for (var ring = 0; ring < 20; ring++)
         for (var direction = 0; direction < 32; direction++)
         {
             var angle = (seed * .618034f + direction / 32f) * MathF.Tau;
+            if (outward is { } radial)
+                angle = radial + ((seed * .618034f + direction / 32f) % 1 - .5f) * MathF.PI;
             var normal = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
             var point =
                 enemy.Position
@@ -143,14 +162,20 @@ public sealed partial class Room
             )
                 continue;
             d.Pending = true;
-            Persist(
-                () => profiles.GrantModule(p.Name, d.Module),
+            PersistForRun(
+                p,
+                () =>
+                    d.Weapon is not null || d.Gear is not null
+                        ? profiles.GrantEquipment(p.Name, d.Weapon, d.Gear)
+                        : profiles.GrantModule(p.Name, d.Module),
                 result =>
                 {
                     if (result == "ok")
                     {
                         moduleDrops.RemoveAll(m => m.Id == d.Id);
-                        p.LootNotice = $"Recovered {ModuleCatalog.Get(d.Module).Name}";
+                        p.LootNotice = d.Gear is { } gear
+                            ? $"Recovered {EquipmentCatalog.Items[gear.Kind].Name} {gear.Tier}"
+                            : $"Recovered {ModuleCatalog.Get(d.Module).Name}{(d.Weapon is not null ? " build" : "")}";
                         p.LootNoticeUntil = Tick + 150;
                     }
                     else
@@ -178,6 +203,47 @@ public sealed partial class Room
             {
                 state.Progress.Add(enemy.Id);
                 state.Ready = state.Progress.Count >= 3;
+            }
+            if (
+                !enemy.Allied
+                && CreditRoll(enemy.Id ^ 0x517c3, id) < (enemy.Installation ? .35f : .15f)
+            )
+            {
+                var region = Location(
+                    enemy.SurfacePlanet != 0
+                        ? enemy.SurfacePlanet
+                        : Location(enemy.Home)?.Parent ?? 0
+                );
+                region ??= Sector
+                    ?.Locations.Where(l => l.Kind == "planet")
+                    .OrderBy(l => Vector2.DistanceSquared(l.Position, enemy.Position))
+                    .FirstOrDefault();
+                var tier = Math.Clamp(region?.Id ?? 1, 1, 4);
+                var roll = CreditRoll(enemy.Id ^ 0x725b1, id);
+                var weapon = roll < .5f ? EquipmentCatalog.Build(1 + (int)(roll * 8), tier) : null;
+                var gear = weapon is null
+                    ? new ShipItem(
+                        Guid.NewGuid().ToString("N"),
+                        Math.Min(11, (int)((roll - .5f) * 24)),
+                        tier
+                    )
+                    : null;
+                var point = Eject(enemy, id + 3);
+                pendingModules.Add(
+                    new(
+                        ++nextModuleDrop,
+                        point.Position,
+                        weapon?.Emitter ?? 0,
+                        Tick + EnergyLifetimeTicks,
+                        p.Id,
+                        p.RunId,
+                        weapon,
+                        gear
+                    )
+                    {
+                        Velocity = point.Velocity,
+                    }
+                );
             }
             if (!enemy.Installation)
                 continue;

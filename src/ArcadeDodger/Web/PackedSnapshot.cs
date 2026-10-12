@@ -10,7 +10,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
 
     private double Number()
     {
-        if (cursor >= data.Length || !double.IsFinite(data[cursor]))
+        if (cursor >= data.Length)
             throw new FormatException();
         return data[cursor++];
     }
@@ -42,6 +42,10 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
 
     public RoomSnapshot Read()
     {
+        // Validate once in a tight loop rather than per scalar decoder call.
+        foreach (var value in data)
+            if (!double.IsFinite(value))
+                throw new FormatException();
         var version = Int();
         var tick = Long();
         var players = List(
@@ -72,7 +76,9 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     MoveSpeed: Float(),
                     Menu: Bool(),
                     Editing: Bool(),
-                    Docked: Int()
+                    Docked: Int(),
+                    DetectionRadius: Float(),
+                    SurveyRadius: Float()
                 )
         );
         var shots = List(
@@ -116,7 +122,18 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                 );
             }
         );
-        string[] kinds = ["rammer", "gunner", "interceptor", "sniper", "tender", "installation"];
+        string[] kinds =
+        [
+            "rammer",
+            "gunner",
+            "interceptor",
+            "sniper",
+            "tender",
+            "installation",
+            "turret",
+            "rover",
+            "relief",
+        ];
         var enemies = List(
             256,
             () =>
@@ -125,7 +142,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                 var kind = Int();
                 return new EnemySnapshot(
                     id,
-                    kinds[Math.Clamp(kind, 0, 5)],
+                    kinds[Math.Clamp(kind, 0, 8)],
                     Float(),
                     Float(),
                     Float(),
@@ -136,6 +153,10 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     Text(),
                     Int(),
                     Float(),
+                    Int(),
+                    Bool() ? "friendly" : "hostile",
+                    Int(),
+                    Int(),
                     Int()
                 );
             }
@@ -144,7 +165,8 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
         var credits = List(128, () => new CreditSnapshot(Int(), Float(), Float(), Int(), Int()));
         var modules = List(
             128,
-            () => new ModuleDropSnapshot(Int(), Float(), Float(), Int(), Int())
+            () =>
+                new ModuleDropSnapshot(Int(), Float(), Float(), Int(), Int(), Text(), Int(), Int())
         );
         var beams = List(
             1536,
@@ -180,6 +202,28 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     () => new CombatEvent(Int(), Int(), Int(), Float(), Float(), Long(), Float())
                 )
                 : [];
+        SectorSessionSnapshot? pilot = null;
+        if (cursor < data.Length)
+            pilot = new(0, 0, [], [], 0, [], false, false, [], 0, null)
+            {
+                InteractionTarget = Int(),
+                Interaction = Math.Clamp(Float(), 0, 1),
+            };
+        RescueSnapshot? rescue = null;
+        if (cursor < data.Length && Bool())
+            rescue = new(
+                Int(),
+                Int(),
+                Text(),
+                Float(),
+                Float(),
+                Int(),
+                Int(),
+                Int(),
+                Int(),
+                Int(),
+                Int()
+            );
         if (cursor != data.Length)
             throw new FormatException();
         return new(
@@ -196,7 +240,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             Workshop: new(wallet, [], []),
             Credits: credits,
             Mines: mines,
-            Sector: new(locations),
+            Sector: new(locations, pilot, rescue),
             ModuleDrops: modules,
             CombatEvents: combat
         );

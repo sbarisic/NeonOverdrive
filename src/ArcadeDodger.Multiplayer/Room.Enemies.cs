@@ -15,7 +15,11 @@ public sealed record EnemySnapshot(
     string State = "patrol",
     int Level = 1,
     float Radius = 20,
-    int MaxHull = 3
+    int MaxHull = 3,
+    string Faction = "hostile",
+    int Shield = 0,
+    int MaxShield = 0,
+    int SurfacePlanet = 0
 );
 
 public sealed partial class Room
@@ -38,6 +42,8 @@ public sealed partial class Room
         {
             enemy.Previous = enemy.Position;
             if (enemy.Installation || enemy.Hull <= 0 || Tick < enemy.StunUntil)
+                continue;
+            if (StepNpcCombat(enemy))
                 continue;
             var home = Location(enemy.Home)?.Position ?? enemy.Position;
             var route = home;
@@ -104,6 +110,7 @@ public sealed partial class Room
                 if (Vector2.Distance(enemy.Position, goal) < 60)
                     enemy.Patrol = (enemy.Patrol + 1) % 4;
             }
+            goal = Navigate(enemy, goal);
             var delta = goal - enemy.Position;
             var distance = delta.Length();
             var direction = distance > .001f ? delta / distance : Vector2.UnitX;
@@ -134,6 +141,7 @@ public sealed partial class Room
                     .Query(enemy.Position, enemy.Position, 250)
                     .Where(e =>
                         e != enemy
+                        && e.Allied == enemy.Allied
                         && !e.Installation
                         && e.Hull > 0
                         && e.Hull - e.DamageFraction < e.MaxHull
@@ -249,6 +257,19 @@ public sealed partial class Room
 
     private sealed class Enemy
     {
+        public bool Allied;
+        public int SurfacePlanet,
+            NpcTarget,
+            Shield,
+            MaxShield;
+        public float ShieldFraction,
+            SurfaceAngle;
+        public int SurfaceDirection = 1;
+        public long LastHit,
+            RepathAt;
+        public Vector2 RouteGoal;
+        public Vector2[] Route = [];
+        public int RouteIndex;
         private string? type;
         public string Type
         {

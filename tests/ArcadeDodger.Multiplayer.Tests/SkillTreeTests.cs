@@ -24,11 +24,11 @@ public class SkillTreeTests
     }
 
     [Fact]
-    public void CatalogHas69UniqueNodesWithValidGuardsAndNoCycles()
+    public void CatalogHas66UniqueNodesWithValidGuardsAndNoCycles()
     {
-        Assert.Equal(69, SkillCatalog.Items.Length);
-        Assert.Equal(69, SkillCatalog.Items.Select(s => s.Id).Distinct().Count());
-        Assert.Equal(8, SkillCatalog.Items.Select(s => s.Branch).Distinct().Count());
+        Assert.Equal(66, SkillCatalog.Items.Length);
+        Assert.Equal(66, SkillCatalog.Items.Select(s => s.Id).Distinct().Count());
+        Assert.Equal(7, SkillCatalog.Items.Select(s => s.Branch).Distinct().Count());
         foreach (var d in SkillCatalog.Items)
         {
             Assert.Equal(1, d.Cost);
@@ -105,25 +105,22 @@ public class SkillTreeTests
     }
 
     [Theory]
-    [InlineData(5, 2)]
-    [InlineData(10, 3)]
-    [InlineData(15, 4)]
-    public void BayMilestonesRequirePurchasesAndActivateSavedWeapons(int level, int weapons)
+    [InlineData(8, 2)]
+    [InlineData(16, 3)]
+    [InlineData(24, 4)]
+    public void BayMilestonesAreAutomaticAndResetOnDeath(int level, int weapons)
     {
         var r = Start(level);
-        Equip(r, Weapon(1), Weapon(1), Weapon(1), Weapon(1));
-        Assert.Equal(new[] { true, false, false, false }, r.Snapshot().Players[0].UnlockedWeapons);
-        var seq = 3;
-        Learn(r, $"bay.{weapons}", ref seq);
-        Fire(r, 1, ++seq);
+        Assert.Equal(
+            Enumerable.Range(0, 4).Select(i => i < weapons),
+            r.Snapshot().Players[0].UnlockedWeapons!
+        );
+        Equip(r, Enumerable.Range(0, weapons).Select(_ => Weapon(1)).ToArray());
+        Fire(r, 1, 3);
         Assert.Equal(weapons, r.Snapshot().Shots.Length);
         Set(Player(r), "Hull", 0);
-        Assert.True(r.Respawn(1, new(++seq)));
+        Assert.True(r.Respawn(1, new(4)));
         Assert.Equal(new[] { true, false, false, false }, r.Snapshot().Players[0].UnlockedWeapons);
-        Assert.Equal(
-            new[] { true, false, false, false },
-            r.Snapshot().Players[0].Weapons.Select(w => w.Enabled)
-        );
     }
 
     [Fact]
@@ -132,7 +129,7 @@ public class SkillTreeTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    "{\"v\":6,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"
+                    "{\"v\":9,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"
                 ),
                 out var m
             )
@@ -142,7 +139,7 @@ public class SkillTreeTests
             Assert.False(
                 ClientProtocol.TryParse(
                     Encoding.UTF8.GetBytes(
-                        $"{{\"v\":6,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"
+                        $"{{\"v\":9,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"
                     ),
                     out _
                 )

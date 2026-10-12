@@ -81,9 +81,11 @@ internal static class WebSocketSession
                         type = "welcome",
                         id = peer.PlayerId,
                         room = peer.RoomId,
+                        joinKind = peer.JoinKind,
                         tickRate = Room.TickRate,
                         skills = SkillCatalog.Items,
                         catalog = ModuleCatalog.Items,
+                        shipCatalog = EquipmentCatalog.Items,
                         unlockLevels = ModuleCatalog.UnlockLevels,
                         sector = peer.Sector,
                         contracts = peer.Contracts,
@@ -108,6 +110,11 @@ internal static class WebSocketSession
                 if (tokens < 1 || message is null || !session.TryAccept(message))
                     break;
                 tokens--;
+                if (message is LeaveMessage leave)
+                {
+                    peer.Submit(leave);
+                    continue;
+                }
                 if (message is SectorActionMessage sector)
                 {
                     peer.Submit(sector);
@@ -121,6 +128,11 @@ internal static class WebSocketSession
                 if (message is FriendMessage friendship)
                 {
                     peer.Submit(friendship);
+                    continue;
+                }
+                if (message is EquipmentMessage command)
+                {
+                    peer.Submit(command);
                     continue;
                 }
                 if (message is EquipMessage equip)

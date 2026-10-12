@@ -41,16 +41,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         1,
     );
     await bench.getByRole('tab', { name: 'Loadout', exact: true }).click();
-    await bench.locator('.module-item[data-module-id="6"]').focus();
-    await victim.keyboard.press('Enter');
-    await bench.locator('#weapon-slot-1').focus();
-    await victim.keyboard.press('Enter');
-    await bench.getByRole('button', { name: 'Apply loadout', exact: true }).click();
-    await victim.waitForFunction(
-      () =>
-        JSON.parse(document.querySelector('#network-info').dataset.snapshot).workshop.weapons[0]
-          .attachments[0] === 6,
-    );
+    // Advance purchases are allowed, but a level-one pilot can prepare the first mod, which remains dormant.
+    assert(await bench.locator('#weapon-slot-1').isEnabled());
     const before = await read(victim);
     assert.equal(before.snapshot.workshop.credits, 40);
     await victim.keyboard.press('Escape');
@@ -89,10 +81,12 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await victim.waitForFunction(
       () =>
         JSON.parse(document.querySelector('#network-info').dataset.snapshot).workshop.credits ===
-        100,
+        105,
     );
     const dead = await read(victim);
     assert.equal(dead.self.hull, 0);
+    assert.equal(dead.snapshot.workshop.replayCount, 1);
+    assert.equal(dead.snapshot.workshop.startingCredits, 105);
     assert.equal(dead.snapshot.workshop.owned[1], 4);
     assert.equal(dead.snapshot.workshop.owned[6] || 0, 0);
     for (const [i, weapon] of dead.snapshot.workshop.weapons.entries()) {
@@ -117,7 +111,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await victim.screenshot({ path: 'artifacts/browser-check/run-reset.png' });
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: purchased/equipped module, real PvP death, durable starter wallet, cleared inventory/layout, new run identity, healthy respawn, reset skills/XP.',
+      'PASS: advance module purchase, locked socket, real PvP death, durable starter wallet, cleared inventory/layout, new run identity, healthy respawn, reset skills/XP.',
     );
   } finally {
     await browser.close();

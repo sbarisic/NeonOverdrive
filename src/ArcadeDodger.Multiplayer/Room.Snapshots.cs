@@ -43,7 +43,9 @@ public sealed partial class Room
                     Enumerable.Range(0, 4).Select(i => Unlocked(p, i)).ToArray(),
                     Enumerable.Range(1, 4).Select(e => Stats(p, e)).ToArray(),
                     p.Docked,
-                    p.RunId
+                    p.RunId,
+                    Detection(p),
+                    Survey(p)
                 ))
                 .ToArray(),
             shots
@@ -89,7 +91,11 @@ public sealed partial class Room
                     e.State,
                     e.Level,
                     EnemyRadius(e),
-                    e.MaxHull
+                    e.MaxHull,
+                    e.Allied ? "friendly" : "hostile",
+                    e.Shield,
+                    e.MaxShield,
+                    e.SurfacePlanet
                 ))
                 .ToArray(),
             energy
@@ -116,7 +122,12 @@ public sealed partial class Room
                     m.Position.X,
                     m.Position.Y,
                     m.Module,
-                    m.Owner
+                    m.Owner,
+                    m.Weapon is not null ? "weapon"
+                        : m.Gear is not null ? "gear"
+                        : "module",
+                    m.Weapon?.Tier ?? m.Gear?.Tier ?? 0,
+                    m.Gear?.Kind ?? -1
                 ))
                 .ToArray(),
             CombatEvents: combatEvents.Where(e => Tick - e.Born <= 8).ToArray()

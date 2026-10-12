@@ -126,7 +126,15 @@ internal sealed partial class BrowserArenaWorld
                 new Color(25, 35, 48, 255)
             );
             Raylib.DrawRectangleLines((int)pos.X - 12, (int)pos.Y - 12, 24, 24, Gold);
-            Raylib.DrawText("MOD", (int)pos.X - 10, (int)pos.Y - 4, 10, Gold);
+            Raylib.DrawText(
+                module.Kind == "weapon" ? "WPN"
+                    : module.Kind == "gear" ? "SYS"
+                    : "MOD",
+                (int)pos.X - 10,
+                (int)pos.Y - 4,
+                10,
+                Gold
+            );
         }
         foreach (var mine in snapshot.Mines ?? [])
         {
@@ -173,14 +181,16 @@ internal sealed partial class BrowserArenaWorld
     }
 
     private static Color EnemyColor(EnemySnapshot e) =>
-        e.Kind switch
-        {
-            "gunner" => Hostile,
-            "interceptor" => Gold,
-            "sniper" => new Color(195, 120, 255, 255),
-            "tender" => new Color(100, 240, 160, 255),
-            _ => Rammer,
-        };
+        e.Faction == "friendly"
+            ? Cyan
+            : e.Kind switch
+            {
+                "gunner" => Hostile,
+                "interceptor" => Gold,
+                "sniper" => new Color(195, 120, 255, 255),
+                "tender" => new Color(100, 240, 160, 255),
+                _ => Rammer,
+            };
 
     private static Vector2 Direction(Vector2 d) =>
         d.LengthSquared() < .001f ? -Vector2.UnitY : Vector2.Normalize(d);

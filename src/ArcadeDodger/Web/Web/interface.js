@@ -1,6 +1,10 @@
 import { controlStyles } from './interface.styles.js';
 // Shared controls for desktop game panels; gameplay icons keep their own styling.
 const paths = {
+  pilot: 'M12 3A4 4 0 1 1 11.9 3 M4 21V18A8 6 0 0 1 20 18V21Z',
+  friends: 'M8 3A4 4 0 1 1 7.9 3 M2 21V18Q8 10 14 18V21Z M17 4A3 3 0 1 1 16.9 4 M17 14Q23 14 23 21',
+  map: 'M2 5L8 2L16 6L22 3V20L16 23L8 19L2 22Z M8 2V19 M16 6V23',
+  station: 'M12 4L19 8V16L12 20L5 16V8Z M12 1V4 M12 20V23 M1 12H5 M19 12H23 M9 12H15 M12 9V15',
   strength: 'M4 20L17 3L21 7L7 21Z M5 14L11 20',
   rate: 'M4 6H16 M4 12H20 M4 18H16 M16 3L21 6L16 9',
   mastery: 'M12 2L15 8L22 9L17 14L18 22L12 18L6 22L7 14L2 9L9 8Z',

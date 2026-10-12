@@ -192,22 +192,6 @@ public static class SkillCatalog
             [.1f, .2f, .3f, .4f, .5f],
             v => $"+{v * 100:0}% firing frequency; continuous lasers gain equivalent DPS."
         );
-        for (var i = 2; i <= 4; i++)
-            list.Add(
-                new(
-                    $"bay.{i}",
-                    $"Weapon Bay {roman[i]}",
-                    $"Unlock weapon {i}. Saved equipment remains intact when this skill resets.",
-                    "Weapon Bays",
-                    "bay",
-                    i,
-                    (i - 1) * 5,
-                    i == 2 ? null : $"bay.{i - 1}",
-                    "bay",
-                    "bay",
-                    i
-                )
-            );
         string[] masteries = ["kinetic", "laser", "rocket", "plasma"];
         string[][] descriptions =
         [

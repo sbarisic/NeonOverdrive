@@ -31,6 +31,20 @@ public class WorkshopEconomyTests
             Assert.Equal("ok", store.Buy("PLAYER1", 6));
             var loadout = Loadout(Weapon(1), Weapon(1, 6));
             loadout[1] = loadout[1] with { Enabled = false };
+            var run = new RunCheckpoint(
+                Room.ExperienceForLevel(9),
+                [],
+                3,
+                2,
+                0,
+                0,
+                new double[4],
+                new long[4],
+                new long[4],
+                0,
+                0
+            );
+            Assert.Equal("ok", store.SaveRun("Player1", store.Get("Player1").RunId, run));
             Assert.Equal("ok", store.Equip("Player1", loadout));
             var restored = new ProfileStore(path).Get(" player1 ");
             Assert.Equal(40, restored.Credits);
@@ -123,33 +137,41 @@ public class WorkshopEconomyTests
         store.Buy("P", 6);
         var w = Loadout(Weapon(1, 6), Weapon(1, 6) with { Enabled = false });
         Assert.Equal("invalid_inventory", store.Equip("P", w));
-        w[1] = Weapon(1);
+        w[1] = Weapon(1) with { Enabled = false };
         Assert.Equal("ok", store.Equip("P", w));
+        Assert.Equal("ok", store.Equip("P", w, 2));
         Assert.Equal("invalid_item", store.Buy("P", 1));
     }
 
     [Fact]
     public void EquipWireRejectsMalformedNestedFieldsAndOldProtocol()
     {
+        var profile = new ProfileStore();
+        profile.Ensure("P");
+        var inventory = profile.Get("P").Equipment!;
         var json = JsonSerializer.Serialize(
             new
             {
-                v = 6,
-                type = "equip",
+                v = 9,
+                type = "equipment",
                 seq = 1,
-                weapons = Loadout(Weapon(1, 6)),
+                action = "apply",
+                revision = inventory.Revision,
+                edits = new[] { new WeaponEdit(inventory.Weapons[0].Id, [6, 0, 0, 0, 0, 0, 0, 0]) },
+                bays = inventory.Bays,
+                ship = inventory.Ship,
             },
             new JsonSerializerOptions(JsonSerializerDefaults.Web)
         );
         Assert.True(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out var message));
-        Assert.IsType<EquipMessage>(message);
+        Assert.IsType<EquipmentMessage>(message);
         foreach (
             var invalid in new[]
             {
-                json.Replace("\"emitter\":1", "\"emitter\":1,\"emitter\":1"),
+                json.Replace("\"enabled\":true", "\"enabled\":true,\"enabled\":true"),
                 json.Replace("\"enabled\":true", "\"enabled\":1"),
                 json.Replace("[6,0,0,0,0,0,0,0]", "[6]"),
-                json.Replace("\"v\":6", "\"v\":1"),
+                json.Replace("\"v\":9", "\"v\":8"),
             }
         )
             Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(invalid), out _));

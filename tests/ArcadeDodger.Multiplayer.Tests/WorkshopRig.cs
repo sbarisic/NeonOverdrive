@@ -57,6 +57,22 @@ internal static class WorkshopRig
 
     public static void Equip(Room r, params WeaponConfig[] weapons)
     {
+        // Weapon-mechanics fixtures explicitly earn the levels required by their loadout.
+        var required = weapons
+            .Select(
+                (w, i) =>
+                    ModuleCatalog.UnlockLevels[i]
+                    + Array.FindLastIndex(w.Attachments, id => id != 0)
+                    + 1
+            )
+            .DefaultIfEmpty(1)
+            .Max();
+        var player = Player(r);
+        Set(
+            player,
+            "Experience",
+            Math.Max((int)Get(player, "Experience"), Room.ExperienceForLevel(required))
+        );
         Fund(r, weapons);
         r.Input(1, new(1, 0, 0, 0, false, false, true));
         r.Step();

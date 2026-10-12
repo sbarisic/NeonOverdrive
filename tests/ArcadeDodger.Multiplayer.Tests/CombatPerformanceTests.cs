@@ -37,11 +37,11 @@ public class CombatPerformanceTests(ITestOutputHelper output)
         {
             var id = r.Join("Perf" + i)!.Value;
             var p = Player(r, id);
-            var pos = new Vector2(2000 + i % 6 * 1000, 3200 + i / 6 * 1000);
+            var pos = new Vector2(2000 + i % 6 * 3000, 14500 + i / 6 * 200);
             Set(p, "Position", pos);
             Set(p, "Previous", pos);
             Set(p, "Hull", 10000);
-            Set(p, "Experience", Room.ExperienceForLevel(15));
+            Set(p, "Experience", Room.ExperienceForLevel(32));
             Set(p, "Skills", new HashSet<string>(all));
             Set(
                 p,
@@ -56,7 +56,7 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             );
         }
         for (var i = r.Snapshot().Enemies!.Length; i < enemyLimit; i++)
-            Enemy(r, 2600 + i % 16 * 300, 2800 + i / 16 * 240, 1000 + i, 10000);
+            Enemy(r, 2200 + i % 16 * 700, 14000 + i / 16 * 100, 1000 + i, 10000);
         store.BackgroundWrites = true;
         var encoders = Enumerable.Range(0, 24).Select(_ => new SnapshotEncoder()).ToArray();
         var playback = new SnapshotPlayback();
@@ -65,6 +65,7 @@ public class CombatPerformanceTests(ITestOutputHelper output)
         var serialization = new List<double>();
         var interpolation = new List<double>();
         var frames = new List<RoomSnapshot>();
+        var viewerFrames = new List<RoomSnapshot>();
         long bytes = 0,
             allocated = GC.GetTotalAllocatedBytes();
         int peakShots = 0;
@@ -101,7 +102,16 @@ public class CombatPerformanceTests(ITestOutputHelper output)
                     serialization.Add(timer.Elapsed.TotalMilliseconds);
                 playback.Receive(frame, tick / 30d);
                 if (tick > 300 && tick <= 480)
+                {
                     frames.Add(frame);
+                    viewerFrames.Add(
+                        r.ForViewer(frame, 1) with
+                        {
+                            Workshop = r.Workshop(1),
+                            Sector = r.SectorSnapshot(1),
+                        }
+                    );
+                }
             }
             timer.Restart();
             playback.Sample(tick / 30d);
@@ -132,15 +142,35 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             runtime = Environment.Version.ToString(),
         };
         output.WriteLine(JsonSerializer.Serialize(report));
+        if (
+            projectileLimit == Room.ProjectileCapacity
+            && Environment.GetEnvironmentVariable("NEON_PERF_ENFORCE") == "1"
+        )
+            Assert.True(
+                report.endToEndP95 < 25,
+                $"Production server p95 {report.endToEndP95:F2} ms exceeds 25 ms."
+            );
         if (folder is not null)
         {
+            var recordingEncoder = new SnapshotEncoder();
+            var wireFrames = viewerFrames
+                .Select(f => System.Text.Encoding.UTF8.GetString(recordingEncoder.Encode(f)))
+                .ToArray();
             File.WriteAllText(
                 Path.Combine(folder, $"combat-{projectileLimit}.json"),
                 JsonSerializer.Serialize(report)
             );
             File.WriteAllText(
                 Path.Combine(folder, $"frames-{projectileLimit}.json"),
-                JsonSerializer.Serialize(new { sector = r.Sector, frames }, ArenaService.Json)
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        sector = r.Sector,
+                        frames,
+                        wireFrames,
+                    },
+                    ArenaService.Json
+                )
             );
         }
     }

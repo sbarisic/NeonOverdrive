@@ -96,12 +96,49 @@ export function createHudControls(element, canvas, host) {
     radarControls.append(b);
   }
   document.body.append(radarControls);
+  const rescueButton = element('button', '◉');
+  rescueButton.id = 'radar-rescue';
+  rescueButton.type = 'button';
+  rescueButton.setAttribute('aria-label', 'Set waypoint to emergency radio beacon');
+  Object.assign(rescueButton.style, {
+    position: 'fixed',
+    zIndex: '5',
+    color: '#ffd569',
+    background: '#0a1520',
+    border: '1px solid #ffd569',
+    borderRadius: '50%',
+    width: '24px',
+    height: '24px',
+    padding: '0',
+    cursor: 'pointer',
+  });
+  rescueButton.hidden = true;
+  document.body.append(rescueButton);
+  let rescueState, rescuePilot, hudLayout;
+  function setRescue(rescue, pilot) {
+    rescueState = rescue;
+    rescuePilot = pilot;
+    rescueButton.hidden =
+      rescue?.state !== 'active' ||
+      !pilot ||
+      !!document.querySelector('[role="dialog"]:not([hidden])');
+    if (rescueButton.hidden || !hudLayout) return;
+    const bounds = canvas.getBoundingClientRect(),
+      l = hudLayout;
+    const scale = l[12] / (3600 / radarZoom);
+    const x = Math.max(12, Math.min(l[12] - 12, l[12] / 2 + (rescue.x - pilot.x) * scale));
+    const y = Math.max(12, Math.min(l[13] - 22, l[13] / 2 + (rescue.y - pilot.y) * scale));
+    rescueButton.style.left = `${bounds.left + l[10] + x - 12}px`;
+    rescueButton.style.top = `${bounds.top + l[11] + y - 12}px`;
+    rescueButton.title = `Emergency rescue · ${rescue.hull} hull · ${rescue.shield} shields · ${rescue.remaining} attackers`;
+  }
   function updateRadar() {
     host.ArenaRadar(radarWaypoint?.x || 0, radarWaypoint?.y || 0, !!radarWaypoint, radarZoom);
     radarControls.dataset.zoom = radarZoom;
     radarControls.dataset.waypoint = radarWaypoint?.name || '';
     radarIn.disabled = radarZoom >= 4;
     radarOut.disabled = radarZoom <= 0.5;
+    setRescue(rescueState, rescuePilot);
   }
   radarIn.onclick = () => {
     radarZoom = Math.min(4, radarZoom * 2);
@@ -114,6 +151,8 @@ export function createHudControls(element, canvas, host) {
   function positionInfo() {
     const bounds = canvas.getBoundingClientRect();
     const layout = host.ArenaHudLayout(bounds.width, bounds.height).split(',').map(Number);
+    hudLayout = layout;
+    setRescue(rescueState, rescuePilot);
     info.style.left = `${bounds.left + layout[0]}px`;
     info.style.top = `${bounds.top + layout[1]}px`;
     info.style.width = `${layout[2]}px`;
@@ -133,7 +172,16 @@ export function createHudControls(element, canvas, host) {
     radarWaypoint = waypoint;
     updateRadar();
   }
-  return { info, connection, link, menuButton, radarControls, setWaypoint };
+  return {
+    info,
+    connection,
+    link,
+    menuButton,
+    radarControls,
+    setWaypoint,
+    rescueButton,
+    setRescue,
+  };
 }
 
 export function createPauseMenu(element, audio, connection, link) {
@@ -149,7 +197,9 @@ export function createPauseMenu(element, audio, connection, link) {
   resume.type = 'button';
   const leave = element('button', 'Leave');
   leave.type = 'button';
-  leave.title = 'Leave this live room and return to the join form';
+  leave.title = 'End this run. Rejoining resets level and equipment; leaving adds no replay bonus.';
+  const replayScore = element('p', 'Replays: 0 · Starting credits: 100', 'replay-score');
+  replayScore.id = 'replay-score';
   const soundLabel = element('label');
   const sound = element('input');
   sound.type = 'checkbox';
@@ -169,6 +219,12 @@ export function createPauseMenu(element, audio, connection, link) {
   menu.append(
     element('p', 'PILOT CONSOLE', 'eyebrow'),
     menuHeading,
+    replayScore,
+    element(
+      'p',
+      'Deaths add 5 starting credits. Leave ends this run without increasing the bonus.',
+      'muted',
+    ),
     element(
       'p',
       'The room stays live. Your ship can still be hit while this menu is open.',
@@ -183,7 +239,7 @@ export function createPauseMenu(element, audio, connection, link) {
   sessionDetails.append(connection, document.createTextNode(' · '), link);
   menu.append(sessionDetails);
   document.body.append(menu);
-  return { menu, resume, leave, effects, sound };
+  return { menu, resume, leave, effects, sound, replayScore };
 }
 
 export function decorateCommandButtons(info) {

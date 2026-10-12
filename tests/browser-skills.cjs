@@ -19,6 +19,16 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         ),
       });
     });
+    await page.route('**/main.js*', async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        body: (await response.text()).replace(
+          'const host = exports.ArcadeDodger.Web.BrowserHost;',
+          'const host = exports.ArcadeDodger.Web.BrowserHost;window.__routeHost=host;',
+        ),
+      });
+    });
     await page.addInitScript(() => {
       const Native = window.WebSocket;
       window.__farm = false;
@@ -30,7 +40,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
             if (f.type === 'welcome') {
               this.pilot = f.id;
               const base = f.sector?.locations.find((l) => l.id === 20);
-              if (base) this.destination = { x: base.x - 300, y: base.y };
+              if (base) this.destination = { x: base.x + 300, y: base.y };
             }
             if (f.type === 'snapshot') {
               this.frame = f;
@@ -47,12 +57,16 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
               [...(items || [])].sort(
                 (a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y),
               )[0];
-            const enemy = nearest(f.enemies?.filter((e) => e.kind !== 'installation')),
+            const enemy = nearest(
+                f.enemies?.filter((e) => e.kind !== 'installation' && e.faction !== 'friendly'),
+              ),
               drop = nearest(f.energy),
               target = drop || enemy || this.destination;
             if (target) {
-              const dx = target.x - p.x,
-                dy = target.y - p.y,
+              const route = window.__routeHost?.ArenaRoute(p.x, p.y, target.x, target.y);
+              const next = route ? JSON.parse(route)[0] || target : target;
+              const dx = next.x - p.x,
+                dy = next.y - p.y,
                 d = Math.hypot(dx, dy);
               m.x = dx / Math.max(1, d);
               m.y = dy / Math.max(1, d);
@@ -79,9 +93,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.keyboard.press('Tab');
     const panel = page.locator('#arena-skills');
     await panel.waitFor({ state: 'visible' });
-    assert.equal(await panel.locator('[data-skill]').count(), 69);
-    assert.equal(await panel.locator('[data-skill][aria-disabled="true"]').count(), 69);
-    assert.equal(await panel.locator('.tree-link').count(), 55);
+    assert.equal(await panel.locator('[data-skill]').count(), 66);
+    assert.equal(await panel.locator('[data-skill][aria-disabled="true"]').count(), 66);
+    assert.equal(await panel.locator('.tree-link').count(), 53);
     for (const chain of [
       ['recharge.2', 'flux.1', 'flux.2'],
       ['thruster.1', 'thruster.2', 'impact.1'],
@@ -106,7 +120,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.match(await panel.locator('.tree-detail').innerText(), /Astral Harvest/);
     await panel.getByRole('button', { name: 'Collection', exact: true }).click();
     assert(await panel.locator('.tree-scroll').evaluate((el) => el.scrollTop > 0));
-    assert.equal(await panel.locator('.skill-face svg').count(), 69);
+    assert.equal(await panel.locator('.skill-face svg').count(), 66);
     const face = await panel
       .locator('.skill-face')
       .first()
@@ -216,7 +230,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: 69 illustrated square tiles, prerequisite links, branch navigation, real XP earned, two accepted skill purchases, receipts, focus across snapshots, locked/no-point purchases, live ticks, neutral movement, keyboard focus/close, no page errors.',
+      'PASS: 66 illustrated square tiles, prerequisite links, branch navigation, real XP earned, two accepted skill purchases, receipts, focus across snapshots, locked/no-point purchases, live ticks, neutral movement, keyboard focus/close, no page errors.',
     );
   } finally {
     await browser.close();

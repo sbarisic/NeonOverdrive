@@ -40,7 +40,10 @@ public sealed partial class Room
                 p.Shield--;
                 p.ShieldFraction = MathF.Max(0, p.ShieldFraction - 1);
             }
-            var hull = MathF.Min(MathF.Max(0, p.Hull - p.HullFraction), amount);
+            var hull = MathF.Min(
+                MathF.Max(0, p.Hull - p.HullFraction),
+                amount * (1 - .05f * Gear(p, 9))
+            );
             actual += hull;
             p.HullFraction += hull;
             while (p.Hull > 0 && p.HullFraction >= 1 - .00001f)
@@ -53,7 +56,7 @@ public sealed partial class Room
             p.ShieldAt = Tick + ShieldDelay(p);
             p.HullAt = Tick + 10 * TickRate;
         }
-        if (e is not null && e.Hull > 0 && !Sanctuary(e.Position))
+        if (e is not null && e.Hull > 0 && !Sanctuary(e.Position) && CanHit(s, e))
         {
             if (players.TryGetValue(s.Owner, out var attacker))
             {
@@ -63,10 +66,22 @@ public sealed partial class Room
                     e.InvestigateUntil = Tick + 150;
                 }
             }
+            e.LastHit = Tick;
+            var absorbed = MathF.Min(
+                MathF.Max(0, e.Shield - e.ShieldFraction),
+                amount * s.ShieldMultiplier
+            );
+            e.ShieldFraction += absorbed;
+            while (e.Shield > 0 && e.ShieldFraction >= 1 - .00001f)
+            {
+                e.Shield--;
+                e.ShieldFraction = MathF.Max(0, e.ShieldFraction - 1);
+            }
+            amount -= absorbed / s.ShieldMultiplier;
             amount *= 1 + (Tick < e.CorrosionUntil ? e.Corrosion : 0);
             actual = MathF.Min(MathF.Max(0, e.Hull - e.DamageFraction), amount);
             e.DamageFraction += actual;
-            RecordContribution(e, s, actual);
+            RecordContribution(e, s, actual + absorbed);
             while (e.Hull > 0 && e.DamageFraction >= 1 - .00001f)
             {
                 e.Hull--;
@@ -190,7 +205,7 @@ public sealed partial class Room
                 );
                 candidates.AddRange(
                     enemies
-                        .Where(t => t.Hull > 0 && !visitedE.Contains(t.Id))
+                        .Where(t => t.Hull > 0 && CanHit(s, t) && !visitedE.Contains(t.Id))
                         .Select(t => (t.Position, (Player?)null, (Enemy?)t))
                 );
                 var next = candidates
@@ -283,6 +298,7 @@ public sealed partial class Room
                     .Query(s.Position, s.Position, 140)
                     .Any(e =>
                         e.Hull > 0
+                        && CanHit(s, e)
                         && !Sanctuary(e.Position)
                         && VisibleLine(s.Position, e.Position)
                         && Vector2.DistanceSquared(e.Position, s.Position)
@@ -334,7 +350,7 @@ public sealed partial class Room
 
     private void StatusDamage(Enemy e, float amount, Shot? source)
     {
-        if (Sanctuary(e.Position))
+        if (Sanctuary(e.Position) || source is not null && !CanHit(source, e))
             return;
         amount *= 1 + (Tick < e.CorrosionUntil ? e.Corrosion : 0);
         var actual = MathF.Min(MathF.Max(0, e.Hull - e.DamageFraction), amount);

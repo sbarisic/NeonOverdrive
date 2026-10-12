@@ -55,30 +55,31 @@ internal static partial class BrowserArenaHud
                 Raylib.DrawRectangle((int)at.X - 3, (int)at.Y - 3, 6, 6, Cyan);
                 Raylib.DrawRectangleLines((int)at.X - 5, (int)at.Y - 5, 10, 10, Ink);
             }
-            else if (location.Kind is "base" or "corridor" or "wreck" or "beacon")
+            else if (location.Kind is "base" or "outpost" or "corridor" or "wreck" or "beacon")
                 Raylib.DrawCircleV(at, 2, location.Kind is "base" or "corridor" ? Amber : Muted);
         }
         if (hasWaypoint && pilot is not null)
         {
             var start = Map(radarCenter, map);
-            var delta = Map(waypoint, map) - start;
-            var fraction = Math.Min(
-                1,
-                Math.Min(
-                    (map.Width / 2 - 9) / Math.Max(.001f, Math.Abs(delta.X)),
-                    (map.Height / 2 - 9) / Math.Max(.001f, Math.Abs(delta.Y))
-                )
-            );
-            var end = start + delta * fraction;
-            Raylib.DrawLineEx(start, end, 2, Amber);
-            Raylib.DrawCircleLines((int)end.X, (int)end.Y, 5, Amber);
-            if (delta.LengthSquared() > 1)
+            foreach (var point in Route(radarCenter, waypoint))
             {
-                var dir = Vector2.Normalize(delta);
-                var side = new Vector2(-dir.Y, dir.X);
-                Raylib.DrawLineEx(end, end - dir * 8 + side * 4, 2, Amber);
-                Raylib.DrawLineEx(end, end - dir * 8 - side * 4, 2, Amber);
+                var end = Map(point, map);
+                Raylib.DrawLineEx(start, end, 2, Amber);
+                start = end;
             }
+            Raylib.DrawCircleLines((int)start.X, (int)start.Y, 5, Amber);
+        }
+        if (snapshot?.Sector?.Rescue is { State: "active" } distress)
+        {
+            var at = Map(new(distress.X, distress.Y), map);
+            at = Vector2.Clamp(
+                at,
+                new(map.X + 9, map.Y + 9),
+                new(map.X + map.Width - 9, map.Y + map.Height - 19)
+            );
+            Raylib.DrawCircleLines((int)at.X, (int)at.Y, 7, Amber);
+            Raylib.DrawCircleV(at, 3, Amber);
+            Raylib.DrawLineEx(at + new Vector2(0, 3), at + new Vector2(0, 9), 2, Amber);
         }
         if (snapshot is not null)
         {
@@ -90,9 +91,13 @@ internal static partial class BrowserArenaHud
                     enemy.Hull > 0
                     && self is not null
                     && Vector2.DistanceSquared(new(self.X, self.Y), new(enemy.X, enemy.Y))
-                        <= 1200 * 1200
+                        <= self.DetectionRadius * self.DetectionRadius
                 )
-                    Raylib.DrawCircleV(Map(new(enemy.X, enemy.Y), map), 2, Enemy);
+                    Raylib.DrawCircleV(
+                        Map(new(enemy.X, enemy.Y), map),
+                        2,
+                        enemy.Faction == "friendly" ? Cyan : Enemy
+                    );
             foreach (var player in snapshot.Players)
             {
                 if (player.Hull <= 0)

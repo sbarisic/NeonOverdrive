@@ -43,7 +43,8 @@ public class CooperativeRunTests
         Set(Player(r), "Hull", 0);
         Assert.True(r.Respawn(1, new(10)));
         var profile = store.Get("Modules");
-        Assert.Equal(100, profile.Credits);
+        Assert.Equal(105, profile.Credits);
+        Assert.Equal(1, profile.ReplayCount);
         Assert.Equal(4, profile.Owned.Sum());
         Assert.Equal(4, profile.Owned[1]);
         Assert.NotEqual(original, profile.RunId);
@@ -57,7 +58,7 @@ public class CooperativeRunTests
         );
         store.Credit("Modules", 7);
         Assert.Equal("ok", store.ResetRun("Modules", original));
-        Assert.Equal(107, store.Get("Modules").Credits);
+        Assert.Equal(112, store.Get("Modules").Credits);
         Assert.Equal(0, r.Snapshot().Players[0].Experience);
     }
 
@@ -82,7 +83,7 @@ public class CooperativeRunTests
         await store.FlushAsync();
         r.Step();
         Assert.True(r.Respawn(1, new(2)));
-        Assert.Equal(100, store.Get("modules").Credits);
+        Assert.Equal(105, store.Get("modules").Credits);
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public class CooperativeRunTests
     }
 
     [Fact]
-    public void RestartRestoresRunCheckpointAtNewArrivalPort()
+    public void RestartStartsFreshRunAtArrivalPort()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "-run.json");
         try
@@ -125,9 +126,9 @@ public class CooperativeRunTests
             var resumed = new Room(false, profiles: new ProfileStore(path), seed: 3);
             resumed.Join("Modules");
             var p = resumed.Snapshot().Players[0];
-            Assert.Equal(7, p.Level);
-            Assert.Equal(1, p.Hull);
-            Assert.Equal(0, p.Shield);
+            Assert.Equal(1, p.Level);
+            Assert.Equal(3, p.Hull);
+            Assert.Equal(2, p.Shield);
             Assert.InRange(
                 Vector2.Distance(
                     new(p.X, p.Y),
@@ -193,7 +194,7 @@ public class CooperativeRunTests
         Step(r, 1300);
         var ships = r.Snapshot().Enemies!.Where(e => e.Kind != "installation").ToArray();
         Assert.All(
-            ships.Where(e => e.Home == 20),
+            ships.Where(e => e.Home == 20 && e.SurfacePlanet == 0),
             e =>
             {
                 Assert.Equal(1, e.Level);
@@ -287,7 +288,7 @@ public class CooperativeRunTests
                 Assert.Equal(0, r.Snapshot().Players[0].Hull);
             }
             Assert.True(r.Respawn(1, new(21)));
-            Assert.Equal(100, store.Get("Modules").Credits);
+            Assert.Equal(105, store.Get("Modules").Credits);
             Assert.Equal(0, store.Get("Modules").Owned[6]);
         }
         finally
@@ -366,12 +367,15 @@ public class CooperativeRunTests
         At(r, point + new Vector2(200, 0));
         Invoke(r, "Hit", Shot(1), null, enemy, 120f);
         r.Step();
-        var drop = Assert.Single(r.ForViewer(r.Snapshot(), 1).ModuleDrops!);
+        var drop = Assert.Single(
+            r.ForViewer(r.Snapshot(), 1).ModuleDrops!,
+            d => d.Kind == "module"
+        );
         Assert.Empty(r.ForViewer(r.Snapshot(), 2).ModuleDrops!);
         var before = r.Workshop(1).Owned[drop.Module];
         At(r, new(drop.X, drop.Y));
         r.Step();
-        Assert.Empty(r.Snapshot().ModuleDrops!);
+        Assert.DoesNotContain(r.Snapshot().ModuleDrops!, d => d.Kind == "module");
         Assert.Equal(before + 1, r.Workshop(1).Owned[drop.Module]);
         r.Step();
         Assert.Equal(before + 1, r.Workshop(1).Owned[drop.Module]);

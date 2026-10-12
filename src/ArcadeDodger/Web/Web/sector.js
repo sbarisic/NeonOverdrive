@@ -8,6 +8,7 @@ export function createSectorConsole(
   changed,
   openShop,
   navigationChanged = () => {},
+  route = () => [],
 ) {
   let definition,
     contracts = [],
@@ -67,6 +68,7 @@ export function createSectorConsole(
   panel.insertBefore(received, board);
   const chart = createSectorChart(el, map, {
     waypoint: () => waypoint,
+    route,
     navigate: (l) => {
       waypoint = l ? { ...l } : null;
       render();
@@ -214,6 +216,18 @@ export function createSectorConsole(
       : near
         ? `E · ${near.kind === 'station' ? 'Dock at' : 'Interact with'} ${near.name}`
         : '';
+    const distress = frame.sector?.rescue;
+    if (waypoint?.kind === 'rescue') {
+      if (distress?.state === 'active' && waypoint.id === distress.id)
+        Object.assign(waypoint, distress);
+      else waypoint = null;
+    }
+    if (distress?.state === 'active')
+      text += `\nEMERGENCY · Relief ship ${distress.hull}/${distress.maxHull} hull · ${distress.shield}/${distress.maxShield} shields · ${distress.remaining} attackers · M to locate`;
+    else if (distress?.state === 'rescued')
+      text +=
+        '\nRESCUE COMPLETE · Relief ship saved · Contributors: collect your personal credit and XP pickups beside the ship';
+    else if (distress?.state === 'failed') text += '\nRESCUE FAILED · Relief ship destroyed';
     if (waypoint?.pilot) {
       const ally = frame.players.find((p) => p.id === waypoint.pilot);
       if (ally) {
@@ -269,8 +283,17 @@ export function createSectorConsole(
     guide.hidden = !text.trim();
   }
   return {
+    trackRescue() {
+      const distress = frame?.sector?.rescue;
+      if (distress?.state !== 'active') return;
+      waypoint = { ...distress, kind: 'rescue', name: 'Emergency: save the relief ship' };
+      render();
+    },
     get open() {
       return !!mode;
+    },
+    get mode() {
+      return mode;
     },
     setOpen,
     setup(sector, catalog) {

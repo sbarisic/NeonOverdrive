@@ -77,6 +77,8 @@ export function presentSnapshot(host, f) {
       +p.menu,
       +p.editing,
       p.docked,
+      p.detectionRadius ?? 1200,
+      p.surveyRadius ?? 1200,
     ),
   );
   list(f.shots, (s) => {
@@ -100,7 +102,17 @@ export function presentSnapshot(host, f) {
     );
     list(s.ancestors, (id) => a.push(id));
   });
-  const kinds = ['rammer', 'gunner', 'interceptor', 'sniper', 'tender', 'installation'];
+  const kinds = [
+    'rammer',
+    'gunner',
+    'interceptor',
+    'sniper',
+    'tender',
+    'installation',
+    'turret',
+    'rover',
+    'relief',
+  ];
   list(f.enemies, (e) =>
     a.push(
       e.id,
@@ -116,11 +128,17 @@ export function presentSnapshot(host, f) {
       e.level ?? 1,
       e.radius ?? 20,
       e.maxHull ?? 3,
+      +(e.faction === 'friendly'),
+      e.shield || 0,
+      e.maxShield || 0,
+      e.surfacePlanet || 0,
     ),
   );
   list(f.energy, (e) => a.push(e.id, e.x, e.y, e.value, e.owner || 0));
   list(f.credits, (e) => a.push(e.id, e.x, e.y, e.value, e.owner || 0));
-  list(f.moduleDrops, (e) => a.push(e.id, e.x, e.y, e.module, e.owner));
+  list(f.moduleDrops, (e) =>
+    a.push(e.id, e.x, e.y, e.module, e.owner, label(e.kind), e.tier || 0, e.gearKind ?? -1),
+  );
   list(f.beams, (b) =>
     a.push(
       b.owner,
@@ -141,5 +159,22 @@ export function presentSnapshot(host, f) {
   list(f.social?.friends, (n) => a.push(label(n)));
   a.push(f.workshop?.credits ?? 0);
   list(f.combatEvents, (e) => a.push(e.id, e.shot, e.kind, e.x, e.y, e.born, e.size));
+  a.push(f.sector?.pilot?.interactionTarget || 0, f.sector?.pilot?.interaction || 0);
+  const rescue = f.sector?.rescue;
+  a.push(+!!rescue);
+  if (rescue)
+    a.push(
+      rescue.id,
+      rescue.ship,
+      label(rescue.state),
+      rescue.x,
+      rescue.y,
+      rescue.hull,
+      rescue.maxHull,
+      rescue.shield,
+      rescue.maxShield,
+      rescue.remaining,
+      rescue.level,
+    );
   host.ArenaSnapshotPacked(a, text);
 }

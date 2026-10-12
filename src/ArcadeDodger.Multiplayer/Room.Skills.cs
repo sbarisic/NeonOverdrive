@@ -12,28 +12,34 @@ public sealed partial class Room
     private static int Rank(Player p, string family) => SkillCatalog.Rank(p.Skills, family);
 
     private static float Value(Player p, string family, float fallback = 0) =>
-        SkillCatalog.Value(p.Skills, family, fallback);
+        SkillCatalog.Value(p.Skills, family, fallback)
+        + (
+            family == "collector" ? 20 * Gear(p, 6)
+            : family == "fortune" ? .1f * Gear(p, 7)
+            : 0
+        );
 
     private static int SkillPointsFor(Player p) =>
         Math.Max(0, 2 * (LevelForExperience(p.Experience) - 1) - p.Skills.Count);
 
-    private static int MaxShieldFor(Player p) => 2 + Rank(p, "shield");
+    private static int MaxShieldFor(Player p) => 2 + Rank(p, "shield") + Gear(p, 0);
 
-    private static int MaxHullFor(Player p) => 3 + Rank(p, "hull");
+    private static int MaxHullFor(Player p) => 3 + Rank(p, "hull") + Gear(p, 8);
 
     private static float MoveSpeedFor(Player p) =>
-        Speed * (1 + Value(p, "slipstream") + Value(p, "cruise"));
+        Speed * (1 + Value(p, "slipstream") + Value(p, "cruise") + .05f * Gear(p, 2));
 
-    private static float AccelerationFor(Player p) => 1200 * (1 + Value(p, "thruster"));
+    private static float AccelerationFor(Player p) =>
+        1200 * (1 + Value(p, "thruster") + .1f * Gear(p, 3));
 
-    private static float SteeringFor(Player p) => 1800 * (1 + Value(p, "vector"));
+    private static float SteeringFor(Player p) =>
+        1800 * (1 + Value(p, "vector") + .1f * Gear(p, 3));
 
-    private static int ShieldDelay(Player p) => (int)(Value(p, "recharge", 5) * TickRate);
+    private static int ShieldDelay(Player p) =>
+        (int)(MathF.Max(1, Value(p, "recharge", 5) - .5f * Gear(p, 1)) * TickRate);
 
     private static bool Unlocked(Player p, int i) =>
-        i == 0
-        || LevelForExperience(p.Experience) >= ModuleCatalog.UnlockLevels[i]
-            && HasSkill(p, $"bay.{i + 1}");
+        i == 0 || LevelForExperience(p.Experience) >= ModuleCatalog.UnlockLevels[i];
 
     private static bool Active(Player p, int i) =>
         Unlocked(p, i) && p.Weapons[i].Enabled && p.Weapons[i].Emitter > 0;
@@ -61,7 +67,18 @@ public sealed partial class Room
             p.StatsCount = p.Skills.Count;
             p.StatsCache = Enumerable
                 .Range(1, 4)
-                .Select(e => CalculateWeaponStats(p.Skills, e))
+                .Select(e =>
+                {
+                    var s = CalculateWeaponStats(p.Skills, e);
+                    var bonus =
+                        (1 + Value(p, "strength") + .05f * Gear(p, 10))
+                        / (1 + Value(p, "strength"));
+                    return s with
+                    {
+                        Damage = s.Damage * bonus,
+                        StatusPower = s.StatusPower * bonus,
+                    };
+                })
                 .ToArray();
         }
         return p.StatsCache[emitter - 1];

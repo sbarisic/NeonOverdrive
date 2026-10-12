@@ -268,7 +268,7 @@ export function createSkillTree(element, info, buySkill, onToggle) {
         if (!e.repeat) setOpen(false);
       }
       if (e.key === 'Tab') {
-        const controls = [...panel.querySelectorAll('button')];
+        const controls = [...panel.querySelectorAll('button:not(:disabled)')];
         if (
           e.shiftKey &&
           (document.activeElement === controls[0] || !controls.includes(document.activeElement))

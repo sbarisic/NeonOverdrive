@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace ArcadeDodger.Multiplayer;
 
 /// <summary>Ordered persistence worker; publish each complete transaction after durable replacement.</summary>
-public sealed class ProfileStore
+public sealed partial class ProfileStore
 {
     private readonly string? path;
     public bool BackgroundWrites { get; set; }
@@ -34,7 +34,9 @@ public sealed class ProfileStore
     public string SaveRun(string name, string runId, RunCheckpoint checkpoint)
     {
         var p = Get(name);
-        return p.RunId != runId ? "stale_run" : Commit(name, p with { Run = checkpoint });
+        return p.RunId != runId
+            ? "stale_run"
+            : Commit(name, p with { Run = checkpoint, RunPrepared = false });
     }
 
     public string ResetRun(string name, string previous)
@@ -42,8 +44,37 @@ public sealed class ProfileStore
         var p = Get(name);
         if (p.RunId != previous)
             return "ok";
-        return Commit(name, PilotProfile.Starter() with { RunId = Guid.NewGuid().ToString("N") });
+        if (p.ReplayCount == PilotProfile.MaxReplayCount)
+            return "replay_limit";
+        return Commit(
+            name,
+            PilotProfile.Starter(p.ReplayCount + 1) with
+            {
+                RunId = Guid.NewGuid().ToString("N"),
+                RunPrepared = true,
+            }
+        );
     }
+
+    // Admission consumes a prepared death reset, or replaces an abandoned run.
+    public string StartRun(string name, string previous, bool reusePrepared = true)
+    {
+        var p = Get(name);
+        if (p.RunId != previous)
+            return "stale_run";
+        if (reusePrepared && p.RunPrepared)
+            return Commit(name, p with { RunPrepared = false });
+        return Commit(
+            name,
+            PilotProfile.Starter(p.ReplayCount) with
+            {
+                RunId = Guid.NewGuid().ToString("N"),
+            }
+        );
+    }
+
+    public string ForRun(string name, string runId, Func<string> operation) =>
+        Get(name).RunId == runId ? operation() : "stale_run";
 
     public string GrantModule(string name, int module)
     {
@@ -52,8 +83,7 @@ public sealed class ProfileStore
         var p = Get(name);
         if (p.Owned[module] == int.MaxValue)
             return "inventory_full";
-        p.Owned[module]++;
-        return Commit(name, p);
+        return Commit(name, AddModule(p, module));
     }
 
     private volatile Dictionary<string, PilotProfile> profiles = new(StringComparer.Ordinal);
@@ -76,7 +106,8 @@ public sealed class ProfileStore
                             ? run with
                             {
                                 Skills = run
-                                    .Skills.Select(SkillCatalog.Migrate)
+                                    .Skills.Where(s => s is not ("bay.2" or "bay.3" or "bay.4"))
+                                    .Select(SkillCatalog.Migrate)
                                     .Distinct()
                                     .ToArray(),
                             }
@@ -87,11 +118,48 @@ public sealed class ProfileStore
                 throw new InvalidDataException(
                     "Invalid profile store; preserve and repair it before starting."
                 );
+            profiles = profiles.ToDictionary(
+                p => p.Key,
+                p =>
+                {
+                    var migrated = MigrateLoadout(p.Value);
+                    if (p.Value.Equipment is null)
+                    {
+                        var level = Room.LevelForExperience(p.Value.Run?.Experience ?? 0);
+                        migrated = (
+                            migrated.Equipment! with
+                            {
+                                Bays = migrated
+                                    .Equipment.Bays.Select(
+                                        (b, i) =>
+                                            b with
+                                            {
+                                                Enabled =
+                                                    b.Enabled
+                                                    && level >= ModuleCatalog.UnlockLevels[i],
+                                            }
+                                    )
+                                    .ToArray(),
+                            }
+                        ).Project(migrated);
+                    }
+                    return migrated;
+                }
+            );
+            File.WriteAllText(this.path + ".tmp", JsonSerializer.Serialize(profiles));
+            File.Move(this.path + ".tmp", this.path, true);
         }
     }
 
+    private static PilotProfile MigrateLoadout(PilotProfile profile)
+    {
+        return EquipmentState.Migrate(profile).Project(profile);
+    }
+
     public PilotProfile Get(string name) =>
-        (profiles.GetValueOrDefault(FriendBook.Key(name)) ?? PilotProfile.Starter()).Copy();
+        MigrateLoadout(
+            (profiles.GetValueOrDefault(FriendBook.Key(name)) ?? PilotProfile.Starter()).Copy()
+        );
 
     public string Ensure(string name)
     {
@@ -131,10 +199,12 @@ public sealed class ProfileStore
     private static bool Valid(PilotProfile p) =>
         p is not null
         && p.Credits >= 0
+        && p.ReplayCount is >= 0 and <= PilotProfile.MaxReplayCount
         && p.Owned is { Length: 29 }
         && p.Owned.All(n => n >= 0)
         && ValidLoadout(p.Weapons, p.Owned)
-        && ValidRun(p.Run);
+        && ValidRun(p.Run)
+        && (p.Equipment is null || ValidEquipment(p.Equipment));
 
     private static bool ValidRun(RunCheckpoint? r) =>
         r is null
@@ -168,16 +238,26 @@ public sealed class ProfileStore
             return "insufficient_credits";
         if (p.Owned[module] == int.MaxValue)
             return "inventory_full";
-        p.Owned[module]++;
-        return Commit(name, p with { Credits = p.Credits - price });
+        return Commit(name, AddModule(p with { Credits = p.Credits - price }, module));
     }
 
-    public string Equip(string name, WeaponConfig[] weapons)
+    public string Equip(string name, WeaponConfig[] weapons, int? level = null)
     {
         var p = Get(name);
-        return !ValidLoadout(weapons, p.Owned)
-            ? "invalid_inventory"
-            : Commit(name, p with { Weapons = weapons.Select(w => w.Copy()).ToArray() });
+        return !ValidLoadout(weapons, p.Owned) ? "invalid_inventory"
+            : !ModuleCatalog.LevelAllows(
+                weapons,
+                level ?? Room.LevelForExperience(p.Run?.Experience ?? 0)
+            )
+                ? "level_required"
+            : Commit(
+                name,
+                p with
+                {
+                    Weapons = weapons.Select(w => w.Copy()).ToArray(),
+                    Equipment = null,
+                }
+            );
     }
 
     public string Credit(string name, int amount)
@@ -200,6 +280,7 @@ public sealed class ProfileStore
 
     private string Commit(string name, PilotProfile profile)
     {
+        profile = MigrateLoadout(profile);
         var next = new Dictionary<string, PilotProfile>(profiles, StringComparer.Ordinal)
         {
             [FriendBook.Key(name)] = profile.Copy(),

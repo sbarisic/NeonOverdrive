@@ -37,21 +37,25 @@ public sealed partial class Room
             if (t.HasValue)
                 result.Add((t.Value, p, null));
         }
-        if (s.Owner > 0)
-            foreach (var e in enemyGrid.Query(start, end, 140))
-            {
-                if (e.Hull <= 0 || Sanctuary(e.Position) || s.HitEnemies.Contains(e.Id))
-                    continue;
-                var t = Intersection(
-                    start - Vector2.Lerp(e.Previous, e.Position, startTime),
-                    end - Vector2.Lerp(e.Previous, e.Position, endTime),
-                    s.Proximity
-                        ? (e.Installation ? 85 : 0) + Definition(24).Radius
-                        : EnemyRadius(e) + ProjectileRadius(s)
-                );
-                if (t.HasValue)
-                    result.Add((t.Value, null, e));
-            }
+        foreach (var e in enemyGrid.Query(start, end, 140))
+        {
+            if (
+                !CanHit(s, e)
+                || e.Hull <= 0
+                || Sanctuary(e.Position)
+                || s.HitEnemies.Contains(e.Id)
+            )
+                continue;
+            var t = Intersection(
+                start - Vector2.Lerp(e.Previous, e.Position, startTime),
+                end - Vector2.Lerp(e.Previous, e.Position, endTime),
+                s.Proximity
+                    ? (e.Installation ? 85 : 0) + Definition(24).Radius
+                    : EnemyRadius(e) + ProjectileRadius(s)
+            );
+            if (t.HasValue)
+                result.Add((t.Value, null, e));
+        }
         result.Sort(
             static (a, b) =>
             {
@@ -72,6 +76,7 @@ public sealed partial class Room
             .Query(s.Position, s.Position, 600)
             .Where(e =>
                 e.Hull > 0
+                && CanHit(s, e)
                 && !Sanctuary(e.Position)
                 && VisibleLine(s.Position, e.Position)
                 && !s.HitEnemies.Contains(e.Id)
@@ -107,6 +112,8 @@ public sealed partial class Room
                 .Query(at, at, 100)
                 .Where(e =>
                     e.Hull > 0
+                    && CanHit(s, e)
+                    && e.SurfacePlanet == 0
                     && !e.Installation
                     && !Sanctuary(e.Position)
                     && VisibleLine(at, e.Position)

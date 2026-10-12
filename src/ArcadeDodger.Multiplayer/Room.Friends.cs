@@ -31,7 +31,8 @@ public sealed partial class Room
         );
 
     private bool Friendly(Shot s, Player target) =>
-        Friendly(
+        s.FriendlyNpc
+        || Friendly(
             s.OwnerName.Length > 0 ? s.OwnerName
                 : players.TryGetValue(s.Owner, out var owner) ? owner.Name
                 : "",

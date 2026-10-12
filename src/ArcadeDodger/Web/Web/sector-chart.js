@@ -80,6 +80,8 @@ export function createSectorChart(el, root, actions) {
       'corridor',
       'pilot',
       'danger',
+      'rescue',
+      'outpost',
     ]);
   for (const [label, kinds] of [
     ['Planets', ['planet']],
@@ -102,7 +104,7 @@ export function createSectorChart(el, root, actions) {
   function transform() {
     const w = view.clientWidth,
       h = view.clientHeight;
-    const scale = Math.min((w - 64) / 12000, (h - 80) / 8000) * zoom;
+    const scale = Math.min((w - 64) / sector.width, (h - 80) / sector.height) * zoom;
     return { w, h, scale, x: w / 2 - cx * scale, y: h / 2 - cy * scale };
   }
   function select(l) {
@@ -140,21 +142,23 @@ export function createSectorChart(el, root, actions) {
         : '';
     description.textContent = !l
       ? 'Select an icon to inspect it. Set a waypoint when you are ready to travel.'
-      : l.kind === 'station'
-        ? 'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.'
-        : l.kind === 'base'
-          ? destroyed
-            ? 'This installation is permanently destroyed. Its wreck remains cover.'
-            : `Destroying this installation stops its launches. Eligible contributors receive ${40 * (level || 1)} credits and ${30 * (level || 1)} XP in pickups, plus a chance of a module.`
-          : l.kind === 'corridor'
-            ? 'Patrols arrive here from outside the sector. This navigation corridor cannot be destroyed.'
-            : l.kind === 'wreck'
-              ? 'A wreck that may hold a recovery contract objective.'
-              : l.kind === 'beacon'
-                ? 'Survey contract location. Hold position while interacting to scan.'
-                : l.kind === 'pilot'
-                  ? 'Friendly pilot. A defense ping asks allies to assist against a threatening patrol.'
-                  : 'Planetary scenery lies below the flight plane. Orbital hazards and installations occupy flight space.';
+      : l.kind === 'rescue'
+        ? `Save the relief ship: ${l.hull}/${l.maxHull} hull · ${l.shield}/${l.maxShield} shields · ${l.remaining} attackers. Open cooperative mission.`
+        : l.kind === 'station'
+          ? 'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.'
+          : l.kind === 'base'
+            ? destroyed
+              ? 'This installation is permanently destroyed. Its wreck remains cover.'
+              : `Destroying this installation stops its launches. Eligible contributors receive ${40 * (level || 1)} credits and ${30 * (level || 1)} XP in pickups, plus a chance of a module.`
+            : l.kind === 'corridor'
+              ? 'Patrols arrive here from outside the sector. This navigation corridor cannot be destroyed.'
+              : l.kind === 'wreck'
+                ? 'A wreck that may hold a recovery contract objective.'
+                : l.kind === 'beacon'
+                  ? 'Survey contract location. Hold position while interacting to scan.'
+                  : l.kind === 'pilot'
+                    ? 'Friendly pilot. A defense ping asks allies to assist against a threatening patrol.'
+                    : 'Planetary scenery lies below the flight plane. Orbital hazards and installations occupy flight space.';
     navigate.disabled = !l;
     ping.hidden = broadcast.hidden = !l || l.kind === 'pilot';
     defend.hidden = l?.kind !== 'pilot';
@@ -220,7 +224,7 @@ export function createSectorChart(el, root, actions) {
       context.querySelector('button')?.focus();
     };
     view.append(b);
-    markers.set(l.kind === 'pilot' ? 'pilot:' + l.id : l.id, { b, l });
+    markers.set(['pilot', 'rescue'].includes(l.kind) ? l.kind + ':' + l.id : l.id, { b, l });
   }
   function draw() {
     if (!sector || root.hidden || !view.clientWidth) return;
@@ -238,24 +242,24 @@ export function createSectorChart(el, root, actions) {
     const line = 1 / t.scale;
     c.lineWidth = line;
     c.strokeStyle = '#263b504d';
-    for (let x = 0; x <= 12000; x += 1000) {
+    for (let x = 0; x <= sector.width; x += 1000) {
       c.beginPath();
       c.moveTo(x, 0);
-      c.lineTo(x, 8000);
+      c.lineTo(x, sector.height);
       c.stroke();
     }
-    for (let y = 0; y <= 8000; y += 1000) {
+    for (let y = 0; y <= sector.height; y += 1000) {
       c.beginPath();
       c.moveTo(0, y);
-      c.lineTo(12000, y);
+      c.lineTo(sector.width, y);
       c.stroke();
     }
     c.strokeStyle = '#4c7184';
-    c.strokeRect(0, 0, 12000, 8000);
+    c.strokeRect(0, 0, sector.width, sector.height);
     c.fillStyle = '#446176';
     for (let i = 0; i < 180; i++) {
-      const x = (i * 7919 + sector.seed) % 12000,
-        y = (i * 3571 + sector.seed) % 8000;
+      const x = (i * 7919 + sector.seed) % sector.width,
+        y = (i * 3571 + sector.seed) % sector.height;
       c.fillRect(x, y, line, line);
     }
     const circle = (x, y, r, fill, stroke) => {
@@ -329,17 +333,17 @@ export function createSectorChart(el, root, actions) {
           );
     }
     if (self) {
-      circle(self.x, self.y, 1200, '#5adce008', '#5adce040');
+      circle(self.x, self.y, self.surveyRadius || 1200, '#5adce008', '#5adce040');
       for (const e of frame?.enemies || [])
-        if (e.hull > 0 && Math.hypot(e.x - self.x, e.y - self.y) <= 1200)
-          circle(e.x, e.y, 2.5 * line, '#ff796c');
+        if (e.hull > 0 && Math.hypot(e.x - self.x, e.y - self.y) <= (self.detectionRadius || 1200))
+          circle(e.x, e.y, 2.5 * line, e.faction === 'friendly' ? '#65e6be' : '#ff796c');
       const wp = actions.waypoint();
       if (wp) {
         c.strokeStyle = '#edcc7a';
         c.setLineDash([5 * line, 5 * line]);
         c.beginPath();
         c.moveTo(self.x, self.y);
-        c.lineTo(wp.x, wp.y);
+        for (const point of actions.route?.(self, wp) || [wp]) c.lineTo(point.x, point.y);
         c.stroke();
         c.setLineDash([]);
         circle(wp.x, wp.y, 10 * line, null, '#edcc7a');
@@ -350,7 +354,7 @@ export function createSectorChart(el, root, actions) {
     c.restore();
     c.fillStyle = '#7596ac';
     c.font = '10px monospace';
-    for (let x = 0; x <= 12000; x += 2000) {
+    for (let x = 0; x <= sector.width; x += 2000) {
       const px = t.x + x * t.scale;
       if (px > 8 && px < t.w - 45) c.fillText(String(x), px, t.h - 27);
     }
@@ -386,8 +390,8 @@ export function createSectorChart(el, root, actions) {
   plus.onclick = () => zoomTo(zoom * 1.25);
   fit.onclick = () => {
     zoom = 1;
-    cx = 6000;
-    cy = 4000;
+    cx = sector.width / 2;
+    cy = sector.height / 2;
     draw();
   };
   center.onclick = () => {
@@ -432,8 +436,8 @@ export function createSectorChart(el, root, actions) {
       sector = s;
       selected = null;
       zoom = 1;
-      cx = 6000;
-      cy = 4000;
+      cx = sector.width / 2;
+      cy = sector.height / 2;
       context.hidden = true;
       for (const { b } of markers.values()) b.remove();
       markers.clear();
@@ -464,6 +468,21 @@ export function createSectorChart(el, root, actions) {
           old.l.x = a.x;
           old.l.y = a.y;
         } else addMarker({ ...a, kind: 'pilot', pilot: a.id });
+      }
+      const distress = f.sector?.rescue;
+      for (const [key, marker] of markers)
+        if (
+          marker.l.kind === 'rescue' &&
+          (distress?.state !== 'active' || marker.l.id !== distress.id)
+        ) {
+          if (selected === marker.l) selected = null;
+          marker.b.remove();
+          markers.delete(key);
+        }
+      if (distress?.state === 'active') {
+        const previous = markers.get('rescue:' + distress.id);
+        if (previous) Object.assign(previous.l, distress);
+        else addMarker({ ...distress, kind: 'rescue', name: 'Emergency: save the relief ship' });
       }
       refresh();
       draw();

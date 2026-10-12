@@ -57,7 +57,8 @@ public sealed partial class Room
         p.EconomyPending = true;
         result = "pending";
         state.Receipt = new(request.Sequence, "pending");
-        Persist(
+        PersistForRun(
+            p,
             () => profiles.Credit(p.Name, reward.Credits),
             r =>
             {

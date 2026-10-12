@@ -25,7 +25,7 @@ For Visual Studio, select **ArcadeDodger.Server** as the startup project. F5 bui
 - M: sector map and pings. E: dock, undock, or interact.
 - Escape: menu. R: reduced visual effects.
 
-Explore planets, stations, wrecks, and hostile installations. Enemies launch from bases and marked arrival corridors. Buy modules at stations and edit up to four weapon chains anywhere. Death starts a new run with starter equipment; reconnecting resumes the current run. Friendships remain saved by callsign.
+Explore a 24,000 × 16,000 sector with solid rocky planets, surface outposts, and orbital stations. Fly around planet rims, fight hostile patrols, and follow radio beacons to cooperative relief-ship rescues. Buy modules at stations and edit complete weapon builds anywhere. Bays open at levels 1/8/16/24; each subsequent level activates a mod socket. Installed mods stay with unequipped weapons. Enemy equipment drops include ready-made weapons and six types of ship attachments; inventory is scrollable with no carrying cap. Fresh runs start at level 1 with four kinetic emitters and no purchased modules. Death permanently adds 5 credits to the next starting wallet (100 + 5 per replay). Leave starts fresh without adding a replay; an unexpected disconnect can resume the current run for less than 60 seconds. Friendships remain saved by callsign.
 
 ## Projects and verification
 

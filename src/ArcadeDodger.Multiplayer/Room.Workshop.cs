@@ -23,14 +23,7 @@ public sealed partial class Room
     public WorkshopSnapshot Workshop(int id)
     {
         var p = players[id];
-        var profile = profiles.Get(p.Name);
-        return new(
-            profile.Credits,
-            profile.Owned,
-            profile.Weapons,
-            p.WorkshopSequence,
-            p.WorkshopResult
-        );
+        return profiles.Workshop(p.Name, p.InventoryPage, p.WorkshopSequence, p.WorkshopResult);
     }
 
     public bool Buy(int id, BuyMessage request)
@@ -56,7 +49,8 @@ public sealed partial class Room
         if (p.WorkshopResult != "pending")
             return false;
         p.EconomyPending = true;
-        Persist(
+        PersistForRun(
+            p,
             () => profiles.Buy(p.Name, request.Module),
             result =>
             {
@@ -90,10 +84,23 @@ public sealed partial class Room
             p.WorkshopResult = "open_workshop";
             return false;
         }
+        if (
+            !ProfileStore.ValidLoadout(request.Weapons, profiles.Get(p.Name).Owned)
+            || !ModuleCatalog.LevelAllows(request.Weapons, LevelForExperience(p.Experience))
+            || request
+                .Weapons.Where((w, i) => !Unlocked(p, i) && w.Emitter != p.Weapons[i].Emitter)
+                .Any()
+        )
+        {
+            p.WorkshopResult = "level_required";
+            p.EquipAccepted = false;
+            return false;
+        }
         p.WorkshopResult = "pending";
         p.EconomyPending = true;
-        Persist(
-            () => profiles.Equip(p.Name, request.Weapons),
+        PersistForRun(
+            p,
+            () => profiles.Equip(p.Name, request.Weapons, LevelForExperience(p.Experience)),
             result =>
             {
                 if (p.WorkshopSequence == request.Sequence)
@@ -188,7 +195,8 @@ public sealed partial class Room
                 }
                 var (amount, lucky) = claim;
                 c.Pending = true;
-                Persist(
+                PersistForRun(
+                    collector,
                     () => profiles.Credit(collector.Name, amount),
                     result =>
                     {

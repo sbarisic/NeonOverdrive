@@ -4,7 +4,6 @@ export const branches = [
   'Defense',
   'Strength',
   'Fire Rate',
-  'Weapon Bays',
   'Masteries',
   'Mobility',
   'Fortune',

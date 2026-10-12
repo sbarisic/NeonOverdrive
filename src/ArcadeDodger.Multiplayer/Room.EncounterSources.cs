@@ -35,10 +35,17 @@ public sealed partial class Room
 
     private void Launch(Source source, bool gunner, int offset = 0)
     {
-        var p = source.Location.Position + new Vector2(120 + offset * 35, offset * 35);
+        var p = Exterior(
+            source.Location.Position + new Vector2(200 + offset * 35, offset * 35),
+            200
+        );
         p = Vector2.Clamp(p, new(25), new(Width - 25, Height - 25));
         var level = EnemyCatalog.Region(source.Location.Id);
-        var available = EnemyCatalog.Items.Where(t => t.MinimumLevel <= level).ToArray();
+        var available = EnemyCatalog
+            .Items.Where(t =>
+                t.MinimumLevel <= level && t.Id is not ("turret" or "rover" or "relief")
+            )
+            .ToArray();
         var type = available[source.LaunchCount++ % available.Length];
         var hull = (int)MathF.Ceiling(type.Hull * EnemyCatalog.Health(level));
         enemies.Add(
@@ -67,9 +74,23 @@ public sealed partial class Room
         {
             if (source.Destroyed)
                 continue;
+            if (source.Location.Surface && Tick % 600 == 0)
+                for (
+                    var i = enemies.Count(e =>
+                        e.Home == source.Location.Id && e.Type == "rover" && e.Hull > 0
+                    );
+                    i < 2;
+                    i++
+                )
+                    LaunchSurface(source.Location, false, i + 2);
+            if (source.Location.Faction == "friendly")
+                continue;
             var corridor = source.Location.Kind == "corridor";
             var count = enemies.Count(e =>
-                !e.Installation && e.Hull > 0 && e.Home == source.Location.Id
+                !e.Installation
+                && e.SurfacePlanet == 0
+                && e.Hull > 0
+                && e.Home == source.Location.Id
             );
             var quota = corridor ? 9 : 8;
             var volley = corridor ? 3 : 1;

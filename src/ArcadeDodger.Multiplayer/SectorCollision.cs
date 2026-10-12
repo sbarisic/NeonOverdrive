@@ -6,12 +6,25 @@ namespace ArcadeDodger.Multiplayer;
 public sealed class SectorCollision
 {
     private readonly SectorDefinition sector;
+    private readonly int geometryCount;
     private readonly Dictionary<(int, int), List<SectorObstacle>> cells = [];
 
     public SectorCollision(SectorDefinition sector)
     {
         this.sector = sector;
-        foreach (var o in sector.Obstacles)
+        var obstacles = sector
+            .Obstacles.Concat(
+                sector
+                    .Locations.Where(l => l.Solid)
+                    .Select(
+                        (l, i) =>
+                            new SectorObstacle(sector.Obstacles.Length + i + 1, l.X, l.Y, l.Radius)
+                    )
+            )
+            .Select((o, i) => o with { Id = i })
+            .ToArray();
+        geometryCount = obstacles.Length + 1;
+        foreach (var o in obstacles)
             for (var x = (int)((o.X - o.Radius) / 256); x <= (int)((o.X + o.Radius) / 256); x++)
             for (var y = (int)((o.Y - o.Radius) / 256); y <= (int)((o.Y + o.Radius) / 256); y++)
             {
@@ -23,8 +36,8 @@ public sealed class SectorCollision
 
     public IEnumerable<SectorObstacle> Query(Vector2 a, Vector2 b, float padding = 0)
     {
-        var seen = System.Buffers.ArrayPool<int>.Shared.Rent(sector.Obstacles.Length + 1);
-        Array.Clear(seen, 0, sector.Obstacles.Length + 1);
+        var seen = System.Buffers.ArrayPool<int>.Shared.Rent(geometryCount);
+        Array.Clear(seen, 0, geometryCount);
         try
         {
             for (
@@ -72,7 +85,7 @@ public sealed class SectorCollision
     public (float T, Vector2 Normal)? TraceShips(Vector2 from, Vector2 to, float radius)
     {
         var hit = Trace(from, to, radius);
-        foreach (var l in sector.Locations.Where(l => l.Kind == "base"))
+        foreach (var l in sector.Locations.Where(l => l.Kind is "base" or "outpost"))
             if (
                 Circle(from - l.Position, to - l.Position, l.Radius + radius) is { } t
                 && (hit is null || t < hit.Value.T)

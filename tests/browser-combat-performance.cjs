@@ -41,8 +41,15 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         fs.readFileSync(`artifacts/combat-performance/frames-${limit}.json`, 'utf8'),
       );
       recording.frames = recording.frames.slice(0, 45);
-      const result = await page.evaluate(async ({ sector, frames }) => {
-        const { presentSnapshot } = await import('/snapshot.js');
+      recording.wireFrames = process.env.PERF_FULL_WORLD
+        ? null
+        : recording.wireFrames?.slice(0, 45);
+      assert(
+        process.env.PERF_FULL_WORLD || recording.wireFrames,
+        'Regenerate the benchmark recording with actual viewer packets.',
+      );
+      const result = await page.evaluate(async ({ sector, frames, wireFrames }) => {
+        const { presentSnapshot, expandCombat } = await import('/snapshot.js');
         const h = window.__perfHost;
         h.ActivateArena();
         h.ArenaHudLayout(1920, 1080);
@@ -52,6 +59,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         const stages = [];
         const receive = [],
           intervals = [];
+        let privateState = {};
         let last = performance.now(),
           count = 0,
           done = false;
@@ -62,9 +70,17 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         }
         requestAnimationFrame(raf);
         for (let lap = 0; lap < 2; lap++)
-          for (const original of frames) {
-            const frame = structuredClone(original),
+          for (const original of wireFrames || frames) {
+            const start = performance.now();
+            const frame = wireFrames
+                ? expandCombat(JSON.parse(original))
+                : structuredClone(original),
               offset = lap * 1000;
+            for (const key of ['workshop', 'social', 'skillReceipt', 'creditReward'])
+              if (frame[key] == null) frame[key] = privateState[key] ?? null;
+            if (frame.sector && frame.sector.pilot == null)
+              frame.sector.pilot = privateState.sector?.pilot ?? null;
+            privateState = frame;
             frame.tick += offset;
             for (const s of frame.shots) s.born += offset;
             for (const x of frame.explosions) x.born += offset;
@@ -72,8 +88,6 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
               e.born += offset;
               e.id += lap * 1000000;
             }
-            const json = JSON.stringify(frame),
-              start = performance.now();
             presentSnapshot(h, frame);
             receive.push(performance.now() - start);
             stages.push(h.ArenaMetrics?.().split(',').map(Number) || []);
@@ -84,6 +98,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         const p95 = (a) => a.slice().sort((a, b) => a - b)[Math.floor(a.length * 0.95)];
         return {
           renderer: document.querySelector('canvas').getContext('webgl2')?.getParameter(7937),
+          traffic: wireFrames
+            ? 'viewer packets, including JSON expansion and private-state merge'
+            : 'unfiltered whole-world stress',
           stageSamples: stages.slice(-5),
           frames: count,
           renderP95: p95(window.__frameTimes.slice(60)),
@@ -99,6 +116,16 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         JSON.stringify(result, null, 2),
       );
       await page.screenshot({ path: `artifacts/combat-performance/browser-${limit}.png` });
+      if (limit === 512 && !process.env.PERF_FULL_WORLD) {
+        assert(
+          result.renderP95 < 20,
+          `Production rendering p95 ${result.renderP95} ms exceeds 20 ms.`,
+        );
+        assert(
+          result.frameIntervalP95 < 20,
+          `Production frame interval p95 ${result.frameIntervalP95} ms exceeds 20 ms.`,
+        );
+      }
     }
     assert.deepEqual(errors, []);
     fs.writeFileSync(

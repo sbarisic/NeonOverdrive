@@ -10,6 +10,14 @@ public sealed partial class Room
     private Shot CreateModularShot(Player p, float aim, int weapon = 0)
     {
         var w = p.Weapons[weapon];
+        var available = ModuleCatalog.ModSlots(LevelForExperience(p.Experience), weapon);
+        if (available < WeaponSlots)
+            w = w with
+            {
+                Attachments = w
+                    .Attachments.Select((id, slot) => slot < available ? id : 0)
+                    .ToArray(),
+            };
         var kind = w.Emitter;
         var stats = Stats(p, kind);
         var range = stats.Range;
@@ -158,7 +166,7 @@ public sealed partial class Room
             length = MathF.Max(0, length);
             var start = s.Position;
             var end = start + direction * length;
-            var cover = geometry?.Trace(start, end, coverRadius);
+            var cover = TraceCover(start, end, coverRadius);
             float? sanctuary = null;
             if (Sector is not null)
                 foreach (var station in Sector.Locations.Where(l => l.Kind == "station"))

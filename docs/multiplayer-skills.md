@@ -1,11 +1,10 @@
-Current multiplayer protocol: **v5**. See [cooperative combat](cooperative-combat.md) for run resets and reconnect persistence. Skill effects and unlock rules below remain in force.
-
-
 # Multiplayer skill tree and modular arsenal
+
+Current protocol: **v9**. See [cooperative combat](cooperative-combat.md) for fresh runs, replay bonuses, and recovery.
 
 ## Pilot Ascension (Tab)
 
-Press **Tab** or click **Skills** for the protected in-game skill tree. It contains **69 illustrated square tiles** in eight branches, with names, Roman-numeral tiers, level badges and prerequisite links. Branch buttons jump to a section; touch/scroll explores the complete tree. Arrow keys and Tab navigate, Enter/Space/click learns, and Escape returns to the arena. Locked nodes remain focusable. Snapshots preserve keyboard focus and scroll position.
+Press **Tab** or click **Skills** for the protected in-game skill tree. It contains **66 illustrated square tiles** in seven branches, with names, Roman-numeral tiers, level badges and prerequisite links. Branch buttons jump to a section; scrolling explores the complete tree. Arrow keys and Tab navigate, Enter/Space/click learns, and Escape returns to the arena. Locked nodes remain focusable. Snapshots preserve keyboard focus and scroll position.
 
 Earn **two points per level after level 1**. Every node costs one point and is purchased once. Skills and points reset with the run; there is no respec. Players can select **two emitter masteries** per run. The server validates level, prerequisites, ownership, points and the specialization limit before returning a private sequenced receipt. The menu preserves equipment cloak, hiding the ship from aliens and blocking damage, movement, fire and pickups.
 
@@ -14,7 +13,6 @@ Earn **two points per level after level 1**. Every node costs one point and is p
 | Defense | Shield Capacity I–VI each add/restore one shield (8 maximum). Hull Plating I–III each add/restore one hull (6 maximum). Quick Recharge I–II reduce shield delay to 4/3 seconds. Flux Recovery I–II regenerate 1.5/2 shields per second. Energy Siphon restores one shield per XP pickup. Living Metal I–II heal one hull every 10/5 seconds after 10 damage-free seconds. |
 | Strength | Strength I–V grant +15/30/45/60/75% weapon damage, including damaging statuses. Dynamics I–II add 15/30% projectile speed, or laser range. Range Engineering I–II add 15/30% initial range. |
 | Fire Rate | I–V add 10/20/30/40/50% firing frequency, or continuous laser DPS. Projectile cooldowns retain fractional timing. |
-| Weapon Bays | II/III/IV require both a purchased skill and level 5/10/15. Each requires the preceding bay. Weapon 1 is free. |
 | Masteries | Four tiers per emitter, guarded at levels 2/5/10/15. Learn roots in at most two emitter families. See below. |
 | Mobility | Thruster Tuning I–II adds 25/50% acceleration. Vector Control I–II adds 25/50% counter-steering acceleration. Slipstream I–II adds 10/20% speed; Cruise Engines adds another 10 percentage points. Impact Dampeners halves enemy ramming damage. |
 | Fortune | Fortune I–III grant +25/50/100% credits. Luck I–III have a 10/20/30% chance to double payouts. Lucky Find requires Luck III and level 8, raising the chance to 35%. |
@@ -29,7 +27,7 @@ Mastery tiers, in order:
 
 Bonuses add within each mastery and multiply with global Strength and attachments. Converted descendants keep their originating weapon's bonuses. Strength scales statuses once; Fire Rate does not accelerate status pulses. Laser converters/mines retain their emission rates and carry the increased incoming DPS in each payload. Skill-adjusted range establishes checkpoint distances.
 
-Ordinary independent tier series require levels 2/4/6/8/10/12. A dependent first tier requires at least two levels beyond its prerequisite; further tiers increase the guard by two. Shield II leads to Quick Recharge, then Flux Recovery. Shield III leads to Energy Siphon. Hull II leads to Living Metal. Strength I leads to Dynamics, and Strength II to Range Engineering. Phase Dash leads to Long Phase and Blink Cycle; Long Phase leads to Storm Nova. Slipstream II leads to Comet Drive. Collector I leads to Harvest; Collector II leads to Salvage Cycle.
+Ordinary independent tier series require levels 2/4/6/8/10/12. A dependent first tier requires at least two levels beyond its prerequisite; further tiers increase the guard by two. Shield II leads to Quick Recharge, then Flux Recovery. Shield III leads to Energy Siphon. Hull II leads to Living Metal. Strength I leads to Dynamics, and Strength II to Range Engineering. Thruster Tuning leads to Vector Control and Impact Dampeners. Slipstream II leads to Cruise Engines. Collector I leads to Harvest; Collector II leads to Field Repairs.
 
 Fortune/Luck apply to the collecting pilot after Salvage Beacon has determined the drop value: `floor(drop × Fortune multiplier × jackpot multiplier)`. The server uses a private deterministic roll per pickup/pilot, including failed-save retries. Only a successful wallet save consumes the pickup and produces a gold payout notification. XP is calculated and rounded independently.
 
@@ -39,7 +37,11 @@ Fortune/Luck apply to the collecting pilot after Salvage Beacon has determined t
 
 Press **I** or click **Weapons** for the in-game workshop. **Shop** sells four emitter types and 24 attachments. **Loadout** shows one weapon chain at a time. Select Weapon 1–4 above the chain; each selector shows whether it is enabled, disabled or locked. Each weapon has an emitter and eight fixed distance checkpoints: **5%, 10%, 15%, 20%, 25%, 30%, 35%, 40%**. The server supplies the catalog, prices and descriptions. Its source of truth is `ModuleCatalog.cs`.
 
-Each purchased copy can occupy one socket across all four rows. Disabled and level-locked rows also reserve copies. Drag from owned inventory, swap between weapon rows, or drag back to inventory to unequip. Click/Enter/Space selects and places; right-click or Delete clears. Left/right arrows navigate sockets; up/down changes weapon rows. All rows remain editable while locked. Scroll vertically through rows and horizontally on narrow screens. The preview shows the selected chain and cumulative damage/branch counts.
+Weapon bays unlock automatically at levels **1, 8, 16, and 24**, initially with just the emitter socket. Each following level unlocks one attachment checkpoint: `clamp(level − bay unlock level, 0, 8)`. Locked sockets show their required level. All eight positions can be filled in advance; locked positions remain dormant until their activation level. Unlocking a bay does not enable firing automatically.
+
+Each weapon is an individual item that owns its emitter and installed mods. Unequipping it returns the entire build to inventory. Loose mods stack; weapons and ship systems occupy individual inventory cells. Drag from owned inventory, swap between mod sockets, or drag back to inventory to unequip. Click/Enter/Space selects and places; right-click or Delete clears. Left/right arrows navigate sockets; up/down changes weapon rows. The preview shows the selected chain and cumulative damage/branch counts.
+
+Loading older profiles removes the three Weapon Bay skills and refunds their points through the unspent-point calculation. Dormant modules remain in their weapons; locked bays are disabled. Legacy spare emitters become blank weapon objects, and ownership counts become loose stock after subtracting installed components. The atomic, repeatable migration preserves owned copies, XP, credits, health, and remaining equipment.
 
 **Apply loadout** saves all four rows together. Reset restores the applied configuration. Closing discards unapplied edits; completed purchases remain owned. Dragging and keyboard focus survive snapshots. Shop and Loadout both keep the existing equipment cloak and suppress movement, firing and collection.
 
@@ -162,3 +164,9 @@ Restart the server and refresh browsers together for protocol **v3**. Existing p
 Only the selected weapon chain and its preview are visible. All four drafts stay intact when switching. Move a part across weapons by dropping it on a weapon selector (the same checkpoint is moved or swapped), or select a part, switch weapons, and choose a socket. Arrow keys navigate the selectors; Up/Down from a socket switches weapons at that checkpoint. Apply still saves all four configurations atomically.
 
 Verification: clean Release/WASM build and real-browser workshop regression, including one visible nine-socket chain, four selectors, matching preview, selection across snapshots, cross-weapon moves, inventory reservations, persistence, cloak and desktop/mobile screenshots.
+
+## Ship equipment and personal item drops
+
+The Arsenal includes six typed sockets: Shield, Engine, Radar, Utility, Hull, and Reactor. Each has two fixed variants and four regional tiers; ship equipment has no pilot-level requirement. New ships start with empty system slots. See [equipment rules](equipment.md) for bonuses, drop rates, sales, and persistence.
+
+The first socket selects an entire weapon. The eight smaller sockets edit its mods. The preview defaults to the active chain; Full build includes dormant mods. Double-click an inventory weapon to edit its stored build. Click an item and a compatible socket, drag between sockets, or right-click/Delete to unequip. Apply saves the complete draft atomically; Reset discards it. Inventory additions merge without discarding existing edits. Conflicting revisions keep the draft for review and require a refresh.

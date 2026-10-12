@@ -11,7 +11,10 @@ public sealed record SectorLocation(
     float Y,
     float Radius,
     string Biome = "",
-    int Parent = 0
+    int Parent = 0,
+    bool Solid = false,
+    string Faction = "neutral",
+    bool Surface = false
 )
 {
     [JsonIgnore]
@@ -32,8 +35,8 @@ public sealed record SectorDefinition(
     SectorObstacle[] Obstacles
 )
 {
-    public const float DefaultWidth = 12000,
-        DefaultHeight = 8000;
+    public const float DefaultWidth = 24000,
+        DefaultHeight = 16000;
 
     public static SectorDefinition Generate(int seed)
     {
@@ -41,7 +44,8 @@ public sealed record SectorDefinition(
         var locations = new List<SectorLocation>();
         var obstacles = new List<SectorObstacle>();
         // A jittered route skeleton guarantees reachable destinations and reproducible geography.
-        Vector2 J(float x, float y) => new(x + rng.Next(-160, 161), y + rng.Next(-160, 161));
+        Vector2 J(float x, float y) =>
+            new(2 * x + rng.Next(-160, 161), 2 * y + rng.Next(-160, 161));
         void Add(
             int id,
             string kind,
@@ -49,28 +53,56 @@ public sealed record SectorDefinition(
             Vector2 p,
             float radius,
             string biome = "",
-            int parent = 0
-        ) => locations.Add(new(id, kind, name, p.X, p.Y, radius, biome, parent));
+            int parent = 0,
+            bool solid = false,
+            string faction = "neutral",
+            bool surface = false
+        ) =>
+            locations.Add(
+                new(id, kind, name, p.X, p.Y, radius, biome, parent, solid, faction, surface)
+            );
         var planets = new[] { J(2400, 2100), J(5600, 1900), J(9000, 3300), J(6900, 6100) };
         var names = new[] { "Haven", "Cinder", "Zephyr", "The Sundering" };
         var biomes = new[] { "inhabited", "volcanic", "gas", "shattered" };
         for (var i = 0; i < 4; i++)
-            Add(1 + i, "planet", names[i], planets[i], i == 2 ? 760 : 580, biomes[i]);
-        Add(10, "station", "Arrival Port", new(1200, 1800), 90);
-        Add(11, "station", "Engineering Station", new(4200, 4200), 90);
-        Add(12, "station", "Frontier Outpost", new(9000, 6000), 90);
+            Add(
+                1 + i,
+                "planet",
+                names[i],
+                planets[i],
+                i == 2 ? 760 : 1160,
+                biomes[i],
+                solid: i != 2
+            );
+        Add(10, "station", "Arrival Port", new(2400, 3600), 90);
+        Add(11, "station", "Engineering Station", new(8400, 8400), 90);
+        Add(12, "station", "Frontier Outpost", new(18000, 12000), 90);
         for (var i = 0; i < 4; i++)
             Add(
                 20 + i,
                 "base",
                 names[i] + " Hostile Array",
-                planets[i] + new Vector2(650, 350),
+                planets[i] + Vector2.Normalize(new Vector2(650, 350)) * (i == 2 ? 1050 : 1247),
                 85,
                 "",
-                i + 1
+                i + 1,
+                faction: "hostile",
+                surface: i != 2
             );
-        Add(30, "corridor", "North Arrival Corridor", new(7500, 180), 110);
-        Add(31, "corridor", "East Arrival Corridor", new(11820, 5000), 110);
+        for (var i = 0; i < 4; i++)
+            if (i != 2)
+                Add(
+                    80 + i,
+                    "outpost",
+                    names[i] + " Allied Outpost",
+                    planets[i] - Vector2.Normalize(new Vector2(650, 350)) * 1247,
+                    85,
+                    parent: i + 1,
+                    faction: "friendly",
+                    surface: true
+                );
+        Add(30, "corridor", "North Arrival Corridor", new(15000, 180), 110);
+        Add(31, "corridor", "East Arrival Corridor", new(23820, 10000), 110);
         for (var i = 0; i < 6; i++)
             Add(
                 40 + i,
@@ -85,10 +117,16 @@ public sealed record SectorDefinition(
                 50 + i,
                 "beacon",
                 "Orbital Survey " + (i + 1),
-                planets[i + 1] + new Vector2(-500, -400),
+                planets[i + 1] + Vector2.Normalize(new Vector2(-500, -400)) * 1450,
                 24
             );
-        Add(60, "thermal", "Cinder Thermal Vent", planets[1] + new Vector2(-250, 200), 170);
+        Add(
+            60,
+            "thermal",
+            "Cinder Thermal Vent",
+            planets[1] + Vector2.Normalize(new Vector2(-250, 200)) * 1450,
+            170
+        );
         var clusters = new[]
         {
             new Vector2(3000, 3200),
@@ -100,6 +138,7 @@ public sealed record SectorDefinition(
             new(5600, 6600),
             new(5800, 5300),
         };
+        clusters = clusters.Select(p => p * 2).ToArray();
         // Keep all routes between interactable destinations clear, not only the nearest route.
         var nodes = locations
             .Where(l => l.Kind is "station" or "base" or "wreck" or "beacon" or "corridor")
@@ -117,9 +156,9 @@ public sealed record SectorDefinition(
                 var radius = rng.Next(28, 64);
                 if (
                     locations.Any(l =>
-                        l.Kind != "planet"
-                        && l.Kind != "cluster"
-                        && Vector2.Distance(p, l.Position) < l.Radius + radius + 130
+                        l.Kind != "cluster"
+                        && Vector2.Distance(p, l.Position)
+                            < l.Radius + radius + (l.Solid ? 400 : 130)
                     )
                 )
                     continue;
