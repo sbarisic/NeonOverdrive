@@ -11,12 +11,24 @@ public sealed class BrowserAssetTests
     {
         var root = Path.Combine(Path.GetTempPath(), "neon-assets-" + Guid.NewGuid());
         Directory.CreateDirectory(root);
-        await File.WriteAllTextAsync(Path.Combine(root, "index.html"), "<script type=\"module\" src=\"./main.js\"></script>");
+        await File.WriteAllTextAsync(
+            Path.Combine(root, "index.html"),
+            "<script type=\"module\" src=\"./main.js\"></script>"
+        );
         await File.WriteAllTextAsync(Path.Combine(root, "main.js"), "import './skills.js';");
         await File.WriteAllTextAsync(Path.Combine(root, "skills.js"), "export const version = 1;");
-        await using var app = Program.Build(["--urls", "http://127.0.0.1:0", "--BrowserRoot", root,
-            "--ProfilesFile", Path.Combine(root, "profiles.json"), "--FriendsFile", Path.Combine(root, "friends.json"),
-            "--Logging:LogLevel:Default", "Warning"]);
+        await using var app = Program.Build([
+            "--urls",
+            "http://127.0.0.1:0",
+            "--BrowserRoot",
+            root,
+            "--ProfilesFile",
+            Path.Combine(root, "profiles.json"),
+            "--FriendsFile",
+            Path.Combine(root, "friends.json"),
+            "--Logging:LogLevel:Default",
+            "Warning",
+        ]);
         try
         {
             await app.StartAsync();
@@ -28,14 +40,20 @@ public sealed class BrowserAssetTests
             Assert.Equal(2, imports.Count);
             Assert.Single(imports.Values.Select(x => x.Split("?v=")[1]).Distinct());
             Assert.Contains($"src=\"{imports["./main.js"]}\"", first);
-            using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/index.html"));
+            using var head = await client.SendAsync(
+                new HttpRequestMessage(HttpMethod.Head, "/index.html")
+            );
             Assert.True(head.Headers.CacheControl!.NoStore);
             Assert.Equal("", await head.Content.ReadAsStringAsync());
             Assert.Equal(first, await client.GetStringAsync("/index.html"));
 
-            await File.WriteAllTextAsync(Path.Combine(root, "skills.js"), "export const version = 2;");
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "skills.js"),
+                "export const version = 2;"
+            );
             var updated = Imports(await client.GetStringAsync("/"));
-            foreach (var module in imports.Keys) Assert.NotEqual(imports[module], updated[module]);
+            foreach (var module in imports.Keys)
+                Assert.NotEqual(imports[module], updated[module]);
             using var asset = await client.GetAsync(updated["./skills.js"]);
             Assert.True(asset.Headers.CacheControl!.NoCache);
             Assert.Equal("export const version = 2;", await asset.Content.ReadAsStringAsync());
@@ -52,6 +70,8 @@ public sealed class BrowserAssetTests
     {
         var json = html.Split("<script type=\"importmap\">")[1].Split("</script>")[0];
         using var document = JsonDocument.Parse(json);
-        return document.RootElement.GetProperty("imports").Deserialize<Dictionary<string, string>>()!;
+        return document
+            .RootElement.GetProperty("imports")
+            .Deserialize<Dictionary<string, string>>()!;
     }
 }

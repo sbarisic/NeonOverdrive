@@ -17,12 +17,16 @@ internal static class BrowserAssets
             hash.AppendData(File.ReadAllBytes(file));
         }
         var version = Convert.ToHexString(hash.GetHashAndReset())[..16];
-        var imports = files.ToDictionary(file => "./" + Path.GetFileName(file),
-            file => "./" + Path.GetFileName(file) + "?v=" + version);
+        var imports = files.ToDictionary(
+            file => "./" + Path.GetFileName(file),
+            file => "./" + Path.GetFileName(file) + "?v=" + version
+        );
         var map = JsonSerializer.Serialize(new { imports });
-        return File.ReadAllText(Path.Combine(root, "index.html")).Replace(
-            "<script type=\"module\" src=\"./main.js\"></script>",
-            $"<script type=\"importmap\">{map}</script>\n  <script type=\"module\" src=\"./main.js?v={version}\"></script>",
-            StringComparison.Ordinal);
+        return File.ReadAllText(Path.Combine(root, "index.html"))
+            .Replace(
+                "<script type=\"module\" src=\"./main.js\"></script>",
+                $"<script type=\"importmap\">{map}</script>\n  <script type=\"module\" src=\"./main.js?v={version}\"></script>",
+                StringComparison.Ordinal
+            );
     }
 }

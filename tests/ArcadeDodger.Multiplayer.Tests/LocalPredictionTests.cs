@@ -44,7 +44,11 @@ public class LocalPredictionTests
         Assert.InRange(prediction.HistoryCount, 1, LocalPrediction.MaxHistory);
         Assert.InRange(prediction.SentCount, 1, LocalPrediction.MaxHistory);
         var frozen = prediction.Sample(1)!;
-        Assert.InRange(frozen.X, 100, 100 + Room.Speed * (float)LocalPrediction.MaxPredictionSeconds);
+        Assert.InRange(
+            frozen.X,
+            100,
+            100 + Room.Speed * (float)LocalPrediction.MaxPredictionSeconds
+        );
         Assert.Equal(frozen.X, prediction.Sample(1000)!.X);
     }
 
@@ -86,7 +90,14 @@ public class LocalPredictionTests
     {
         var prediction = Start();
         prediction.Input(1, 0, 0, true, 0);
-        var frame = Pilot(130) with { Hull = 2, Shield = 0, Experience = 50, Level = 3, Acceleration = 1500 };
+        var frame = Pilot(130) with
+        {
+            Hull = 2,
+            Shield = 0,
+            Experience = 50,
+            Level = 3,
+            Acceleration = 1500,
+        };
         prediction.Receive(frame, 3, .1);
         prediction.Receive(Pilot(900), 2, .2);
         var sample = prediction.Sample(.2)!;
@@ -98,27 +109,53 @@ public class LocalPredictionTests
         Assert.True(sample.X < 900);
     }
 
-    [Fact] public void AccelerationAndCoastingMatchSharedPhysicsAcrossInputBoundaries()
+    [Fact]
+    public void AccelerationAndCoastingMatchSharedPhysicsAcrossInputBoundaries()
     {
-        var prediction=Start();prediction.Input(1,0,0,false,0);Assert.Equal(106,prediction.Sample(.1)!.X,3);
-        prediction.Input(0,0,0,false,.1);Assert.Equal(116.5f,prediction.Sample(.2)!.X,3);Assert.Equal(90,prediction.Sample(.2)!.VelocityX,3);
-        prediction.Input(0,0,0,true,.2);Assert.Equal(116.5f,prediction.Sample(.3)!.X,3);Assert.Equal(0,prediction.Sample(.3)!.VelocityX);
+        var prediction = Start();
+        prediction.Input(1, 0, 0, false, 0);
+        Assert.Equal(106, prediction.Sample(.1)!.X, 3);
+        prediction.Input(0, 0, 0, false, .1);
+        Assert.Equal(116.5f, prediction.Sample(.2)!.X, 3);
+        Assert.Equal(90, prediction.Sample(.2)!.VelocityX, 3);
+        prediction.Input(0, 0, 0, true, .2);
+        Assert.Equal(116.5f, prediction.Sample(.3)!.X, 3);
+        Assert.Equal(0, prediction.Sample(.3)!.VelocityX);
     }
-    [Fact] public void PredictionMatchesServerAndIgnoresExtraPackets()
+
+    [Fact]
+    public void PredictionMatchesServerAndIgnoresExtraPackets()
     {
-        var room=new Room(false,sectorEnabled:false);var id=room.Join("Pilot")!.Value;
-        var p=Start(room.Snapshot().Players[0]);for(int seq=1;seq<=100;seq++){p.Input(-1,0,0,false,0);p.SentInput(seq,0);room.Input(id,new(seq,-1,0,0,false,false));}
-        room.Step();Assert.Equal(room.Snapshot().Players[0].X,p.Sample(1d/30)!.X,3);
-        Assert.Equal(room.Snapshot().Players[0].VelocityX,p.Sample(1d/30)!.VelocityX,3);
+        var room = new Room(false, sectorEnabled: false);
+        var id = room.Join("Pilot")!.Value;
+        var p = Start(room.Snapshot().Players[0]);
+        for (int seq = 1; seq <= 100; seq++)
+        {
+            p.Input(-1, 0, 0, false, 0);
+            p.SentInput(seq, 0);
+            room.Input(id, new(seq, -1, 0, 0, false, false));
+        }
+        room.Step();
+        Assert.Equal(room.Snapshot().Players[0].X, p.Sample(1d / 30)!.X, 3);
+        Assert.Equal(room.Snapshot().Players[0].VelocityX, p.Sample(1d / 30)!.VelocityX, 3);
     }
-    [Fact] public void CurrentVelocityCoastsWithoutInputAndRejectsInvalidSnapshots()
+
+    [Fact]
+    public void CurrentVelocityCoastsWithoutInputAndRejectsInvalidSnapshots()
     {
-        var p=Start(Pilot() with {VelocityX=300});Assert.Equal(128.5f,p.Sample(.1)!.X,3);
-        p.Receive(Pilot() with {VelocityX=float.NaN},1,.1);Assert.Equal(128.5f,p.Sample(.1)!.X,3);
+        var p = Start(Pilot() with { VelocityX = 300 });
+        Assert.Equal(128.5f, p.Sample(.1)!.X, 3);
+        p.Receive(Pilot() with { VelocityX = float.NaN }, 1, .1);
+        Assert.Equal(128.5f, p.Sample(.1)!.X, 3);
     }
-    [Fact] public void MouseRefreshDoesNotDiscardAccelerationHistory()
+
+    [Fact]
+    public void MouseRefreshDoesNotDiscardAccelerationHistory()
     {
-        var p=Start();for(int i=0;i<=500;i++)p.Input(1,0,i/1000f,false,i/1000d);
-        Assert.InRange(p.Sample(.5)!.X,212.4f,212.6f);Assert.InRange(p.HistoryCount,1,4);
+        var p = Start();
+        for (int i = 0; i <= 500; i++)
+            p.Input(1, 0, i / 1000f, false, i / 1000d);
+        Assert.InRange(p.Sample(.5)!.X, 212.4f, 212.6f);
+        Assert.InRange(p.HistoryCount, 1, 4);
     }
 }

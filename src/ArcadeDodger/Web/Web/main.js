@@ -13,20 +13,33 @@ try {
   const { startNetwork } = await import('./network.js');
   startNetwork(host, canvas, status);
   let running = true;
-  window.addEventListener('pagehide', () => {
-    if (running) { running = false; host.Close(); }
-  }, { once: true });
+  window.addEventListener(
+    'pagehide',
+    () => {
+      if (running) {
+        running = false;
+        host.Close();
+      }
+    },
+    { once: true },
+  );
   function frame() {
     if (!running) return;
     try {
       const bounds = canvas.getBoundingClientRect();
-      if (!host.UpdateFrame(bounds.width, bounds.height, window.devicePixelRatio || 1)) { running = false; host.Close(); return; }
+      if (!host.UpdateFrame(bounds.width, bounds.height, window.devicePixelRatio || 1)) {
+        running = false;
+        host.Close();
+        return;
+      }
     } catch (error) {
       running = false;
       status.hidden = false;
       status.textContent = `Game stopped: ${error}`;
       console.error(error);
-      try { host.Close(); } catch {}
+      try {
+        host.Close();
+      } catch {}
       return;
     }
     requestAnimationFrame(frame);

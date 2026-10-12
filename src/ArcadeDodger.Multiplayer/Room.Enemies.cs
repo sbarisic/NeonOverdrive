@@ -1,79 +1,295 @@
 using System.Numerics;
+
 namespace ArcadeDodger.Multiplayer;
-public sealed record EnemySnapshot(int Id,string Kind,float X,float Y,float Aim,int Hull,bool Telegraph,int Effects=0,int Home=0,string State="patrol",int Level=1,float Radius=20,int MaxHull=3);
+
+public sealed record EnemySnapshot(
+    int Id,
+    string Kind,
+    float X,
+    float Y,
+    float Aim,
+    int Hull,
+    bool Telegraph,
+    int Effects = 0,
+    int Home = 0,
+    string State = "patrol",
+    int Level = 1,
+    float Radius = 20,
+    int MaxHull = 3
+);
+
 public sealed partial class Room
 {
-    public const int EnemyCapacity=192;
-    private static float EnemyRadius(Enemy e)=>e.Installation?85:EnemyCatalog.Get(e.Type).Radius*EnemyCatalog.Size(e.Level);
-    private readonly List<Enemy> enemies=[];
+    public const int EnemyCapacity = 192;
+
+    private static float EnemyRadius(Enemy e) =>
+        e.Installation ? 85 : EnemyCatalog.Get(e.Type).Radius * EnemyCatalog.Size(e.Level);
+
+    private readonly List<Enemy> enemies = [];
     private int nextEnemy;
+
     private void StepEnemies()
     {
         StepSources();
-        var alive=players.Values.Where(p=>p.Hull>0&&p.Connected&&!p.Editing&&!Safe(p)).ToArray();
-        foreach(var enemy in enemies)
+        var alive = players
+            .Values.Where(p => p.Hull > 0 && p.Connected && !p.Editing && !Safe(p))
+            .ToArray();
+        foreach (var enemy in enemies)
         {
-            enemy.Previous=enemy.Position;
-            if(enemy.Installation||enemy.Hull<=0||Tick<enemy.StunUntil)continue;
-            var home=Location(enemy.Home)?.Position??enemy.Position;
-            var route=home;
-            if(Location(enemy.Home)?.Kind=="corridor")route=Location(enemy.Home==30?22:23)!.Position;
-            var points=PatrolRoute(enemy.Home);
-            bool InTerritory(Vector2 pos)=>Enumerable.Range(0,4).Any(i=>SectorCollision.DistanceToSegment(pos,points[i],points[(i+1)%4])<=1200);
-            var target=playerGrid.Query(enemy.Position,enemy.Position,700).Where(p=>alive.Contains(p)).Where(p=>Vector2.DistanceSquared(p.Position,enemy.Position)<=700*700&&InTerritory(p.Position)&&VisibleLine(enemy.Position,p.Position)).OrderBy(p=>Vector2.DistanceSquared(p.Position,enemy.Position)).FirstOrDefault();
-            if(enemy.Target>0&&alive.FirstOrDefault(p=>p.Id==enemy.Target) is {} tracked&&InTerritory(tracked.Position)&&Vector2.Distance(tracked.Position,enemy.Position)<1200&&VisibleLine(enemy.Position,tracked.Position))target=tracked;
-            var launching=Tick<enemy.LaunchUntil;if(launching)target=null;
+            enemy.Previous = enemy.Position;
+            if (enemy.Installation || enemy.Hull <= 0 || Tick < enemy.StunUntil)
+                continue;
+            var home = Location(enemy.Home)?.Position ?? enemy.Position;
+            var route = home;
+            if (Location(enemy.Home)?.Kind == "corridor")
+                route = Location(enemy.Home == 30 ? 22 : 23)!.Position;
+            var points = PatrolRoute(enemy.Home);
+            bool InTerritory(Vector2 pos) =>
+                Enumerable
+                    .Range(0, 4)
+                    .Any(i =>
+                        SectorCollision.DistanceToSegment(pos, points[i], points[(i + 1) % 4])
+                        <= 1200
+                    );
+            var target = playerGrid
+                .Query(enemy.Position, enemy.Position, 700)
+                .Where(p => alive.Contains(p))
+                .Where(p =>
+                    Vector2.DistanceSquared(p.Position, enemy.Position) <= 700 * 700
+                    && InTerritory(p.Position)
+                    && VisibleLine(enemy.Position, p.Position)
+                )
+                .OrderBy(p => Vector2.DistanceSquared(p.Position, enemy.Position))
+                .FirstOrDefault();
+            if (
+                enemy.Target > 0
+                && alive.FirstOrDefault(p => p.Id == enemy.Target) is { } tracked
+                && InTerritory(tracked.Position)
+                && Vector2.Distance(tracked.Position, enemy.Position) < 1200
+                && VisibleLine(enemy.Position, tracked.Position)
+            )
+                target = tracked;
+            var launching = Tick < enemy.LaunchUntil;
+            if (launching)
+                target = null;
             Vector2 goal;
-            if(launching){enemy.Target=0;enemy.State="launch";goal=points[enemy.Patrol%4];}
-            else if(target is not null){if(enemy.Target!=target.Id)enemy.FireAt=Math.Max(enemy.FireAt,Tick+(enemy.Type=="sniper"?30:15));enemy.Target=target.Id;enemy.State="engage";goal=target.Position;}
-            else if(Tick<enemy.InvestigateUntil&&InTerritory(enemy.Investigate)){enemy.Target=0;enemy.State="investigate";goal=enemy.Investigate;}
-            else {enemy.Target=0;goal=points[enemy.Patrol%4];enemy.State=Vector2.Distance(enemy.Position,goal)>700?"return":"patrol";if(Vector2.Distance(enemy.Position,goal)<60)enemy.Patrol=(enemy.Patrol+1)%4;}
-            var delta=goal-enemy.Position;var distance=delta.Length();var direction=distance>.001f?delta/distance:Vector2.UnitX;
-            enemy.Aim=MathF.Atan2(direction.Y,direction.X);
-            var outer=enemy.Type=="sniper"?580:320;var inner=enemy.Type=="sniper"?460:220;
-            var movement=target is not null&&enemy.Gunner?(distance>outer?1:distance<inner?-1:0):1;
-            if(enemy.Type=="interceptor"&&target is not null)
+            if (launching)
             {
-                if(Tick<enemy.RetreatUntil)direction=-direction;
-                else direction=Vector2.Normalize(direction+new Vector2(-direction.Y,direction.X)*.65f);
-                movement=1;
+                enemy.Target = 0;
+                enemy.State = "launch";
+                goal = points[enemy.Patrol % 4];
             }
-            if(enemy.Type=="tender")
+            else if (target is not null)
             {
-                var ally=enemyGrid.Query(enemy.Position,enemy.Position,250).Where(e=>e!=enemy&&!e.Installation&&e.Hull>0&&e.Hull-e.DamageFraction<e.MaxHull&&Vector2.DistanceSquared(e.Position,enemy.Position)<=250*250&&VisibleLine(enemy.Position,e.Position)).OrderBy(e=>e.Hull-e.DamageFraction).FirstOrDefault();
-                enemy.SupportTarget=ally?.Id??0;
-                if(ally is not null){ally.DamageFraction-=.5f/TickRate;while(ally.DamageFraction<0&&ally.Hull<ally.MaxHull){ally.Hull++;ally.DamageFraction+=1;}if(ally.Hull>=ally.MaxHull)ally.DamageFraction=Math.Max(0,ally.DamageFraction);movement=0;}
+                if (enemy.Target != target.Id)
+                    enemy.FireAt = Math.Max(
+                        enemy.FireAt,
+                        Tick + (enemy.Type == "sniper" ? 30 : 15)
+                    );
+                enemy.Target = target.Id;
+                enemy.State = "engage";
+                goal = target.Position;
             }
-            var step=direction*EnemyCatalog.Get(enemy.Type).Speed/TickRate*movement*(Tick<enemy.SlowUntil?enemy.SlowFactor:1);
+            else if (Tick < enemy.InvestigateUntil && InTerritory(enemy.Investigate))
+            {
+                enemy.Target = 0;
+                enemy.State = "investigate";
+                goal = enemy.Investigate;
+            }
+            else
+            {
+                enemy.Target = 0;
+                goal = points[enemy.Patrol % 4];
+                enemy.State = Vector2.Distance(enemy.Position, goal) > 700 ? "return" : "patrol";
+                if (Vector2.Distance(enemy.Position, goal) < 60)
+                    enemy.Patrol = (enemy.Patrol + 1) % 4;
+            }
+            var delta = goal - enemy.Position;
+            var distance = delta.Length();
+            var direction = distance > .001f ? delta / distance : Vector2.UnitX;
+            enemy.Aim = MathF.Atan2(direction.Y, direction.X);
+            var outer = enemy.Type == "sniper" ? 580 : 320;
+            var inner = enemy.Type == "sniper" ? 460 : 220;
+            var movement =
+                target is not null && enemy.Gunner
+                    ? (
+                        distance > outer ? 1
+                        : distance < inner ? -1
+                        : 0
+                    )
+                    : 1;
+            if (enemy.Type == "interceptor" && target is not null)
+            {
+                if (Tick < enemy.RetreatUntil)
+                    direction = -direction;
+                else
+                    direction = Vector2.Normalize(
+                        direction + new Vector2(-direction.Y, direction.X) * .65f
+                    );
+                movement = 1;
+            }
+            if (enemy.Type == "tender")
+            {
+                var ally = enemyGrid
+                    .Query(enemy.Position, enemy.Position, 250)
+                    .Where(e =>
+                        e != enemy
+                        && !e.Installation
+                        && e.Hull > 0
+                        && e.Hull - e.DamageFraction < e.MaxHull
+                        && Vector2.DistanceSquared(e.Position, enemy.Position) <= 250 * 250
+                        && VisibleLine(enemy.Position, e.Position)
+                    )
+                    .OrderBy(e => e.Hull - e.DamageFraction)
+                    .FirstOrDefault();
+                enemy.SupportTarget = ally?.Id ?? 0;
+                if (ally is not null)
+                {
+                    ally.DamageFraction -= .5f / TickRate;
+                    while (ally.DamageFraction < 0 && ally.Hull < ally.MaxHull)
+                    {
+                        ally.Hull++;
+                        ally.DamageFraction += 1;
+                    }
+                    if (ally.Hull >= ally.MaxHull)
+                        ally.DamageFraction = Math.Max(0, ally.DamageFraction);
+                    movement = 0;
+                }
+            }
+            var step =
+                direction
+                * EnemyCatalog.Get(enemy.Type).Speed
+                / TickRate
+                * movement
+                * (Tick < enemy.SlowUntil ? enemy.SlowFactor : 1);
             // Tangent steering lets patrols walk around cover instead of pinning against it.
-            if(geometry?.TraceShips(enemy.Position,enemy.Position+direction*100,EnemyRadius(enemy)) is {} obstacle)
-            {var tangent=new Vector2(-obstacle.Normal.Y,obstacle.Normal.X);if(Vector2.Dot(tangent,direction)<0)tangent=-tangent;step=tangent*step.Length();}
-            var next=MoveShip(enemy.Position,enemy.Position+step,EnemyRadius(enemy));
-            if(!Sanctuary(next))enemy.Position=next;else {enemy.Target=0;enemy.Patrol=(enemy.Patrol+1)%4;enemy.State="return";}
-            if(target is null)continue;
-            if(enemy.Gunner&&enemy.Type!="tender"&&distance<(enemy.Type=="sniper"?850:650)&&Tick>=enemy.FireAt&&Tick>=enemy.RetreatUntil&&VisibleLine(enemy.Position,target.Position))
+            if (
+                geometry?.TraceShips(
+                    enemy.Position,
+                    enemy.Position + direction * 100,
+                    EnemyRadius(enemy)
+                ) is
+                { } obstacle
+            )
             {
-                var aim=Vector2.Normalize(target.Position-enemy.Position);
-                if(shots.Count<ProjectileLimit)shots.Add(new(){Id=++nextShot,Owner=-enemy.Id,Position=enemy.Position,Velocity=aim*((enemy.Type=="sniper"?720:280f)/TickRate),Damage=EnemyCatalog.Damage(enemy.Level)*(enemy.Type=="sniper"?2:1),Born=Tick,Expires=Tick+90});
-                if(enemy.Type=="interceptor"&&enemy.Burst==0){enemy.Burst=1;enemy.FireAt=Tick+6;}
-                else {enemy.Burst=0;enemy.FireAt=Tick+(enemy.Type=="sniper"?120:75);if(enemy.Type=="interceptor")enemy.RetreatUntil=Tick+45;}
+                var tangent = new Vector2(-obstacle.Normal.Y, obstacle.Normal.X);
+                if (Vector2.Dot(tangent, direction) < 0)
+                    tangent = -tangent;
+                step = tangent * step.Length();
             }
-            if(!enemy.Gunner&&Tick>=enemy.FireAt&&Tick>=target.ProtectedUntil&&Intersection(enemy.Previous-target.Previous,enemy.Position-target.Position,Radius+EnemyRadius(enemy)).HasValue)
-            {Hit(new Shot{Owner=-enemy.Id},target,null,EnemyCatalog.Damage(enemy.Level)*(1-Value(target,"impact")));enemy.FireAt=Tick+30;}
-
+            var next = MoveShip(enemy.Position, enemy.Position + step, EnemyRadius(enemy));
+            if (!Sanctuary(next))
+                enemy.Position = next;
+            else
+            {
+                enemy.Target = 0;
+                enemy.Patrol = (enemy.Patrol + 1) % 4;
+                enemy.State = "return";
+            }
+            if (target is null)
+                continue;
+            if (
+                enemy.Gunner
+                && enemy.Type != "tender"
+                && distance < (enemy.Type == "sniper" ? 850 : 650)
+                && Tick >= enemy.FireAt
+                && Tick >= enemy.RetreatUntil
+                && VisibleLine(enemy.Position, target.Position)
+            )
+            {
+                var aim = Vector2.Normalize(target.Position - enemy.Position);
+                if (shots.Count < ProjectileLimit)
+                    shots.Add(
+                        new()
+                        {
+                            Id = ++nextShot,
+                            Owner = -enemy.Id,
+                            Position = enemy.Position,
+                            Velocity = aim * ((enemy.Type == "sniper" ? 720 : 280f) / TickRate),
+                            Damage =
+                                EnemyCatalog.Damage(enemy.Level) * (enemy.Type == "sniper" ? 2 : 1),
+                            Born = Tick,
+                            Expires = Tick + 90,
+                        }
+                    );
+                if (enemy.Type == "interceptor" && enemy.Burst == 0)
+                {
+                    enemy.Burst = 1;
+                    enemy.FireAt = Tick + 6;
+                }
+                else
+                {
+                    enemy.Burst = 0;
+                    enemy.FireAt = Tick + (enemy.Type == "sniper" ? 120 : 75);
+                    if (enemy.Type == "interceptor")
+                        enemy.RetreatUntil = Tick + 45;
+                }
+            }
+            if (
+                !enemy.Gunner
+                && Tick >= enemy.FireAt
+                && Tick >= target.ProtectedUntil
+                && Intersection(
+                    enemy.Previous - target.Previous,
+                    enemy.Position - target.Position,
+                    Radius + EnemyRadius(enemy)
+                ).HasValue
+            )
+            {
+                Hit(
+                    new Shot { Owner = -enemy.Id },
+                    target,
+                    null,
+                    EnemyCatalog.Damage(enemy.Level) * (1 - Value(target, "impact"))
+                );
+                enemy.FireAt = Tick + 30;
+            }
         }
     }
+
     private sealed class Enemy
     {
-        private string? type;public string Type {get=>type??(Gunner?"gunner":"rammer");set=>type=value;}public int Level=1,MaxHull=3,Burst,SupportTarget;
+        private string? type;
+        public string Type
+        {
+            get => type ?? (Gunner ? "gunner" : "rammer");
+            set => type = value;
+        }
+        public int Level = 1,
+            MaxHull = 3,
+            Burst,
+            SupportTarget;
         public long RetreatUntil;
-        public readonly Dictionary<int,(string Run,float Damage)> Contributors=[];
-        public int Id,Hull=3,Home,Target,Patrol;public bool Gunner,Installation;
-        public string State="guard";
-        public Vector2 Position,Previous,Investigate;public float Aim;
-        public long LaunchUntil,InvestigateUntil,FireAt,BurnUntil,RadiationUntil,SlowUntil;
-        public Shot? BurnSource,RadiationSource;
-        public float DamageFraction,Charge,BurnPower,RadPower,Corrosion,SlowFactor=1;
-        public long CorrosionUntil,StunUntil,StunReady,MarkUntil;
+        public readonly Dictionary<int, (string Run, float Damage)> Contributors = [];
+        public int Id,
+            Hull = 3,
+            Home,
+            Target,
+            Patrol;
+        public bool Gunner,
+            Installation;
+        public string State = "guard";
+        public Vector2 Position,
+            Previous,
+            Investigate;
+        public float Aim;
+        public long LaunchUntil,
+            InvestigateUntil,
+            FireAt,
+            BurnUntil,
+            RadiationUntil,
+            SlowUntil;
+        public Shot? BurnSource,
+            RadiationSource;
+        public float DamageFraction,
+            Charge,
+            BurnPower,
+            RadPower,
+            Corrosion,
+            SlowFactor = 1;
+        public long CorrosionUntil,
+            StunUntil,
+            StunReady,
+            MarkUntil;
     }
 }

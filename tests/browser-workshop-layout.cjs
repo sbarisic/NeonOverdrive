@@ -1,9 +1,75 @@
-const {chromium}=require('../artifacts/browser-check/node_modules/playwright');const assert=require('node:assert/strict');
-(async()=>{const b=await chromium.launch({channel:'msedge',headless:true});try{const p=await b.newPage({viewport:{width:1920,height:1080}}),errors=[];p.on('pageerror',e=>errors.push(String(e)));
-await p.route('**/weapons.js*',async route=>{const response=await route.fetch();let s=await response.text();s=s.replace('return {get open(){return opened;},setOpen,setCatalog','return window.__benchFixture={get open(){return opened;},setOpen,setCatalog').replace('update(self,connected,profile){','update(self,connected,profile){if(window.__holdWorkshop)return;');await route.fulfill({response,body:s});});
-await p.goto((process.env.ARENA_URL||'http://localhost:5094')+'/');await p.locator('#nickname').fill('Dense'+Date.now().toString(36));await p.getByRole('button',{name:'Join arena',exact:true}).click();await p.waitForFunction(()=>document.querySelector('#network-info')?.dataset.snapshot);
-await p.locator('#canvas').focus();await p.keyboard.press('i');
-await p.evaluate(()=>{const e=document.querySelector('#network-info'),f=JSON.parse(e.dataset.snapshot),s=f.players.find(p=>p.id===+e.dataset.player);const profile=structuredClone(f.workshop);profile.owned=Array(29).fill(10);window.__benchFixture.update(s,true,profile);window.__holdWorkshop=true;});
-for(const [width,height] of [[1920,1080],[1280,720]]){await p.setViewportSize({width,height});await p.waitForTimeout(150);const metrics=await p.locator('#weapon-bench').evaluate(el=>{const body=el.querySelector('.forge-body');return {scroll:body.scrollHeight-body.clientHeight,slots:[...el.querySelectorAll('#weapon-chain-0 .weapon-slot')].map(s=>s.getBoundingClientRect().height),inventory:[...el.querySelectorAll('.module-item')].map(s=>s.getBoundingClientRect().height)};});console.log(width,height,metrics);assert(metrics.slots.every(h=>h<=74));assert(metrics.inventory.every(h=>h<=48));if(height===1080)assert(metrics.scroll<=2);await p.screenshot({path:`artifacts/browser-check/dense-workshop-${height}.png`});}
-await p.getByRole('tab',{name:'Shop',exact:true}).click();await p.screenshot({path:'artifacts/browser-check/compact-shop.png'});await p.keyboard.press('Escape');await p.keyboard.press('Escape');await p.locator('#arena-menu').waitFor({state:'visible'});await p.screenshot({path:'artifacts/browser-check/compact-menu.png'});assert.deepEqual(errors,[]);console.log('PASS: populated compact inventory, slots, shop and Escape menu, no browser errors.');
-}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
+const assert = require('node:assert/strict');
+(async () => {
+  const b = await chromium.launch({ channel: 'msedge', headless: true });
+  try {
+    const p = await b.newPage({ viewport: { width: 1920, height: 1080 } }),
+      errors = [];
+    p.on('pageerror', (e) => errors.push(String(e)));
+    await p.route('**/weapons.js*', async (route) => {
+      const response = await route.fetch();
+      let s = await response.text();
+      s = s
+        .replace(/return\s*\{\s*get open\(\)/, 'return window.__benchFixture={get open()')
+        .replace(
+          /update\(self,\s*connected,\s*profile\)\s*\{/,
+          'update(self,connected,profile){if(window.__holdWorkshop)return;',
+        );
+      await route.fulfill({ response, body: s });
+    });
+    await p.goto((process.env.ARENA_URL || 'http://localhost:5094') + '/');
+    await p.locator('#nickname').fill('Dense' + Date.now().toString(36));
+    await p.getByRole('button', { name: 'Join arena', exact: true }).click();
+    await p.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
+    await p.locator('#canvas').focus();
+    await p.keyboard.press('i');
+    await p.evaluate(() => {
+      const e = document.querySelector('#network-info'),
+        f = JSON.parse(e.dataset.snapshot),
+        s = f.players.find((p) => p.id === +e.dataset.player);
+      const profile = structuredClone(f.workshop);
+      profile.owned = Array(29).fill(10);
+      window.__benchFixture.update(s, true, profile);
+      window.__holdWorkshop = true;
+    });
+    for (const [width, height] of [
+      [1920, 1080],
+      [1280, 720],
+    ]) {
+      await p.setViewportSize({ width, height });
+      await p.waitForTimeout(150);
+      const metrics = await p.locator('#weapon-bench').evaluate((el) => {
+        const body = el.querySelector('.forge-body');
+        return {
+          scroll: body.scrollHeight - body.clientHeight,
+          slots: [...el.querySelectorAll('#weapon-chain-0 .weapon-slot')].map(
+            (s) => s.getBoundingClientRect().height,
+          ),
+          inventory: [...el.querySelectorAll('.module-item')].map(
+            (s) => s.getBoundingClientRect().height,
+          ),
+        };
+      });
+      console.log(width, height, metrics);
+      assert(metrics.slots.every((h) => h <= 74));
+      assert(metrics.inventory.every((h) => h <= 48));
+      if (height === 1080) assert(metrics.scroll <= 2);
+      await p.screenshot({ path: `artifacts/browser-check/dense-workshop-${height}.png` });
+    }
+    await p.getByRole('tab', { name: 'Shop', exact: true }).click();
+    await p.screenshot({ path: 'artifacts/browser-check/compact-shop.png' });
+    await p.keyboard.press('Escape');
+    await p.keyboard.press('Escape');
+    await p.locator('#arena-menu').waitFor({ state: 'visible' });
+    await p.screenshot({ path: 'artifacts/browser-check/compact-menu.png' });
+    assert.deepEqual(errors, []);
+    console.log(
+      'PASS: populated compact inventory, slots, shop and Escape menu, no browser errors.',
+    );
+  } finally {
+    await b.close();
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

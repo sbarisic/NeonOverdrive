@@ -1,0 +1,80 @@
+using System.Collections.Immutable;
+
+namespace ArcadeDodger.Multiplayer;
+
+public sealed record PlayerSnapshot(
+    int Id,
+    string Name,
+    float X,
+    float Y,
+    float Aim,
+    int Hull,
+    int Shield,
+    int Ack,
+    bool Protected,
+    bool Connected,
+    float VelocityX = 0,
+    int Experience = 0,
+    int Level = 1,
+    float VelocityY = 0,
+    float Acceleration = 1200,
+    float Steering = 1800,
+    int Life = 0,
+    int SkillPoints = 0,
+    ImmutableArray<string> Skills = default,
+    int MaxShield = 2,
+    string Weapon = "blaster",
+    int MaxHull = 3,
+    float MoveSpeed = 300,
+    bool Menu = false,
+    bool Editing = false,
+    ImmutableArray<WeaponConfig> Weapons = default,
+    int EquipSequence = 0,
+    bool EquipAccepted = false,
+    bool[]? UnlockedWeapons = null,
+    WeaponStats[]? WeaponStats = null,
+    int Docked = 0,
+    string RunId = ""
+);
+
+public sealed record ShotSnapshot(
+    int Id,
+    int Owner,
+    float X,
+    float Y,
+    float Dx = 0,
+    float Dy = -1,
+    long Born = 0,
+    int Kind = 1,
+    int Effects = 0,
+    bool Modular = false,
+    int Parent = 0,
+    float BirthX = 0,
+    float BirthY = 0,
+    int[]? Ancestors = null,
+    int Weapon = 0,
+    int Stage = 0,
+    float Power = 1
+);
+
+public sealed record RoomSnapshot(
+    int V,
+    string Type,
+    long Tick,
+    PlayerSnapshot[] Players,
+    ShotSnapshot[] Shots,
+    EnemySnapshot[]? Enemies = null,
+    EnergySnapshot[]? Energy = null,
+    ExplosionSnapshot[]? Explosions = null,
+    BeamSnapshot[]? Beams = null,
+    SocialSnapshot? Social = null,
+    WorkshopSnapshot? Workshop = null,
+    CreditSnapshot[]? Credits = null,
+    MineSnapshot[]? Mines = null,
+    SkillReceipt? SkillReceipt = null,
+    CreditReward? CreditReward = null,
+    SectorState? Sector = null,
+    ModuleDropSnapshot[]? ModuleDrops = null,
+    int PrivateRevision = 0,
+    CombatEvent[]? CombatEvents = null
+);

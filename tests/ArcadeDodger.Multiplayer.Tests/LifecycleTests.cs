@@ -6,11 +6,19 @@ public class LifecycleTests
 {
     private static (Room Room, int A, int B, int Seq) Pair()
     {
-        var room = new Room(false,sectorEnabled:false);
+        var room = new Room(false, sectorEnabled: false);
         var a = room.Join("A")!.Value;
         var b = room.Join("B")!.Value;
-        WorkshopRig.Set(WorkshopRig.Player(room,a),"Position",new System.Numerics.Vector2(1700,800));
-        WorkshopRig.Set(WorkshopRig.Player(room,b),"Position",new System.Numerics.Vector2(1000,800));
+        WorkshopRig.Set(
+            WorkshopRig.Player(room, a),
+            "Position",
+            new System.Numerics.Vector2(1700, 800)
+        );
+        WorkshopRig.Set(
+            WorkshopRig.Player(room, b),
+            "Position",
+            new System.Numerics.Vector2(1000, 800)
+        );
         for (var i = 1; i <= 115; i++)
         {
             room.Input(a, new(i, 0, 0, MathF.PI, false, false));
@@ -30,9 +38,11 @@ public class LifecycleTests
         room.Input(a, new(++seq, 0, 0, MathF.PI, true, false));
         room.Step();
         room.Input(a, new(++seq, 0, 0, MathF.PI, false, false));
-        for (var i = 0; i < 60 && room.Snapshot().Players[1].Shield == 2; i++) room.Step();
+        for (var i = 0; i < 60 && room.Snapshot().Players[1].Shield == 2; i++)
+            room.Step();
         Assert.Equal(1, room.Snapshot().Players[1].Shield);
-        for (var i = 0; i < 149; i++) room.Step();
+        for (var i = 0; i < 149; i++)
+            room.Step();
         Assert.Equal(1, room.Snapshot().Players[1].Shield);
         room.Step();
         Assert.Equal(2, room.Snapshot().Players[1].Shield);
@@ -50,7 +60,8 @@ public class LifecycleTests
             room.Step();
         }
         Assert.Equal(0, room.Snapshot().Players[1].Hull);
-        for (var i = 0; i < 180; i++) room.Step();
+        for (var i = 0; i < 180; i++)
+            room.Step();
         Assert.Equal(0, room.Snapshot().Players[1].Shield);
         Assert.True(room.Respawn(b, new(++seq)));
         var fresh = room.Snapshot().Players[1];

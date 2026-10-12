@@ -1,0 +1,11 @@
+{
+  "name": "neon-overdrive-development",
+  "private": true,
+  "scripts": {
+    "format:web": "prettier --write \"src/ArcadeDodger/Web/Web/**/*.{js,html}\" \"tests/**/*.cjs\"",
+    "check:web": "prettier --check \"src/ArcadeDodger/Web/Web/**/*.{js,html}\" \"tests/**/*.cjs\""
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

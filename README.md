@@ -46,3 +46,32 @@ node tests/browser-inertia.cjs
 Browser regressions use Playwright with Microsoft Edge. Use an isolated test server and profile store for gameplay tests. `BrowserRoot`, `ProfilesFile`, and `FriendsFile` configure deployment paths; protect the persistent profile and friendship files when deploying or restarting.
 
 See [sector rules](docs/inhabited-sector.md), [skills and workshop](docs/multiplayer-skills.md), and [current combat and performance verification](docs/cooperative-combat.md). Earlier implementation journals retain historical test results.
+
+## Code organization
+
+The simulation stays in one authoritative `Room`, with partial files grouped by responsibility:
+
+| Area | Files |
+| --- | --- |
+| Simulation loop and run state | `Room.cs`, `Room.PlayerSimulation.cs`, `Room.Sessions.cs`, `Room.Entities.cs`, `Room.Runs.cs` |
+| Combat | `Room.Modules.cs`, `Room.ModuleStages.cs`, `Room.ProjectileContacts.cs`, `Room.Payloads.cs`, `Room.Beams.cs` |
+| World and station services | `Room.Sector.cs`, `Room.EncounterSources.cs`, `Room.Stations.cs`, `Room.Contracts.cs`, `Room.Pings.cs` |
+| Transport data | `Snapshots.cs`, `SectorMessages.cs`, `Room.Snapshots.cs`, `Room.SectorSnapshots.cs` |
+| Server | `Program.cs` configures hosting; `WebSocketSession.cs` owns socket sessions; `ArenaService.cs` schedules rooms |
+| Renderer | `BrowserArenaWorld.cs` orders draw passes; actors, weapons, history, effects, and radar have separate files |
+| Browser interface | `network.js` coordinates transport/input; `network-shell.js` builds controls; weapon drag handling and previews have separate modules |
+
+Panel styles live in `*.styles.js` modules beside their components. They retain the existing insertion order and participate in the application's cache fingerprint. All browser JavaScript modules are deployed automatically by the browser project.
+
+### Formatting
+
+Restore the pinned development tools once:
+
+```powershell
+dotnet tool restore
+npm ci
+```
+
+Format source and tests with `dotnet csharpier format src tests` and `npm run format:web`.
+To check formatting without modifying files, run `dotnet csharpier check src tests` and `npm run check:web`.
+Generated build output and browser recordings stay under ignored directories.

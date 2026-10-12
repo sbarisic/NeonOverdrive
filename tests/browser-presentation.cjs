@@ -9,21 +9,27 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
 
 const output = path.resolve('artifacts/browser-check/presentation');
 const timeout = 15000;
-const sizes = [[1760, 974], [1280, 720]];
+const sizes = [
+  [1760, 974],
+  [1280, 720],
+];
 const checks = [];
 
 async function snapshot(page) {
-  return page.locator('#network-info').evaluate(element => ({
+  return page.locator('#network-info').evaluate((element) => ({
     id: Number(element.dataset.player),
     tick: Number(element.dataset.tick),
-    world: JSON.parse(element.dataset.snapshot)
+    world: JSON.parse(element.dataset.snapshot),
   }));
 }
 
 async function waitForTicks(page, tick, count = 4) {
-  await page.waitForFunction(({ tick, count }) =>
-    Number(document.querySelector('#network-info')?.dataset.tick) >= tick + count,
-  { tick, count }, { timeout });
+  await page.waitForFunction(
+    ({ tick, count }) =>
+      Number(document.querySelector('#network-info')?.dataset.tick) >= tick + count,
+    { tick, count },
+    { timeout },
+  );
 }
 
 async function inputMarker(page) {
@@ -31,47 +37,70 @@ async function inputMarker(page) {
 }
 
 async function waitForInputs(page, marker, predicate) {
-  await page.waitForFunction(({ marker, predicate }) => {
-    const frames = window.__presentationProbe.inputs.filter(frame => frame.index > marker);
-    if (predicate === 'neutral') return frames.length >= 6;
-    return frames.some(frame => frame.message.x !== 0 && frame.message.fire === true);
-  }, { marker, predicate }, { timeout: 5000 });
-  return page.evaluate(marker => window.__presentationProbe.inputs
-    .filter(frame => frame.index > marker).map(frame => frame.message), marker);
+  await page.waitForFunction(
+    ({ marker, predicate }) => {
+      const frames = window.__presentationProbe.inputs.filter((frame) => frame.index > marker);
+      if (predicate === 'neutral') return frames.length >= 6;
+      return frames.some((frame) => frame.message.x !== 0 && frame.message.fire === true);
+    },
+    { marker, predicate },
+    { timeout: 5000 },
+  );
+  return page.evaluate(
+    (marker) =>
+      window.__presentationProbe.inputs
+        .filter((frame) => frame.index > marker)
+        .map((frame) => frame.message),
+    marker,
+  );
 }
 
 async function assertContained(page, selector, label) {
-  const result = await page.locator(selector).evaluate(element => {
-    const visible = node => {
+  const result = await page.locator(selector).evaluate((element) => {
+    const visible = (node) => {
       const style = getComputedStyle(node);
       const box = node.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+      return (
+        style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0
+      );
     };
     return {
       boxes: [element, ...element.querySelectorAll('input,button,a,label')]
-        .filter(visible).map(node => ({ tag: node.tagName, ...node.getBoundingClientRect().toJSON() })),
+        .filter(visible)
+        .map((node) => ({ tag: node.tagName, ...node.getBoundingClientRect().toJSON() })),
       viewport: [innerWidth, innerHeight],
-      scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight]
+      scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
     };
   });
   assert(result.boxes.length > 0, `${label}: no visible content`);
   for (const box of result.boxes) {
-    assert(box.left >= -1 && box.top >= -1 && box.right <= result.viewport[0] + 1 &&
-      box.bottom <= result.viewport[1] + 1, `${label}: clipped ${box.tag}: ${JSON.stringify(box)}`);
+    assert(
+      box.left >= -1 &&
+        box.top >= -1 &&
+        box.right <= result.viewport[0] + 1 &&
+        box.bottom <= result.viewport[1] + 1,
+      `${label}: clipped ${box.tag}: ${JSON.stringify(box)}`,
+    );
   }
-  assert(result.scroll[0] <= result.viewport[0] + 1 && result.scroll[1] <= result.viewport[1] + 1,
-    `${label}: page overflow`);
+  assert(
+    result.scroll[0] <= result.viewport[0] + 1 && result.scroll[1] <= result.viewport[1] + 1,
+    `${label}: page overflow`,
+  );
 }
 
 async function join(page, nickname) {
   await page.locator('#nickname').fill(nickname);
   await page.locator('#join-form button[type="submit"]').click();
-  await page.waitForFunction(() => {
-    const info = document.querySelector('#network-info');
-    if (!info?.dataset.snapshot || !info.dataset.player) return false;
-    const snapshot = JSON.parse(info.dataset.snapshot);
-    return snapshot.players?.some(player => player.id === Number(info.dataset.player));
-  }, null, { timeout });
+  await page.waitForFunction(
+    () => {
+      const info = document.querySelector('#network-info');
+      if (!info?.dataset.snapshot || !info.dataset.player) return false;
+      const snapshot = JSON.parse(info.dataset.snapshot);
+      return snapshot.players?.some((player) => player.id === Number(info.dataset.player));
+    },
+    null,
+    { timeout },
+  );
   await page.locator('#join-form').waitFor({ state: 'hidden' });
   const state = await snapshot(page);
   await waitForTicks(page, state.tick);
@@ -79,28 +108,37 @@ async function join(page, nickname) {
 }
 
 async function effectsState(control) {
-  return control.evaluate(element => {
-    if (element instanceof HTMLInputElement && element.type === 'checkbox') return String(element.checked);
-    return element.getAttribute('aria-pressed') ?? element.getAttribute('aria-checked') ?? element.textContent.trim();
+  return control.evaluate((element) => {
+    if (element instanceof HTMLInputElement && element.type === 'checkbox')
+      return String(element.checked);
+    return (
+      element.getAttribute('aria-pressed') ??
+      element.getAttribute('aria-checked') ??
+      element.textContent.trim()
+    );
   });
 }
 
 (async () => {
   await fs.mkdir(output, { recursive: true });
   const browser = await chromium.launch({
-    channel: 'msedge', headless: true,
-    args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding']
+    channel: 'msedge',
+    headless: true,
+    args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
   });
   const errors = [];
   let currentPage;
   try {
     for (const deviceScaleFactor of [1, 1.5]) {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor });
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        deviceScaleFactor,
+      });
       try {
         // Observe sends only; never replace payloads, synthesize snapshots, or bypass host code.
         // Retain a bounded ring so a failed test cannot accumulate unlimited diagnostics.
         await context.addInitScript(() => {
-          const probe = window.__presentationProbe = { sockets: [], inputs: [], count: 0 };
+          const probe = (window.__presentationProbe = { sockets: [], inputs: [], count: 0 });
           const originalSend = WebSocket.prototype.send;
           WebSocket.prototype.send = function (data) {
             if (!probe.sockets.includes(this)) probe.sockets.push(this);
@@ -110,15 +148,19 @@ async function effectsState(control) {
                 probe.inputs.push({ index: ++probe.count, message });
                 if (probe.inputs.length > 240) probe.inputs.shift();
               }
-            } catch { /* Non-JSON traffic is not an input frame. */ }
+            } catch {
+              /* Non-JSON traffic is not an input frame. */
+            }
             return originalSend.call(this, data);
           };
         });
-        const page = currentPage = await context.newPage();
+        const page = (currentPage = await context.newPage());
         page.setDefaultTimeout(timeout);
         page.setDefaultNavigationTimeout(60000);
-        page.on('pageerror', error => errors.push(error.message));
-        const url = new URL(process.env.ARENA_URL || process.env.BROWSER_URL || 'http://localhost:5088');
+        page.on('pageerror', (error) => errors.push(error.message));
+        const url = new URL(
+          process.env.ARENA_URL || process.env.BROWSER_URL || 'http://localhost:5088',
+        );
         url.searchParams.set('multiplayer', '1');
         // Do not inherit a shared room from an override: each run should begin in a fresh available room.
         url.searchParams.delete('room');
@@ -127,9 +169,15 @@ async function effectsState(control) {
         for (const [width, height] of sizes) {
           await page.setViewportSize({ width, height });
           await page.waitForTimeout(150); // Allow responsive CSS/layout to settle, not gameplay timing.
-          await assertContained(page, '#join-form', `join ${width}x${height} DPR ${deviceScaleFactor}`);
+          await assertContained(
+            page,
+            '#join-form',
+            `join ${width}x${height} DPR ${deviceScaleFactor}`,
+          );
           assert(await page.locator('#nickname').isEditable(), 'nickname must remain usable');
-          await page.screenshot({ path: path.join(output, `join-${width}x${height}-dpr${deviceScaleFactor}.png`) });
+          await page.screenshot({
+            path: path.join(output, `join-${width}x${height}-dpr${deviceScaleFactor}.png`),
+          });
           checks.push(`join containment ${width}x${height} DPR ${deviceScaleFactor}`);
         }
         await page.setViewportSize({ width: 1280, height: 720 });
@@ -137,7 +185,10 @@ async function effectsState(control) {
         await page.locator('#canvas').focus();
         // Exercise the advertised primary mouse path independently of Space.
         const canvasBox = await page.locator('#canvas').boundingBox();
-        await page.mouse.move(canvasBox.x + canvasBox.width * .8, canvasBox.y + canvasBox.height * .5);
+        await page.mouse.move(
+          canvasBox.x + canvasBox.width * 0.8,
+          canvasBox.y + canvasBox.height * 0.5,
+        );
         const mouseMarker = await inputMarker(page);
         await page.keyboard.down('d');
         await page.mouse.down();
@@ -176,25 +227,46 @@ async function effectsState(control) {
         for (const [width, height] of sizes) {
           await page.setViewportSize({ width, height });
           await page.waitForTimeout(150);
-          await assertContained(page, '#arena-menu', `menu ${width}x${height} DPR ${deviceScaleFactor}`);
-          await assertContained(page, '#network-info', `transport ${width}x${height} DPR ${deviceScaleFactor}`);
+          await assertContained(
+            page,
+            '#arena-menu',
+            `menu ${width}x${height} DPR ${deviceScaleFactor}`,
+          );
+          await assertContained(
+            page,
+            '#network-info',
+            `transport ${width}x${height} DPR ${deviceScaleFactor}`,
+          );
           const clearOfLoadout = await page.evaluate(() => {
             const canvas = document.querySelector('#canvas').getBoundingClientRect();
             const info = document.querySelector('#network-info').getBoundingClientRect();
-            return info.bottom <= canvas.bottom && info.right <= canvas.right && getComputedStyle(document.querySelector('#network-info')).gridTemplateColumns.split(' ').length===3;
+            return (
+              info.bottom <= canvas.bottom &&
+              info.right <= canvas.right &&
+              getComputedStyle(document.querySelector('#network-info')).gridTemplateColumns.split(
+                ' ',
+              ).length === 3
+            );
           });
           assert(clearOfLoadout, 'command grid must remain inside the footer with three columns');
-          await page.screenshot({ path: path.join(output, `menu-${width}x${height}-dpr${deviceScaleFactor}.png`) });
-          checks.push(`menu/transport containment and loadout clearance ${width}x${height} DPR ${deviceScaleFactor}`);
+          await page.screenshot({
+            path: path.join(output, `menu-${width}x${height}-dpr${deviceScaleFactor}.png`),
+          });
+          checks.push(
+            `menu/transport containment and loadout clearance ${width}x${height} DPR ${deviceScaleFactor}`,
+          );
         }
         await page.setViewportSize({ width: 1280, height: 720 });
         await page.screenshot({ path: path.join(output, `live-menu-dpr${deviceScaleFactor}.png`) });
         checks.push(`primary mouse fire active and blocked by menu DPR ${deviceScaleFactor}`);
-        checks.push(`Escape suppresses thrust/fire while authoritative snapshots tick DPR ${deviceScaleFactor}`);
+        checks.push(
+          `Escape suppresses thrust/fire while authoritative snapshots tick DPR ${deviceScaleFactor}`,
+        );
 
         // Accept a semantic checkbox/switch or a stateful button. A constant label with no
         // checked/pressed state is deliberately not enough evidence that the setting changed.
-        const effects = page.getByRole('checkbox', { name: /reduced effects/i })
+        const effects = page
+          .getByRole('checkbox', { name: /reduced effects/i })
           .or(page.getByRole('switch', { name: /reduced effects/i }))
           .or(page.getByRole('button', { name: /reduced effects|effects:/i }));
         await effects.waitFor({ state: 'visible' });
@@ -202,9 +274,15 @@ async function effectsState(control) {
         await effects.click();
         const reducedState = await effectsState(effects);
         assert.notEqual(reducedState, fullState, 'effects toggle must expose changed state');
-        await page.screenshot({ path: path.join(output, `reduced-effects-dpr${deviceScaleFactor}.png`) });
+        await page.screenshot({
+          path: path.join(output, `reduced-effects-dpr${deviceScaleFactor}.png`),
+        });
         await effects.click();
-        assert.equal(await effectsState(effects), fullState, 'effects toggle must restore original state');
+        assert.equal(
+          await effectsState(effects),
+          fullState,
+          'effects toggle must restore original state',
+        );
         await resume.click();
         await resume.waitFor({ state: 'hidden' });
         const resumeMarker = await inputMarker(page);
@@ -215,21 +293,36 @@ async function effectsState(control) {
         await page.keyboard.up('Space');
         await waitForTicks(page, (await snapshot(page)).tick);
         await page.screenshot({ path: path.join(output, `resumed-dpr${deviceScaleFactor}.png`) });
-        checks.push(`effects state round-trip and Resume restores live input DPR ${deviceScaleFactor}`);
+        checks.push(
+          `effects state round-trip and Resume restores live input DPR ${deviceScaleFactor}`,
+        );
 
         // A deliberate real transport close tests the disconnect/retry UI without depending
         // on enemy damage/death timing or pretending a server error was received.
         await page.evaluate(() => {
-          const sockets = window.__presentationProbe.sockets.filter(socket => socket.readyState === WebSocket.OPEN);
-          if (sockets.length !== 1) throw new Error(`Expected one active arena socket, found ${sockets.length}`);
+          const sockets = window.__presentationProbe.sockets.filter(
+            (socket) => socket.readyState === WebSocket.OPEN,
+          );
+          if (sockets.length !== 1)
+            throw new Error(`Expected one active arena socket, found ${sockets.length}`);
           sockets[0].close(1000, 'presentation acceptance disconnect');
         });
-        await page.waitForFunction(() => /disconnected|connection (?:lost|closed|failed)|network error/i.test(document.body.innerText),
-          null, { timeout });
-        await page.screenshot({ path: path.join(output, `disconnected-dpr${deviceScaleFactor}.png`) });
+        await page.waitForFunction(
+          () =>
+            /disconnected|connection (?:lost|closed|failed)|network error/i.test(
+              document.body.innerText,
+            ),
+          null,
+          { timeout },
+        );
+        await page.screenshot({
+          path: path.join(output, `disconnected-dpr${deviceScaleFactor}.png`),
+        });
         // Retry may restore the join form directly, or expose an explicit Retry/Reconnect action.
         if (!(await page.locator('#join-form').isVisible())) {
-          await page.getByRole('button', { name: /^(?:retry|reconnect|join again)(?: arena)?$/i }).click();
+          await page
+            .getByRole('button', { name: /^(?:retry|reconnect|join again)(?: arena)?$/i })
+            .click();
         }
         await page.locator('#join-form').waitFor({ state: 'visible' });
         await join(page, `Retry${deviceScaleFactor === 1 ? 'One' : 'Two'}`);
@@ -237,8 +330,15 @@ async function effectsState(control) {
         await resume.waitFor({ state: 'visible' });
         await page.getByRole('button', { name: /^leave(?: arena| game)?$/i }).click();
         await page.locator('#join-form').waitFor({ state: 'visible' });
-        await page.waitForFunction(() => window.__presentationProbe.sockets.every(socket =>
-          socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING), null, { timeout });
+        await page.waitForFunction(
+          () =>
+            window.__presentationProbe.sockets.every(
+              (socket) =>
+                socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING,
+            ),
+          null,
+          { timeout },
+        );
         await assertContained(page, '#join-form', 'leave returns usable join form');
         await page.screenshot({ path: path.join(output, `left-dpr${deviceScaleFactor}.png`) });
         checks.push(`real disconnect, retry join and intentional Leave DPR ${deviceScaleFactor}`);
@@ -246,7 +346,9 @@ async function effectsState(control) {
         assert(Number.isFinite(initial.id) && initial.id > 0, 'server assigned player ID');
       } catch (error) {
         if (currentPage && !currentPage.isClosed()) {
-          await currentPage.screenshot({ path: path.join(output, `failure-dpr${deviceScaleFactor}.png`) }).catch(() => {});
+          await currentPage
+            .screenshot({ path: path.join(output, `failure-dpr${deviceScaleFactor}.png`) })
+            .catch(() => {});
         }
         throw error;
       } finally {
@@ -254,10 +356,21 @@ async function effectsState(control) {
         currentPage = undefined;
       }
     }
-    console.log(JSON.stringify({ result: 'PASS', checks, screenshots: output,
-      limits: ['Effects checked through exposed UI state, not pixel parity.',
-        'Input suppression checked on real outbound frames; no death/respawn or load/capacity claim.'] }));
+    console.log(
+      JSON.stringify({
+        result: 'PASS',
+        checks,
+        screenshots: output,
+        limits: [
+          'Effects checked through exposed UI state, not pixel parity.',
+          'Input suppression checked on real outbound frames; no death/respawn or load/capacity claim.',
+        ],
+      }),
+    );
   } finally {
     await browser.close();
   }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

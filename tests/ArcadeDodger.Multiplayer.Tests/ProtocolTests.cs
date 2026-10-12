@@ -7,7 +7,9 @@ namespace ArcadeDodger.Multiplayer.Tests;
 public class ProtocolTests
 {
     private const string Join = """{"v":6,"type":"join","name":"  Pilot_7  ","room":"abcd0123"}""";
-    private const string Input = """{"v":6,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"menu":true}""";
+    private const string Input =
+        """{"v":6,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"menu":true}""";
+
     private static bool Parse(string json, out ClientMessage? message) =>
         ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out message);
 
@@ -18,7 +20,9 @@ public class ProtocolTests
         Assert.Equal(new JoinMessage("Pilot_7", "abcd0123"), join);
         Assert.True(Parse(Input, out var input));
         Assert.Equal(new InputMessage(1, 0, 1, 0, false, true), input);
-        Assert.True(Parse("""{"v":6,"type":"choice","seq":2,"choice":"thruster.1"}""", out var choice));
+        Assert.True(
+            Parse("""{"v":6,"type":"choice","seq":2,"choice":"thruster.1"}""", out var choice)
+        );
         Assert.Equal(new ChoiceMessage(2, "thruster.1"), choice);
         Assert.True(Parse("""{"v":6,"type":"respawn","seq":3}""", out var respawn));
         Assert.Equal(new RespawnMessage(3), respawn);
@@ -86,7 +90,15 @@ public class ProtocolTests
     [InlineData("Pilot", "abc")]
     public void RejectsInvalidJoinValues(string name, string room)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { v = 6, type = "join", name, room });
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            new
+            {
+                v = 6,
+                type = "join",
+                name,
+                room,
+            }
+        );
         Assert.False(Parse(json, out _));
     }
 

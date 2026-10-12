@@ -1,77 +1,226 @@
 using System.Numerics;
+
 namespace ArcadeDodger.Multiplayer;
-public sealed record ModuleDropSnapshot(int Id,float X,float Y,int Module,int Owner);
+
+public sealed record ModuleDropSnapshot(int Id, float X, float Y, int Module, int Owner);
+
 public sealed partial class Room
 {
-    private sealed record ModuleDrop(int Id,Vector2 Position,int Module,long Expires,int Owner,string RunId)
-    {public Vector2 Previous=Position,Velocity;public bool Pending;}
-    private readonly List<ModuleDrop> moduleDrops=[];
+    private sealed record ModuleDrop(
+        int Id,
+        Vector2 Position,
+        int Module,
+        long Expires,
+        int Owner,
+        string RunId
+    )
+    {
+        public Vector2 Previous = Position,
+            Velocity;
+        public bool Pending;
+    }
+
+    private readonly List<ModuleDrop> moduleDrops = [];
     private int nextModuleDrop;
-    private readonly List<Energy> pendingEnergy=[];
-    private readonly List<Credit> pendingCredits=[];
-    private readonly List<ModuleDrop> pendingModules=[];
+    private readonly List<Energy> pendingEnergy = [];
+    private readonly List<Credit> pendingCredits = [];
+    private readonly List<ModuleDrop> pendingModules = [];
+
     private void AdmitPersonalDrops()
     {
-        pendingEnergy.RemoveAll(d=>d.Expires<=Tick);pendingCredits.RemoveAll(d=>d.Expires<=Tick);pendingModules.RemoveAll(d=>d.Expires<=Tick);
-        while(energy.Count<EnergyCapacity&&pendingEnergy.Count>0){energy.Add(pendingEnergy[0]);pendingEnergy.RemoveAt(0);}
-        while(credits.Count<128&&pendingCredits.Count>0){credits.Add(pendingCredits[0]);pendingCredits.RemoveAt(0);}
-        while(moduleDrops.Count<128&&pendingModules.Count>0){moduleDrops.Add(pendingModules[0]);pendingModules.RemoveAt(0);}
-    }
-    private (Vector2 Position,Vector2 Velocity) Eject(Enemy enemy,int seed)
-    {
-        for(var ring=0;ring<20;ring++)for(var direction=0;direction<32;direction++)
+        pendingEnergy.RemoveAll(d => d.Expires <= Tick);
+        pendingCredits.RemoveAll(d => d.Expires <= Tick);
+        pendingModules.RemoveAll(d => d.Expires <= Tick);
+        while (energy.Count < EnergyCapacity && pendingEnergy.Count > 0)
         {
-            var angle=(seed*.618034f+direction/32f)*MathF.Tau;
-            var normal=new Vector2(MathF.Cos(angle),MathF.Sin(angle));
-            var point=enemy.Position+normal*(EnemyRadius(enemy)+(enemy.Installation?24:2)+ring*24);
-            if(point.X<16||point.Y<16||point.X>Width-16||point.Y>Height-16)continue;
-            if(geometry?.TraceShips(point,point,12) is not null)continue;
-            return(point,normal*(enemy.Installation?180:60));
+            energy.Add(pendingEnergy[0]);
+            pendingEnergy.RemoveAt(0);
+        }
+        while (credits.Count < 128 && pendingCredits.Count > 0)
+        {
+            credits.Add(pendingCredits[0]);
+            pendingCredits.RemoveAt(0);
+        }
+        while (moduleDrops.Count < 128 && pendingModules.Count > 0)
+        {
+            moduleDrops.Add(pendingModules[0]);
+            pendingModules.RemoveAt(0);
+        }
+    }
+
+    private (Vector2 Position, Vector2 Velocity) Eject(Enemy enemy, int seed)
+    {
+        for (var ring = 0; ring < 20; ring++)
+        for (var direction = 0; direction < 32; direction++)
+        {
+            var angle = (seed * .618034f + direction / 32f) * MathF.Tau;
+            var normal = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            var point =
+                enemy.Position
+                + normal * (EnemyRadius(enemy) + (enemy.Installation ? 24 : 2) + ring * 24);
+            if (point.X < 16 || point.Y < 16 || point.X > Width - 16 || point.Y > Height - 16)
+                continue;
+            if (geometry?.TraceShips(point, point, 12) is not null)
+                continue;
+            return (point, normal * (enemy.Installation ? 180 : 60));
         }
         // Guaranteed clear arrival exit if dense geometry exhausts local placement.
-        return(SelectSpawn(),Vector2.Zero);
+        return (SelectSpawn(), Vector2.Zero);
     }
-    private Vector2 MovePickup(Vector2 position,ref Vector2 velocity)
+
+    private Vector2 MovePickup(Vector2 position, ref Vector2 velocity)
     {
-        var next=MoveShip(position,position+velocity/TickRate,12);
-        velocity*=.78f;if(velocity.LengthSquared()<1)velocity=Vector2.Zero;
+        var next = MoveShip(position, position + velocity / TickRate, 12);
+        velocity *= .78f;
+        if (velocity.LengthSquared() < 1)
+            velocity = Vector2.Zero;
         return next;
     }
+
     private void StepPickupMotion()
     {
-        for(var i=0;i<energy.Count;i++){var d=energy[i];var v=d.Velocity;energy[i]=d with {Previous=d.Position,Position=MovePickup(d.Position,ref v),Velocity=v};}
-        for(var i=0;i<credits.Count;i++){var d=credits[i];if(d.Pending)continue;var v=d.Velocity;credits[i]=d with {Previous=d.Position,Position=MovePickup(d.Position,ref v),Velocity=v};}
-        for(var i=0;i<moduleDrops.Count;i++){var d=moduleDrops[i];if(d.Pending)continue;var v=d.Velocity;moduleDrops[i]=d with {Previous=d.Position,Position=MovePickup(d.Position,ref v),Velocity=v};}
-    }
-    private bool Eligible(Player p,int owner)=>p.Hull>0&&p.Connected&&!p.Editing&&p.Docked==0&&(owner==0||p.Id==owner);
-    private void StepModuleDrops()
-    {
-        moduleDrops.RemoveAll(d=>Tick>=d.Expires&&!d.Pending);
-        foreach(var d in moduleDrops.ToArray())
+        for (var i = 0; i < energy.Count; i++)
         {
-            if(d.Pending||!players.TryGetValue(d.Owner,out var p)||!Eligible(p,d.Owner)||p.RunId!=d.RunId)continue;
-            if(Intersection(p.Previous-d.Previous,p.Position-d.Position,Radius+12+Value(p,"collector")) is null)continue;
-            d.Pending=true;
-            Persist(()=>profiles.GrantModule(p.Name,d.Module),result=>
-            {if(result=="ok"){moduleDrops.RemoveAll(m=>m.Id==d.Id);p.LootNotice=$"Recovered {ModuleCatalog.Get(d.Module).Name}";p.LootNoticeUntil=Tick+150;}else d.Pending=false;});
+            var d = energy[i];
+            var v = d.Velocity;
+            energy[i] = d with
+            {
+                Previous = d.Position,
+                Position = MovePickup(d.Position, ref v),
+                Velocity = v,
+            };
+        }
+        for (var i = 0; i < credits.Count; i++)
+        {
+            var d = credits[i];
+            if (d.Pending)
+                continue;
+            var v = d.Velocity;
+            credits[i] = d with
+            {
+                Previous = d.Position,
+                Position = MovePickup(d.Position, ref v),
+                Velocity = v,
+            };
+        }
+        for (var i = 0; i < moduleDrops.Count; i++)
+        {
+            var d = moduleDrops[i];
+            if (d.Pending)
+                continue;
+            var v = d.Velocity;
+            moduleDrops[i] = d with
+            {
+                Previous = d.Position,
+                Position = MovePickup(d.Position, ref v),
+                Velocity = v,
+            };
         }
     }
+
+    private bool Eligible(Player p, int owner) =>
+        p.Hull > 0 && p.Connected && !p.Editing && p.Docked == 0 && (owner == 0 || p.Id == owner);
+
+    private void StepModuleDrops()
+    {
+        moduleDrops.RemoveAll(d => Tick >= d.Expires && !d.Pending);
+        foreach (var d in moduleDrops.ToArray())
+        {
+            if (
+                d.Pending
+                || !players.TryGetValue(d.Owner, out var p)
+                || !Eligible(p, d.Owner)
+                || p.RunId != d.RunId
+            )
+                continue;
+            if (
+                Intersection(
+                    p.Previous - d.Previous,
+                    p.Position - d.Position,
+                    Radius + 12 + Value(p, "collector")
+                )
+                is null
+            )
+                continue;
+            d.Pending = true;
+            Persist(
+                () => profiles.GrantModule(p.Name, d.Module),
+                result =>
+                {
+                    if (result == "ok")
+                    {
+                        moduleDrops.RemoveAll(m => m.Id == d.Id);
+                        p.LootNotice = $"Recovered {ModuleCatalog.Get(d.Module).Name}";
+                        p.LootNoticeUntil = Tick + 150;
+                    }
+                    else
+                        d.Pending = false;
+                }
+            );
+        }
+    }
+
     private void RewardEncounter(Enemy enemy)
     {
-        foreach(var (id,contribution) in enemy.Contributors)
+        foreach (var (id, contribution) in enemy.Contributors)
         {
-            var p=players.GetValueOrDefault(id)??suspended.Values.FirstOrDefault(p=>p.Id==id);
-            if(p is null||p.Hull<=0||p.RunId!=contribution.Run||contribution.Damage<1)continue;
-            var state=ExplorationFor(p);
-            if(Contracts.FirstOrDefault(c=>c.Id==state.Contract) is {Kind:"interdict"} contract&&contract.Target==enemy.Home&&!enemy.Installation)
-            {state.Progress.Add(enemy.Id);state.Ready=state.Progress.Count>=3;}
-            if(!enemy.Installation)continue;
-            p.LootNotice="Installation cleared - personal rewards nearby";p.LootNoticeUntil=Tick+150;
-            var reward=Eject(enemy,id);var xp=Eject(enemy,id+1);
-            pendingEnergy.Add(new(++nextEnergy,xp.Position,30*enemy.Level,Tick+EnergyLifetimeTicks,p.Id){Velocity=xp.Velocity});
-            pendingCredits.Add(new(++nextCredit,reward.Position,(int)MathF.Ceiling(40*enemy.Level*(Tick<enemy.MarkUntil?1.25f:1)),Tick+EnergyLifetimeTicks,p.Id){Velocity=reward.Velocity});
-            if(CreditRoll(enemy.Id,id)<.5f)
-            {var module=1+(int)(CreditRoll(enemy.Id^0x13579,id)*28);var point=Eject(enemy,id+2);pendingModules.Add(new(++nextModuleDrop,point.Position,module,Tick+EnergyLifetimeTicks,p.Id,p.RunId){Velocity=point.Velocity});}
+            var p =
+                players.GetValueOrDefault(id) ?? suspended.Values.FirstOrDefault(p => p.Id == id);
+            if (p is null || p.Hull <= 0 || p.RunId != contribution.Run || contribution.Damage < 1)
+                continue;
+            var state = ExplorationFor(p);
+            if (
+                Contracts.FirstOrDefault(c => c.Id == state.Contract)
+                    is { Kind: "interdict" } contract
+                && contract.Target == enemy.Home
+                && !enemy.Installation
+            )
+            {
+                state.Progress.Add(enemy.Id);
+                state.Ready = state.Progress.Count >= 3;
+            }
+            if (!enemy.Installation)
+                continue;
+            p.LootNotice = "Installation cleared - personal rewards nearby";
+            p.LootNoticeUntil = Tick + 150;
+            var reward = Eject(enemy, id);
+            var xp = Eject(enemy, id + 1);
+            pendingEnergy.Add(
+                new(++nextEnergy, xp.Position, 30 * enemy.Level, Tick + EnergyLifetimeTicks, p.Id)
+                {
+                    Velocity = xp.Velocity,
+                }
+            );
+            pendingCredits.Add(
+                new(
+                    ++nextCredit,
+                    reward.Position,
+                    (int)MathF.Ceiling(40 * enemy.Level * (Tick < enemy.MarkUntil ? 1.25f : 1)),
+                    Tick + EnergyLifetimeTicks,
+                    p.Id
+                )
+                {
+                    Velocity = reward.Velocity,
+                }
+            );
+            if (CreditRoll(enemy.Id, id) < .5f)
+            {
+                var module = 1 + (int)(CreditRoll(enemy.Id ^ 0x13579, id) * 28);
+                var point = Eject(enemy, id + 2);
+                pendingModules.Add(
+                    new(
+                        ++nextModuleDrop,
+                        point.Position,
+                        module,
+                        Tick + EnergyLifetimeTicks,
+                        p.Id,
+                        p.RunId
+                    )
+                    {
+                        Velocity = point.Velocity,
+                    }
+                );
+            }
         }
     }
 }
