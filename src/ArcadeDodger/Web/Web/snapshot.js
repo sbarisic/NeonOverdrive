@@ -87,6 +87,8 @@ export function presentSnapshot(host, f) {
       p.activeBays ?? 1,
       label(p.cruiseState || 'ready'),
       p.cruiseTicks || 0,
+      +!!p.braking,
+      p.cruiseMultiplier ?? 1,
     ),
   );
   list(f.shots, (s) => {

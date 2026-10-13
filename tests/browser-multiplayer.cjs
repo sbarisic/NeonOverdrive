@@ -42,22 +42,22 @@ const assert = require('node:assert/strict');
     await b.waitForTimeout(750);
     await b.keyboard.up('d');
     await b.keyboard.down('w');
-    await b.waitForTimeout(2600);
+    await b.waitForTimeout(3200);
     await b.keyboard.up('w');
-    await b.keyboard.down('s');
+    await b.keyboard.down('x');
     await b.waitForTimeout(2100);
-    await b.keyboard.up('s');
+    await b.keyboard.up('x');
     await a.bringToFront();
     await a.locator('#canvas').focus();
     await a.keyboard.down('d');
     await a.waitForTimeout(750);
     await a.keyboard.up('d');
     await a.keyboard.down('w');
-    await a.waitForTimeout(3900);
+    await a.waitForTimeout(4500);
     await a.keyboard.up('w');
-    await a.keyboard.down('s');
+    await a.keyboard.down('x');
     await a.waitForTimeout(2100);
-    await a.keyboard.up('s');
+    await a.keyboard.up('x');
     await a.waitForTimeout(1200);
     const moved = await read(b);
     assert(
@@ -67,6 +67,7 @@ const assert = require('node:assert/strict');
     const now = await read(a),
       self = now.snapshot.players.find((p) => p.id === initial.id),
       target = now.snapshot.players.find((p) => p.id === second.id);
+    assert(!self.protected && !target.protected, 'both pilots must leave sanctuary before PvP');
     const ox = Math.max(0, Math.min(24000 - 1280, self.x - 640)),
       oy = Math.max(0, Math.min(16000 - 720, self.y - 360));
     const box = await a.locator('#canvas').boundingBox();

@@ -129,7 +129,7 @@ public class SkillTreeTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    "{\"v\":11,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"
+                    "{\"v\":12,\"type\":\"choice\",\"seq\":1,\"choice\":\"shield.1\"}"
                 ),
                 out var m
             )
@@ -139,7 +139,7 @@ public class SkillTreeTests
             Assert.False(
                 ClientProtocol.TryParse(
                     Encoding.UTF8.GetBytes(
-                        $"{{\"v\":11,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"
+                        $"{{\"v\":12,\"type\":\"choice\",\"seq\":1,\"choice\":{choice}}}"
                     ),
                     out _
                 )

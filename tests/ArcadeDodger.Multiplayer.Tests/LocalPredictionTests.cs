@@ -149,10 +149,10 @@ public class LocalPredictionTests
     [Fact]
     public void CurrentVelocityCoastsWithoutInputAndRejectsInvalidSnapshots()
     {
-        var p = Start(Pilot() with { VelocityX = 300 });
-        Assert.Equal(128.5f, p.Sample(.1)!.X, 3);
+        var p = Start(Pilot() with { VelocityX = 200 });
+        Assert.Equal(120f, p.Sample(.1)!.X, 3);
         p.Receive(Pilot() with { VelocityX = float.NaN }, 1, .1);
-        Assert.Equal(128.5f, p.Sample(.1)!.X, 3);
+        Assert.Equal(120f, p.Sample(.1)!.X, 3);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class LocalPredictionTests
         var p = Start();
         for (int i = 0; i <= 500; i++)
             p.Input(0, -1, i / 1000f, false, i / 1000d);
-        Assert.InRange(p.Sample(.5)!.X, 118.7f, 119.5f);
+        Assert.InRange(p.Sample(.5)!.X, 101.1f, 101.25f);
         Assert.InRange(p.HistoryCount, 1, 4);
     }
 }

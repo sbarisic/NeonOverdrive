@@ -65,7 +65,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForTimeout(120);
     const immediate = await read();
     assert(
-      immediate.x > before.x + 0.2,
+      immediate.x > before.x + 0.01,
       `local movement must precede delayed server snapshot: ${JSON.stringify({ before, immediate })}`,
     );
     assert(
@@ -74,9 +74,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     );
     await page.waitForTimeout(450);
     await page.keyboard.up('w');
-    await page.keyboard.down('s');
+    await page.keyboard.down('x');
     await page.waitForTimeout(650);
-    await page.keyboard.up('s');
+    await page.keyboard.up('x');
     await page.waitForTimeout(1200);
     const settled = await read();
     assert(

@@ -66,7 +66,8 @@ public sealed partial class Room
             frozen,
             input is not null && p.Connected,
             TurnRateFor(p),
-            ChassisCatalog.Get(p.Chassis).Radius
+            ChassisCatalog.Get(p.Chassis).Radius,
+            input?.Brake == true
         );
         if (collided)
         {

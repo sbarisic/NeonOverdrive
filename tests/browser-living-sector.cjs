@@ -22,7 +22,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
           return { frame, self: frame.players.find((p) => p.id === +e.dataset.player) };
         });
       const initial = await read();
-      assert.equal(initial.frame.v, 11);
+      assert.equal(initial.frame.v, 12);
       assert.equal(initial.self.chassis, 0);
       assert.equal(initial.self.moveSpeed, 220);
       assert.equal(initial.frame.sector.world.territory.length, 8);
@@ -88,7 +88,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       await page.close();
     }
     console.log(
-      'PASS: v11 catalogs, keyboard contact selection, nonmodal radio, synchronized race staging, cancellation, bounded desktop panel at 1x/2x density.',
+      'PASS: v12 catalogs, keyboard contact selection, nonmodal radio, synchronized race staging, cancellation, bounded desktop panel at 1x/2x density.',
     );
   } finally {
     await browser.close();

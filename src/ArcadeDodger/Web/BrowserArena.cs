@@ -70,13 +70,14 @@ internal sealed class BrowserArena
         prediction.Reset();
     }
 
-    public void Input(double x, double y, double aim, bool menu) =>
+    public void Input(double x, double y, double aim, bool menu, bool brake) =>
         prediction.Input(
             menuOpen ? 0 : (float)x,
             menuOpen ? 0 : (float)y,
             (float)aim,
             menuOpen || menu,
-            clock.Elapsed.TotalSeconds
+            clock.Elapsed.TotalSeconds,
+            brake
         );
 
     public void SentInput(int sequence) =>
@@ -266,6 +267,7 @@ internal sealed class BrowserArena
             );
         playbackMs = Milliseconds(started);
         started = System.Diagnostics.Stopwatch.GetTimestamp();
+        BrowserArenaHud.AdvanceNavigation(self);
         Raylib.BeginDrawing();
         try
         {

@@ -23,6 +23,18 @@ internal sealed partial class BrowserArenaWorld
         if (p.Editing)
             color = Raylib.Fade(color, .35f);
         DrawChassis(p.Chassis, position, p.Heading, p.Aim, p.Throttle, p.ActiveBays, color, low);
+        // Travel direction stays independent of hull/weapon orientation, even with reduced FX.
+        var velocity = new Vector2(p.VelocityX, p.VelocityY);
+        if (p.Id == ownId && velocity.LengthSquared() > 1)
+        {
+            var direction = Vector2.Normalize(velocity);
+            var side = new Vector2(-direction.Y, direction.X);
+            var tip = position + direction * (radius + 16);
+            var tail = tip - direction * 7;
+            var marker = p.Braking ? new Color(255, 210, 80, 255) : new Color(235, 240, 250, 255);
+            Raylib.DrawLineEx(tail + side * 4, tip, 1.5f, marker);
+            Raylib.DrawLineEx(tail - side * 4, tip, 1.5f, marker);
+        }
         if (p.Shield > 0)
         {
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 2, Shield);
@@ -38,7 +50,7 @@ internal sealed partial class BrowserArenaWorld
         {
             // Always visible, including reduced FX: protection is gameplay information.
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 6, NeonRendering.Ink);
-            Raylib.DrawText(
+            BrowserText.DrawText(
                 p.Editing ? "CLOAKED" : "SAFE",
                 (int)p.X - 12,
                 (int)(p.Y - radius - 29),
@@ -55,9 +67,9 @@ internal sealed partial class BrowserArenaWorld
         }
         if (!p.Connected)
             name += " [LINK]";
-        Raylib.DrawText(
+        BrowserText.DrawText(
             name,
-            (int)p.X - Raylib.MeasureText(name, 10) / 2,
+            (int)p.X - BrowserText.MeasureText(name, 10) / 2,
             (int)(p.Y - radius - 16),
             10,
             color
@@ -218,16 +230,16 @@ internal sealed partial class BrowserArenaWorld
         if (e.Effects != 0)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 4, Gold);
         if (e.Kind == "contact")
-            Raylib.DrawText("E / HAIL", (int)p.X - 30, (int)p.Y + 40, 12, Cyan);
+            BrowserText.DrawText("E / HAIL", (int)p.X - 30, (int)p.Y + 40, 12, Cyan);
         if (e.Kind == "repair-bot")
         {
             var drone = p + new Vector2(MathF.Cos(time), MathF.Sin(time)) * 45;
             Raylib.DrawRectangle((int)drone.X - 3, (int)drone.Y - 3, 6, 6, Cyan);
             if (!low)
                 Raylib.DrawLineEx(p, drone, 1, Raylib.Fade(Cyan, .35f));
-            Raylib.DrawText("REPAIR BAY", (int)p.X - 35, (int)p.Y + 40, 12, Cyan);
+            BrowserText.DrawText("REPAIR BAY", (int)p.X - 35, (int)p.Y + 40, 12, Cyan);
         }
-        Raylib.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
+        BrowserText.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
         if (e.Telegraph)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 8, Hostile);
     }
@@ -258,7 +270,7 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawLineEx(marker, marker + direction * 12, 3, Hostile);
             // Telegraphs are gameplay information: retain them in reduced FX mode.
             if (e.Telegraph)
-                Raylib.DrawText("!", (int)marker.X - 4, (int)marker.Y - 10, 18, NeonRendering.Ink);
+                BrowserText.DrawText("!", (int)marker.X - 4, (int)marker.Y - 10, 18, NeonRendering.Ink);
         }
     }
 }

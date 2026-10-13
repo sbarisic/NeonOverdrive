@@ -17,15 +17,15 @@ public sealed record PlayerSnapshot(
     int Experience = 0,
     int Level = 1,
     float VelocityY = 0,
-    float Acceleration = 1200,
-    float Steering = 1800,
+    float Acceleration = 110,
+    float Steering = 165,
     int Life = 0,
     int SkillPoints = 0,
     ImmutableArray<string> Skills = default,
     int MaxShield = 2,
     string Weapon = "blaster",
     int MaxHull = 3,
-    float MoveSpeed = 300,
+    float MoveSpeed = 220,
     bool Menu = false,
     bool Editing = false,
     ImmutableArray<WeaponConfig> Weapons = default,
@@ -44,7 +44,9 @@ public sealed record PlayerSnapshot(
     float TurnRate = MathF.PI * 2 / 3,
     int ActiveBays = 1,
     string CruiseState = "ready",
-    int CruiseTicks = 0
+    int CruiseTicks = 0,
+    bool Braking = false,
+    float CruiseMultiplier = 1
 );
 
 public sealed record ShotSnapshot(

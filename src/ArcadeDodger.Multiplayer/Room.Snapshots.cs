@@ -58,7 +58,15 @@ public sealed partial class Room
                         : p.CruiseAt > 0 ? "spooling"
                         : Tick < p.CruiseReady ? "cooldown"
                         : "ready",
-                    (int)Math.Max(0, (p.CruiseAt > 0 ? p.CruiseAt : p.CruiseReady) - Tick)
+                    (int)Math.Max(0, (p.CruiseAt > 0 ? p.CruiseAt : p.CruiseReady) - Tick),
+                    p.Connected
+                        && p.Hull > 0
+                        && !p.Menu
+                        && !p.Editing
+                        && p.Docked == 0
+                        && !RaceCountdown(p)
+                        && p.Held?.Brake == true,
+                    CruiseMultiplier(p)
                 ))
                 .ToArray(),
             shots

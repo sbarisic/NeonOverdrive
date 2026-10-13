@@ -31,7 +31,7 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawPolyLinesEx(point, cargo.Kind == "anomaly" ? 6 : 4, 20, 45, 2, Gold);
                 Raylib.DrawCircleV(point, 4, Cyan);
             }
-            Raylib.DrawText(
+            BrowserText.DrawText(
                 cargo.Kind.ToUpperInvariant(),
                 (int)point.X - 35,
                 (int)point.Y - 40,
@@ -54,7 +54,7 @@ internal sealed partial class BrowserArenaWorld
                 100,
                 i == race.Checkpoint ? Gold : Raylib.Fade(Cyan, .3f)
             );
-            Raylib.DrawText((i + 1).ToString(), (int)point.X, (int)point.Y, 16, Gold);
+            BrowserText.DrawText((i + 1).ToString(), (int)point.X, (int)point.Y, 16, Gold);
         }
         for (var i = 0; i + 2 < race.Ghost.Length; i += 3)
             if (MathF.Abs(race.Ghost[i] - race.Seconds) < .25f)

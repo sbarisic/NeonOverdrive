@@ -5,6 +5,9 @@ namespace ArcadeDodger.Multiplayer;
 /// <summary>Shared thrust, coasting and swept sliding for simulation and prediction.</summary>
 public static class Movement
 {
+    public const float BrakeDeceleration = 300;
+    public const int ModelVersion = 2;
+
     public static bool Steer(
         ref Vector2 position,
         ref Vector2 velocity,
@@ -12,17 +15,19 @@ public static class Movement
         ref float throttle,
         Vector2 controls,
         float dt,
-        float speed = 300,
-        float acceleration = 1200,
-        float steering = 1800,
+        float speed = 220,
+        float acceleration = 110,
+        float steering = 165,
         SectorCollision? geometry = null,
         bool immobilized = false,
         bool inputAvailable = true,
         float turnRate = MathF.Tau / 3,
-        float radius = Room.Radius
+        float radius = Room.Radius,
+        bool brake = false
     )
     {
-        if (immobilized || !inputAvailable)
+        brake &= inputAvailable && !immobilized;
+        if (immobilized || !inputAvailable || brake)
             throttle = 0;
         if (immobilized)
         {
@@ -45,7 +50,8 @@ public static class Movement
             if (!immobilized && inputAvailable)
             {
                 heading = MathF.IEEERemainder(heading + controls.X * turnRate * slice, MathF.Tau);
-                throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
+                if (!brake)
+                    throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
             }
             collided |= Step(
                 ref position,
@@ -57,7 +63,8 @@ public static class Movement
                 steering,
                 geometry,
                 immobilized,
-                radius
+                radius,
+                brake
             );
             remaining -= slice;
         }
@@ -69,12 +76,13 @@ public static class Movement
         ref Vector2 velocity,
         Vector2 input,
         float dt,
-        float speed = 300,
-        float acceleration = 1200,
-        float steering = 1800,
+        float speed = 220,
+        float acceleration = 110,
+        float steering = 165,
         SectorCollision? geometry = null,
         bool immobilized = false,
-        float radius = Room.Radius
+        float radius = Room.Radius,
+        bool brake = false
     )
     {
         if (immobilized)
@@ -84,25 +92,33 @@ public static class Movement
         }
         if (input.LengthSquared() > 1)
             input = Vector2.Normalize(input);
-        var target = input * speed;
-        var rate =
-            input == Vector2.Zero ? 300
-            : velocity.LengthSquared() > 1
-            && Vector2.Dot(Vector2.Normalize(velocity), Vector2.Normalize(input)) < .7071068f
-                ? steering
-            : acceleration;
-        var delta = target - velocity;
-        var distance = delta.Length();
+        // Engines add momentum along the hull. They never cancel lateral drift.
         var previous = velocity;
-        velocity = distance <= rate * dt ? target : velocity + delta / distance * (rate * dt);
-        if (velocity.LengthSquared() > speed * speed)
-            velocity = Vector2.Normalize(velocity) * speed;
-        // Average velocity keeps acceleration/coasting stable across replay slice sizes.
-        var accelerating = MathF.Min(dt, distance / rate);
-        var end =
-            position
-            + (previous + velocity) * (.5f * accelerating)
-            + velocity * (dt - accelerating);
+        var previousSpeed = previous.Length();
+        // Avoid treating roundoff at a perpendicular heading as opposing thrust.
+        var rate =
+            Vector2.Dot(previous, input) < -previousSpeed * .00001f ? steering : acceleration;
+        Vector2 end;
+        if (brake)
+        {
+            var brakingTime = MathF.Min(dt, previousSpeed / BrakeDeceleration);
+            velocity =
+                previousSpeed > 0
+                    ? previous
+                        * (MathF.Max(0, previousSpeed - BrakeDeceleration * dt) / previousSpeed)
+                    : Vector2.Zero;
+            end = position + (previous + velocity) * (.5f * brakingTime);
+        }
+        else
+        {
+            velocity += input * (rate * dt);
+            // A lost cruise/tow allowance bleeds off gradually, including at zero throttle.
+            // The magnitude limit never turns velocity toward the nose.
+            var limit = MathF.Max(speed, previousSpeed - BrakeDeceleration * dt);
+            if (velocity.LengthSquared() > limit * limit)
+                velocity = Vector2.Normalize(velocity) * limit;
+            end = position + (previous + velocity) * (.5f * dt);
+        }
         if (geometry is not null)
             position = geometry.Move(position, end, radius, ref velocity);
         else

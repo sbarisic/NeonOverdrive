@@ -63,9 +63,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await victim.keyboard.down('w');
     await victim.waitForTimeout(3000);
     await victim.keyboard.up('w');
-    await victim.keyboard.down('s');
+    await victim.keyboard.down('x');
     await victim.waitForTimeout(2100);
-    await victim.keyboard.up('s');
+    await victim.keyboard.up('x');
     await join(attacker, 'Attack' + suffix, room);
     await attacker.locator('#canvas').focus();
     await attacker.keyboard.down('d');
@@ -74,9 +74,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await attacker.keyboard.down('w');
     await attacker.waitForTimeout(4300);
     await attacker.keyboard.up('w');
-    await attacker.keyboard.down('s');
+    await attacker.keyboard.down('x');
     await attacker.waitForTimeout(2100);
-    await attacker.keyboard.up('s');
+    await attacker.keyboard.up('x');
     await attacker.waitForTimeout(1200);
     const now = await read(attacker),
       self = now.self,

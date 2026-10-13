@@ -275,7 +275,7 @@ public static class SkillCatalog
             "Mobility",
             "steering",
             [.25f, .5f],
-            v => $"+{v * 100:0}% counter-steering acceleration.",
+            v => $"+{v * 100:0}% opposing thrust when pushing against your drift.",
             "thruster.1"
         );
         Series(

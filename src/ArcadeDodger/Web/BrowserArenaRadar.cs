@@ -102,6 +102,8 @@ internal static partial class BrowserArenaHud
                 start = end;
             }
             Raylib.DrawCircleLines((int)start.X, (int)start.Y, 5, Amber);
+            if (navigation?.Pending == true)
+                Text("PLOTTING ROUTE...", (int)map.X + 8, (int)map.Y + 6, 12, Amber);
         }
         if (snapshot?.Sector?.World?.EventObjective is { } signal)
         {

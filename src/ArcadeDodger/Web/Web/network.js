@@ -41,6 +41,7 @@ export function startNetwork(host, canvas, status) {
     link,
     menuButton,
     radarControls,
+    brakeButton,
     setWaypoint,
     rescueButton,
     setRescue,
@@ -66,6 +67,7 @@ export function startNetwork(host, canvas, status) {
     menuOpen = false,
     dead = false,
     mouseFire = false,
+    buttonBrake = false,
     u = 0.5,
     v = 0.5,
     aim = 0,
@@ -78,7 +80,7 @@ export function startNetwork(host, canvas, status) {
     (action, target) => {
       if (!joined || dead || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 4096)
         return;
-      socket.send(JSON.stringify({ v: 11, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 12, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (location) => sector.navigateTo(location),
@@ -91,6 +93,7 @@ export function startNetwork(host, canvas, status) {
     'KeyA',
     'KeyS',
     'KeyD',
+    'KeyX',
     'ArrowUp',
     'ArrowDown',
     'ArrowLeft',
@@ -126,7 +129,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 11, type: 'choice', seq: ++seq, choice: id }));
+      socket.send(JSON.stringify({ v: 12, type: 'choice', seq: ++seq, choice: id }));
     },
     (open) => {
       if (open && sector?.open) sector.setOpen('');
@@ -149,7 +152,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 11, type: 'equipment', seq: ++seq, ...command }));
+      socket.send(JSON.stringify({ v: 12, type: 'equipment', seq: ++seq, ...command }));
       return seq;
     },
     (module) => {
@@ -159,7 +162,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 11, type: 'buy', seq: ++seq, module }));
+      socket.send(JSON.stringify({ v: 12, type: 'buy', seq: ++seq, module }));
       return seq;
     },
     (open) => {
@@ -182,7 +185,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 11, type: 'friend', seq: ++seq, name, action }));
+      socket.send(JSON.stringify({ v: 12, type: 'friend', seq: ++seq, name, action }));
       return seq;
     },
     (open) => {
@@ -205,7 +208,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 11, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 12, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (open) => {
@@ -257,6 +260,7 @@ export function startNetwork(host, canvas, status) {
     !document.hasFocus() ||
     editable(document.activeElement) ||
     (document.activeElement instanceof Element &&
+      document.activeElement !== brakeButton &&
       !!document.activeElement.closest('button,a,input'));
   function presentation() {
     updateMenuNavigation();
@@ -270,6 +274,7 @@ export function startNetwork(host, canvas, status) {
     if (blocked) {
       keys.clear();
       mouseFire = false;
+      buttonBrake = false;
     } else {
       if (pointer) trackPointer(pointer);
       aim = host.ArenaAim(u, v);
@@ -278,6 +283,7 @@ export function startNetwork(host, canvas, status) {
       x: blocked ? 0 : held('KeyD', 'ArrowRight') - held('KeyA', 'ArrowLeft'),
       y: blocked ? 0 : held('KeyS', 'ArrowDown') - held('KeyW', 'ArrowUp'),
       aim,
+      brake: !blocked && (buttonBrake || !!held('KeyX')),
       fire: !blocked && (mouseFire || !!held('Space')),
       menu:
         living.trading ||
@@ -289,7 +295,10 @@ export function startNetwork(host, canvas, status) {
       editing:
         living.trading || !!sector?.cloaked || skills.open || !!bench?.open || !!friends?.open,
     };
-    host.ArenaInput(intent.x, intent.y, intent.aim, intent.menu);
+    host.ArenaInput(intent.x, intent.y, intent.aim, intent.menu, intent.brake);
+    brakeButton.hidden = !joined || dead || !!activeMenu();
+    brakeButton.setAttribute('aria-pressed', String(intent.brake));
+    brakeButton.dataset.variant = intent.brake ? 'primary' : 'secondary';
     return intent;
   }
   function sendInput() {
@@ -299,7 +308,7 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     const intent = localInput();
-    socket.send(JSON.stringify({ v: 11, type: 'input', seq: ++seq, ...intent }));
+    socket.send(JSON.stringify({ v: 12, type: 'input', seq: ++seq, ...intent }));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -312,6 +321,7 @@ export function startNetwork(host, canvas, status) {
   function clearInput() {
     keys.clear();
     mouseFire = false;
+    buttonBrake = false;
     localInput();
     sendInput();
   }
@@ -338,6 +348,37 @@ export function startNetwork(host, canvas, status) {
     effects.checked = value;
     presentation();
   }
+  // Hold controls release even if the pointer leaves the button or focus is lost.
+  brakeButton.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || inputBlocked()) return;
+    e.preventDefault();
+    canvas.focus();
+    brakeButton.setPointerCapture(e.pointerId);
+    buttonBrake = true;
+    sendInput();
+  });
+  const releaseBrake = () => {
+    if (!buttonBrake) return;
+    buttonBrake = false;
+    sendInput();
+  };
+  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'])
+    brakeButton.addEventListener(event, releaseBrake);
+  brakeButton.addEventListener('keydown', (e) => {
+    if (!['Space', 'Enter'].includes(e.code)) return;
+    e.preventDefault();
+    if (!inputBlocked() && !e.repeat) {
+      buttonBrake = true;
+      sendInput();
+    }
+  });
+  brakeButton.addEventListener('keyup', (e) => {
+    if (['Space', 'Enter'].includes(e.code)) {
+      e.preventDefault();
+      releaseBrake();
+    }
+  });
+  brakeButton.addEventListener('blur', releaseBrake);
   menuButton.addEventListener('click', () => setMenu(true));
   resume.addEventListener('click', () => setMenu(false));
   effects.addEventListener('change', () => setEffects(effects.checked));
@@ -352,6 +393,7 @@ export function startNetwork(host, canvas, status) {
     clearTimeout(joinTimeout);
     keys.clear();
     mouseFire = false;
+    buttonBrake = false;
     dead = false;
     socket = undefined;
     for (const key of ['player', 'room', 'tick', 'snapshot']) delete info.dataset[key];
@@ -382,7 +424,7 @@ export function startNetwork(host, canvas, status) {
     leave.disabled = true;
     resume.disabled = true;
     connection.textContent = 'Ending run…';
-    socket.send(JSON.stringify({ v: 11, type: 'leave', seq: pendingLeave }));
+    socket.send(JSON.stringify({ v: 12, type: 'leave', seq: pendingLeave }));
     const leaving = socket;
     leaveTimeout = setTimeout(() => {
       if (socket === leaving && pendingLeave)
@@ -398,10 +440,11 @@ export function startNetwork(host, canvas, status) {
     clearInput();
     retry.disabled = true;
     retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({ v: 11, type: 'respawn', seq: ++seq }));
+    socket.send(JSON.stringify({ v: 12, type: 'respawn', seq: ++seq }));
     canvas.focus();
   });
   window.addEventListener('keydown', (e) => {
+    if (e.target === brakeButton && ['Space', 'Enter'].includes(e.code)) return;
     if (
       joined &&
       !editable(e.target) &&
@@ -517,6 +560,7 @@ export function startNetwork(host, canvas, status) {
   window.addEventListener('pointerup', (e) => {
     if (e.button === 0) {
       mouseFire = false;
+      buttonBrake = false;
       localInput();
     }
   });
@@ -570,7 +614,7 @@ export function startNetwork(host, canvas, status) {
     current.addEventListener('open', () => {
       if (socket === current)
         current.send(
-          JSON.stringify({ v: 11, type: 'join', name: name.value, room: params.get('room') || '' }),
+          JSON.stringify({ v: 12, type: 'join', name: name.value, room: params.get('room') || '' }),
         );
     });
     current.addEventListener('message', (e) => {
@@ -579,7 +623,7 @@ export function startNetwork(host, canvas, status) {
         if (typeof e.data !== 'string' || e.data.length > 524288)
           throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 11) throw new Error('Protocol mismatch');
+        if (message.v !== 12) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit = 0;
           lastCreditLife = -1;

@@ -141,3 +141,38 @@ Reviewed mission acceptance, target eligibility, actual simulation ordering, com
 Private inventory retains revisioned page synchronization. Convoy manifests contain five entries per trip, sent only on revision changes; cargo is bounded to 64 sector objects and filtered by the viewer's sensors. These bounded stock/cargo sets fit one response; no unbounded inventory is embedded in snapshots. Radio retains at most 32 messages. Each profile retains at most 32 race-class records with at most 1,800 authoritative ghost samples per record.
 
 The new systems live in focused `Room.*` partial modules; geometry, chassis, component levels, and territory cells are shared catalogs/helpers. No phone layout, ship-building editor, crafting economy, permanent reputation, or garage was added.
+
+
+## Inertial ship flight — protocol v12
+
+- [x] Replace desired-velocity steering with hull-directed thrust. Zero throttle preserves momentum. A/D rotation stops on release; mouse aim remains independent.
+- [x] Starter thrust is 110 units/s², opposing thrust 165 units/s², scaled by chassis and existing skills/engine bonuses. Opposing thrust requires a direction against current velocity; perpendicular thrust preserves sideways motion.
+- [x] Hold X or the footer Brake button to cut throttle and brake at 300 units/s² without reversing. Braking cancels cruise. Button pointer capture, keyboard activation, blur/cancel handling, and menu/death clearing prevent stuck input.
+- [x] Keep speed caps along the resulting velocity; lost cruise/tow speed allowance bleeds off at 300 units/s². Preserve swept collision sliding and lifecycle full stops. Input timeout/disconnection releases thrust and braking; recovery preserves the coasting body.
+- [x] Shared authoritative/predicted integration, brake intent, braking and cruise-multiplier snapshots, JSON/packed parsing, protocol v12, and cache refresh. Existing checkpoint velocity/heading/throttle fields remain valid; held brake intent is deliberately not persisted.
+- [x] HUD speed/braking indication, independent travel-direction marker, control help, and opposing-thrust skill description. Race classes include flight model version 2, keeping old records/ghosts separate.
+- [x] NPC navigation, weapon balance, equipment ownership, and economic state remain unchanged.
+
+Verification on CARPPC / .NET 10.0.12:
+
+- 499 .NET regression cases pass, including new drift/rotation, seven-chassis acceleration, perpendicular/opposing thrust, speed-cap direction, overspeed decay, exact braking distance, timeout/recovery, packet-frequency/frame-cadence, strict brake parsing, and cruise/prediction cases. `artifacts/inertial-dotnet-final.log`.
+- All 28 desktop browser regression suites pass. Combat fixtures now explicitly brake and allow time to leave sanctuary under slower acceleration. Contact fixtures were rerun in a fresh sector because roaming traders had departed during the combined suite. Initial logs and successful reruns are retained as `artifacts/inertial-browser-*.log`; consolidated status is `artifacts/inertial-browser-verified.txt`.
+- Brake pointer/keyboard behavior and footer containment pass at 1280×720, DPR 1 and 2. Shared prediction settles to authority with 300 ms inbound delay. Three clients complete the two-minute flight/fire/recovery soak without browser exceptions.
+- Debug/F5 launch and Release server/WASM builds pass with zero warnings/errors; verification uses isolated profiles under `artifacts/inertial-verification`.
+- Production 192-NPC / 512-projectile / 24-peer benchmark passes unchanged gates: server end-to-end p95 **18.4434 ms** (<25), browser render p95 **6.7 ms** (<20), receive p95 **2.1 ms**, frame interval p95 **8.4 ms**, zero long frames. Minimum 136 primary shots per pilot; maximum quiet interval 17 ticks. Reports: `artifacts/combat-performance-inertial/`.
+- Temporary local server stopped after verification. No production profiles were used.
+
+## Waypoint responsiveness and canvas typography
+
+- [x] Replace synchronous browser waypoint searches with one incremental job advanced once per rendered frame (256 work items / 2 ms soft budget). Chart/minimap readers return cached results immediately; long routes show a plotting indicator.
+- [x] Cache grid clearance and swept edges per ship radius, use an eight-direction heuristic, and remove redundant route points only after swept visibility checks. Reuse valid routes during flight; cache unreachable results; cancel obsolete distant destinations and avoid starving searches for moving contacts.
+- [x] Use the pilot's actual chassis clearance for waypoints. Validate route endpoints against sector boundaries and preserve obstacle-safe approaches.
+- [x] Bundle SIL-OFL Rajdhani SemiBold for all Raylib HUD/world labels. Rasterize once at 48 px, generate mipmaps, and use trilinear filtering. Shared measurement matches rendering; compensate for TTF cap height. License and source are included under `src/ArcadeDodger/Web/Fonts`.
+
+Verification on CARPPC / .NET 10.0.12:
+
+- All 506 .NET regressions pass (`artifacts/waypoint-full-tests-final.log`). Seven focused navigation tests cover incremental budgets, collision-safe routes, radius isolation, boundaries, path reuse, unreachable caching, cancellation, and moving targets.
+- Desktop browser navigation test visits all planets, stations, and hostile arrays at 1280x720, DPR 1/2. Route API calls max 2.1 ms; render p95 13.6/12.3 ms during planning. Long cold routes can take several seconds to finish while gameplay continues. `artifacts/navigation-browser-final.log` and `artifacts/navigation-font-dpr*.png`.
+- Eight existing browser suites pass: chart, radar, viewport, presentation, inertia, surface expansion, objective effects, and cached asset versions. `artifacts/navigation-browser-*.log`.
+- 192-NPC / 512-projectile / 24-peer benchmark retains the gates: server end-to-end p95 23.5802 ms (<25), browser render p95 11.9 ms (<20). `artifacts/combat-performance-navigation/`.
+- Debug server/WASM build and browser formatting checks pass. Verification uses isolated profiles; temporary local server stopped afterward.

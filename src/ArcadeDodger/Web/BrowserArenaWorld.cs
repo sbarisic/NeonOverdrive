@@ -103,7 +103,7 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawPoly(p, 4, 7, 0, Raylib.Fade(Cyan, .65f));
             Raylib.DrawPolyLinesEx(p, 4, 7, 0, 2, Cyan);
             Raylib.DrawCircleV(p, 2, NeonRendering.Ink);
-            Raylib.DrawText("ENERGY", (int)p.X - 18, (int)p.Y - 30, 10, Cyan);
+            BrowserText.DrawText("ENERGY", (int)p.X - 18, (int)p.Y - 30, 10, Cyan);
         }
         foreach (var credit in snapshot.Credits ?? [])
         {
@@ -112,7 +112,7 @@ internal sealed partial class BrowserArenaWorld
                 continue;
             Raylib.DrawPoly(p, 6, 9, time * 30, Raylib.Fade(Gold, .3f));
             Raylib.DrawPolyLinesEx(p, 6, 9, time * 30, 2, Gold);
-            Raylib.DrawText("$", (int)p.X - 4, (int)p.Y - 5, 10, Gold);
+            BrowserText.DrawText("$", (int)p.X - 4, (int)p.Y - 5, 10, Gold);
         }
         foreach (var module in snapshot.ModuleDrops ?? [])
         {
@@ -127,7 +127,7 @@ internal sealed partial class BrowserArenaWorld
                 new Color(25, 35, 48, 255)
             );
             Raylib.DrawRectangleLines((int)pos.X - 12, (int)pos.Y - 12, 24, 24, Gold);
-            Raylib.DrawText(
+            BrowserText.DrawText(
                 module.Kind == "weapon" ? "WPN"
                     : module.Kind == "gear" ? "SYS"
                     : "MOD",

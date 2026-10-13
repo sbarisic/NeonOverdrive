@@ -497,7 +497,7 @@ public class ModularWeaponTests
             valid,
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    $"{{\"v\":11,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
+                    $"{{\"v\":12,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
                 ),
                 out _
             )

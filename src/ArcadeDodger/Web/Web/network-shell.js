@@ -96,6 +96,18 @@ export function createHudControls(element, canvas, host) {
     radarControls.append(b);
   }
   document.body.append(radarControls);
+  const flightControls = element('div', '', 'arena-shell');
+  flightControls.id = 'flight-controls';
+  const brakeButton = element('button', 'Brake [X]');
+  brakeButton.id = 'flight-brake';
+  brakeButton.type = 'button';
+  brakeButton.hidden = true;
+  brakeButton.title = 'Hold to cut throttle and brake. Release to coast.';
+  brakeButton.setAttribute('aria-pressed', 'false');
+  control(brakeButton, 'brake');
+  Object.assign(flightControls.style, { position: 'fixed', zIndex: '4' });
+  flightControls.append(brakeButton);
+  document.body.append(flightControls);
   const rescueButton = element('button', '◉');
   rescueButton.id = 'radar-rescue';
   rescueButton.type = 'button';
@@ -152,6 +164,8 @@ export function createHudControls(element, canvas, host) {
     const bounds = canvas.getBoundingClientRect();
     const layout = host.ArenaHudLayout(bounds.width, bounds.height).split(',').map(Number);
     hudLayout = layout;
+    flightControls.style.left = `${bounds.left + layout[6] + 16}px`;
+    flightControls.style.top = `${bounds.top + layout[7] + 16}px`;
     setRescue(rescueState, rescuePilot);
     info.style.left = `${bounds.left + layout[0]}px`;
     info.style.top = `${bounds.top + layout[1]}px`;
@@ -178,6 +192,7 @@ export function createHudControls(element, canvas, host) {
     link,
     menuButton,
     radarControls,
+    brakeButton,
     setWaypoint,
     rescueButton,
     setRescue,
@@ -230,7 +245,11 @@ export function createPauseMenu(element, audio, connection, link) {
       'The room stays live. Your ship can still be hit while this menu is open.',
       'arena-notice',
     ),
-    element('p', 'A/D: turn • W/S: throttle • Mouse / Space: fire • S: throttle down', 'muted'),
+    element(
+      'p',
+      'A/D: turn • W/S: engine throttle • X: hold brake • Mouse / Space: fire. Zero throttle coasts; turn against your drift and thrust to slow down.',
+      'muted',
+    ),
     effectsLabel,
     soundLabel,
     menuActions,

@@ -3,7 +3,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } }),
+    const page = await browser.newPage({
+        viewport: { width: 1280, height: 720 },
+        deviceScaleFactor: +(process.env.FLIGHT_DPR || 1),
+      }),
       errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto((process.env.ARENA_URL || 'http://localhost:5094') + '/');
@@ -30,14 +33,54 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForTimeout(300);
     const held = await read();
     assert(Math.abs(held.throttle - released.throttle) < 0.02);
-    assert(Math.hypot(held.x - released.x, held.y - released.y) > 25);
+    assert(Math.hypot(held.x - released.x, held.y - released.y) > 5);
     await page.keyboard.down('s');
     await page.waitForTimeout(1300);
     await page.keyboard.up('s');
     await page.waitForTimeout(1100);
+    const coasting = await read();
+    assert.equal(coasting.throttle, 0);
+    assert(Math.hypot(coasting.velocityX, coasting.velocityY) > 20);
+    await page.keyboard.down('d');
+    await page.waitForTimeout(750);
+    await page.keyboard.up('d');
+    const rotated = await read();
+    assert(Math.abs(rotated.velocityX - coasting.velocityX) < 1);
+    assert(Math.abs(rotated.velocityY - coasting.velocityY) < 1);
+    await page.keyboard.down('x');
+    await page.waitForTimeout(100);
+    assert.equal((await read()).braking, true);
+    await page.waitForTimeout(850);
+    await page.keyboard.up('x');
+    await page.waitForTimeout(100);
     const stopped = await read();
     assert.equal(stopped.throttle, 0);
     assert.equal(stopped.velocityX, 0);
+    assert.equal(stopped.velocityY, 0);
+    assert.equal(stopped.braking, false);
+    // Pointer hold, release outside the button, and keyboard activation all release safely.
+    const brake = page.locator('#flight-brake');
+    const box = await brake.boundingBox();
+    assert(box && box.width > 50 && box.height >= 30);
+    const layout = JSON.parse(await page.locator('#network-info').getAttribute('data-layout'));
+    assert(box.x >= layout[6] && box.x + box.width <= layout[6] + layout[8]);
+    assert(box.y >= layout[7] && box.y + box.height <= layout[7] + layout[9]);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(100);
+    assert.equal((await read()).braking, true);
+    await page.mouse.move(box.x + box.width + 100, box.y - 100);
+    await page.mouse.up();
+    await page.waitForTimeout(100);
+    assert.equal((await read()).braking, false);
+    await brake.focus();
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(100);
+    assert.equal((await read()).braking, true);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(100);
+    assert.equal((await read()).braking, false);
+    await page.locator('#canvas').focus();
     await page.keyboard.down('Shift');
     await page.waitForTimeout(300);
     await page.keyboard.up('Shift');

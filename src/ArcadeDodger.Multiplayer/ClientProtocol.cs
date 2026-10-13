@@ -15,7 +15,8 @@ public sealed record InputMessage(
     float Aim,
     bool Fire,
     bool Menu,
-    bool Editing = false
+    bool Editing = false,
+    bool Brake = false
 ) : SequencedMessage(Sequence);
 
 public sealed record ChoiceMessage(int Sequence, string Choice) : SequencedMessage(Sequence);
@@ -37,7 +38,7 @@ public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 11;
+    public const int Version = 12;
     public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -86,20 +87,20 @@ public static class ClientProtocol
                     return true;
                 case "input":
                     if (
-                        !(
-                            Fields(names, "v", "type", "seq", "x", "y", "aim", "fire", "menu")
-                            || Fields(
-                                names,
-                                "v",
-                                "type",
-                                "seq",
-                                "x",
-                                "y",
-                                "aim",
-                                "fire",
-                                "menu",
-                                "editing"
-                            )
+                        names.Any(n =>
+                            n
+                                is not (
+                                    "v"
+                                    or "type"
+                                    or "seq"
+                                    or "x"
+                                    or "y"
+                                    or "aim"
+                                    or "fire"
+                                    or "menu"
+                                    or "editing"
+                                    or "brake"
+                                )
                         )
                         || !Sequence(root, out var sequence)
                         || !Number(root, "x", -1, 1, out var x)
@@ -112,7 +113,10 @@ public static class ClientProtocol
                     var editing = false;
                     if (names.Contains("editing") && !Boolean(root, "editing", out editing))
                         return false;
-                    message = new InputMessage(sequence, x, y, aim, fire, menu, editing);
+                    var brake = false;
+                    if (names.Contains("brake") && !Boolean(root, "brake", out brake))
+                        return false;
+                    message = new InputMessage(sequence, x, y, aim, fire, menu, editing, brake);
                     return true;
                 case "choice":
                     if (

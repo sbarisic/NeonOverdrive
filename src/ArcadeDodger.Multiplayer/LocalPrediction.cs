@@ -34,7 +34,8 @@ public sealed class LocalPrediction
         double RefreshedAt,
         Vector2 Direction,
         float Aim,
-        bool Menu
+        bool Menu,
+        bool Brake
     );
 
     private readonly record struct Sent(int Sequence, double At);
@@ -60,7 +61,7 @@ public sealed class LocalPrediction
     }
 
     // Called promptly on local changes, and refreshed independently of packet frequency.
-    public void Input(float x, float y, float aim, bool menu, double seconds)
+    public void Input(float x, float y, float aim, bool menu, double seconds, bool brake = false)
     {
         if (
             !double.IsFinite(seconds)
@@ -82,11 +83,12 @@ public sealed class LocalPrediction
             && history[^1] is var prior
             && prior.Direction == direction
             && prior.Menu == menu
+            && prior.Brake == brake
             && seconds < prior.RefreshedAt + InputTimeoutSeconds
         )
             history[^1] = prior with { RefreshedAt = seconds, Aim = aim };
         else
-            history.Add(new(seconds, seconds, direction, aim, menu));
+            history.Add(new(seconds, seconds, direction, aim, menu, brake));
         Trim(seconds);
     }
 
@@ -122,6 +124,8 @@ public sealed class LocalPrediction
             || p.Throttle is < 0 or > 1
             || !float.IsFinite(p.MoveSpeed)
             || p.MoveSpeed <= 0
+            || !float.IsFinite(p.CruiseMultiplier)
+            || p.CruiseMultiplier < 1
             || !float.IsFinite(p.Acceleration)
             || p.Acceleration <= 0
             || !float.IsFinite(p.Steering)
@@ -178,6 +182,7 @@ public sealed class LocalPrediction
         var velocity = new Vector2(p.VelocityX, p.VelocityY);
         var heading = p.Heading;
         var throttle = p.Throttle;
+        var cruiseCancelled = false;
         var end = Math.Min(seconds, anchorTime + MaxPredictionSeconds);
         var time = anchorTime;
         var index = -1;
@@ -198,22 +203,34 @@ public sealed class LocalPrediction
             var dt = (float)(next - time);
             if (held)
                 aim = intent.Aim;
-            Movement.Steer(
+            cruiseCancelled |= held && intent.Brake || !held || p.Menu || held && intent.Menu;
+            if (!cruiseCancelled && p.CruiseState == "active")
+                cruiseCancelled =
+                    geometry?.TraceShips(
+                        position,
+                        position + velocity / Room.TickRate,
+                        ChassisCatalog.Get(p.Chassis).Radius
+                    )
+                        is not null;
+            var cancelledActiveCruise = cruiseCancelled && p.CruiseState == "active";
+            var collided = Movement.Steer(
                 ref position,
                 ref velocity,
                 ref heading,
                 ref throttle,
                 held ? intent.Direction : Vector2.Zero,
                 dt,
-                p.MoveSpeed,
-                p.Acceleration,
-                p.Steering,
+                p.MoveSpeed / (cancelledActiveCruise ? p.CruiseMultiplier : 1),
+                p.Acceleration / (cancelledActiveCruise ? 2 : 1),
+                p.Steering / (cancelledActiveCruise ? 2 : 1),
                 geometry,
                 p.Menu || held && intent.Menu,
                 held,
-                p.TurnRate,
-                ChassisCatalog.Get(p.Chassis).Radius
+                p.TurnRate * (cancelledActiveCruise ? 2 : 1),
+                ChassisCatalog.Get(p.Chassis).Radius,
+                held && intent.Brake
             );
+            cruiseCancelled |= collided;
             time = next;
         }
         // Only visual residuals decay; authoritative gameplay fields are unchanged.
@@ -229,6 +246,12 @@ public sealed class LocalPrediction
             VelocityY = velocity.Y,
             Heading = heading,
             Throttle = throttle,
+            Braking =
+                index >= 0
+                && time < history[index].RefreshedAt + InputTimeoutSeconds
+                && history[index].Brake
+                && !p.Menu
+                && !history[index].Menu,
         };
     }
 

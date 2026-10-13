@@ -7,7 +7,7 @@ namespace ArcadeDodger.Multiplayer.Tests;
 public class MovementTests
 {
     [Fact]
-    public void PersistentThrottleHoldsThenBrakesAndCoastsWhenInputExpires()
+    public void PersistentThrottleAcceleratesThenCoastsWhenInputExpires()
     {
         var r = Start();
         for (int i = 1; i <= 60; i++)
@@ -17,7 +17,7 @@ public class MovementTests
         }
         var full = r.Snapshot().Players[0];
         Assert.InRange(full.Throttle, .999f, 1);
-        Assert.InRange(full.VelocityX, 219.9f, 220);
+        Assert.InRange(full.VelocityX, 110, 111);
         for (int i = 61; i <= 90; i++)
         {
             r.Input(1, new(i, 0, 0, 0, false, false));
@@ -26,7 +26,7 @@ public class MovementTests
         Assert.Equal(full.Throttle, r.Snapshot().Players[0].Throttle);
         Step(r, 38);
         Assert.Equal(0, r.Snapshot().Players[0].Throttle);
-        Assert.Equal(0, r.Snapshot().Players[0].VelocityX);
+        Assert.InRange(r.Snapshot().Players[0].VelocityX, 219.9f, 220);
     }
 
     [Fact]
@@ -51,13 +51,13 @@ public class MovementTests
     public void CounterSteeringIsStrongerAndDiagonalsAreBounded()
     {
         Vector2 p = new(1000),
-            v = new(300, 0);
+            v = new(200, 0);
         Movement.Step(ref p, ref v, -Vector2.UnitX, 1f / 30);
-        Assert.Equal(240, v.X);
+        Assert.Equal(194.5f, v.X);
         v = Vector2.Zero;
         for (int i = 0; i < 60; i++)
             Movement.Step(ref p, ref v, Vector2.One, 1f / 30);
-        Assert.Equal(300, v.Length(), 3);
+        Assert.Equal(220, v.Length(), 3);
     }
 
     [Fact]
@@ -70,10 +70,10 @@ public class MovementTests
         r.Disconnect(1);
         Step(r, 3);
         var p = r.Snapshot().Players[0];
-        Assert.Equal(190, p.VelocityX);
+        Assert.Equal(220, p.VelocityX);
         Assert.Equal(1, r.Join("Modules"));
         Assert.Equal(p.X, r.Snapshot().Players[0].X);
-        Assert.Equal(190, r.Snapshot().Players[0].VelocityX);
+        Assert.Equal(220, r.Snapshot().Players[0].VelocityX);
     }
 
     [Fact]

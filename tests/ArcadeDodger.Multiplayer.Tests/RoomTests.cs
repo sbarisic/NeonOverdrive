@@ -19,27 +19,27 @@ public class RoomTests
         room.Step();
         var end = room.Snapshot().Players.Single();
         Assert.Equal(100, end.Ack);
-        Assert.Equal(
-            220f / 60 / 30 * .625f,
-            MathF.Sqrt(MathF.Pow(end.X - start.X, 2) + MathF.Pow(end.Y - start.Y, 2)),
-            2
-        );
+        Assert.InRange(end.VelocityX, .03f, .05f);
+        Assert.InRange(MathF.Abs(end.VelocityY), 0, .005f);
+        Assert.InRange(end.X - start.X, 0, .002f);
         Assert.False(room.Input(id, new(100, 0, 0, 0, false, false)));
         Assert.False(room.Input(id, new(101, float.NaN, 0, 0, false, false)));
     }
 
     [Fact]
-    public void MovementStopsWhenStaleAndStaysInsideArena()
+    public void MovementCoastsWhenStaleAndStaysInsideArena()
     {
         var room = new Room(sectorEnabled: false);
         var id = room.Join("A")!.Value;
         room.Input(id, new(1, 0, -1, 0, false, false));
         for (var i = 0; i < 40; i++)
             room.Step();
-        var stopped = room.Snapshot().Players.Single();
+        var coasting = room.Snapshot().Players.Single();
         for (var i = 0; i < 100; i++)
             room.Step();
-        Assert.Equal(stopped.X, room.Snapshot().Players.Single().X);
+        Assert.True(room.Snapshot().Players.Single().X > coasting.X);
+        Assert.Equal(0, coasting.Throttle);
+        Assert.Equal(coasting.VelocityX, room.Snapshot().Players.Single().VelocityX);
         for (var i = 2; i < 2400; i++)
         {
             room.Input(id, new(i, 0, -1, 0, false, false));

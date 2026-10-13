@@ -6,9 +6,9 @@ namespace ArcadeDodger.Multiplayer.Tests;
 
 public class ProtocolTests
 {
-    private const string Join = """{"v":11,"type":"join","name":"  Pilot_7  ","room":"abcd0123"}""";
+    private const string Join = """{"v":12,"type":"join","name":"  Pilot_7  ","room":"abcd0123"}""";
     private const string Input =
-        """{"v":11,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"menu":true}""";
+        """{"v":12,"type":"input","seq":1,"x":0,"y":1,"aim":0,"fire":false,"menu":true}""";
 
     private static bool Parse(string json, out ClientMessage? message) =>
         ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out message);
@@ -21,14 +21,14 @@ public class ProtocolTests
         Assert.True(Parse(Input, out var input));
         Assert.Equal(new InputMessage(1, 0, 1, 0, false, true), input);
         Assert.True(
-            Parse("""{"v":11,"type":"choice","seq":2,"choice":"thruster.1"}""", out var choice)
+            Parse("""{"v":12,"type":"choice","seq":2,"choice":"thruster.1"}""", out var choice)
         );
         Assert.Equal(new ChoiceMessage(2, "thruster.1"), choice);
-        Assert.True(Parse("""{"v":11,"type":"respawn","seq":3}""", out var respawn));
+        Assert.True(Parse("""{"v":12,"type":"respawn","seq":3}""", out var respawn));
         Assert.Equal(new RespawnMessage(3), respawn);
-        Assert.True(Parse("""{"v":11,"type":"leave","seq":4}""", out var leave));
+        Assert.True(Parse("""{"v":12,"type":"leave","seq":4}""", out var leave));
         Assert.Equal(new LeaveMessage(4), leave);
-        Assert.True(Parse("""{"v":11,"type":"join","name":"   ","room":""}""", out join));
+        Assert.True(Parse("""{"v":12,"type":"join","name":"   ","room":""}""", out join));
         Assert.Equal(new JoinMessage("Pilot", ""), join);
     }
 
@@ -36,23 +36,23 @@ public class ProtocolTests
     [InlineData("")]
     [InlineData("null")]
     [InlineData("""{"v":6,"type":"join","name":"OldClient","room":""}""")]
-    [InlineData("""{"v":11,"type":"leave","seq":0}""")]
-    [InlineData("""{"v":11,"type":"leave","seq":1,"replayCount":99}""")]
+    [InlineData("""{"v":12,"type":"leave","seq":0}""")]
+    [InlineData("""{"v":12,"type":"leave","seq":1,"replayCount":99}""")]
     [InlineData("[]")]
     [InlineData("{}")]
-    [InlineData("{\"v\":11")]
-    [InlineData("{\"v\":11,\"type\":\"join\",\"name\":null,\"room\":\"\"}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":1,}")]
-    [InlineData("{\"v\":11,/*comment*/\"type\":\"respawn\",\"seq\":1}")]
+    [InlineData("{\"v\":12")]
+    [InlineData("{\"v\":12,\"type\":\"join\",\"name\":null,\"room\":\"\"}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":1,}")]
+    [InlineData("{\"v\":12,/*comment*/\"type\":\"respawn\",\"seq\":1}")]
     [InlineData("{\"v\":2,\"type\":\"respawn\",\"seq\":1}")]
-    [InlineData("{\"v\":11,\"type\":\"damage\",\"seq\":1}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":0}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":-1}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":2147483648}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":1.5}")]
-    [InlineData("{\"v\":11,\"type\":\"respawn\",\"seq\":\"1\"}")]
-    [InlineData("{\"v\":11,\"type\":\"choice\",\"seq\":1,\"choice\":30}")]
-    [InlineData("{\"v\":11,\"type\":\"choice\",\"seq\":1,\"choice\":-1}")]
+    [InlineData("{\"v\":12,\"type\":\"damage\",\"seq\":1}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":0}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":-1}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":2147483648}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":1.5}")]
+    [InlineData("{\"v\":12,\"type\":\"respawn\",\"seq\":\"1\"}")]
+    [InlineData("{\"v\":12,\"type\":\"choice\",\"seq\":1,\"choice\":30}")]
+    [InlineData("{\"v\":12,\"type\":\"choice\",\"seq\":1,\"choice\":-1}")]
     public void RejectsMalformedOrOutOfRangeMessages(string json)
     {
         Assert.False(Parse(json, out var message));
@@ -98,7 +98,7 @@ public class ProtocolTests
         var json = System.Text.Json.JsonSerializer.Serialize(
             new
             {
-                v = 11,
+                v = 12,
                 type = "join",
                 name,
                 room,

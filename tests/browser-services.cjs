@@ -12,7 +12,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     const state = () =>
       page.locator('#network-info').evaluate((e) => JSON.parse(e.dataset.snapshot));
-    assert.equal((await state()).v, 11);
+    assert.equal((await state()).v, 12);
     assert.equal((await state()).sector.services.contacts.length, 3);
     const ownId = +(await page.locator('#network-info').getAttribute('data-player'));
     assert.equal((await state()).players.find((p) => p.id === ownId).playthrough, 1);
@@ -79,7 +79,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert((await page.locator('.map-location[data-kind="contact"]').count()) >= 3);
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: v11, playthrough, contextual hailing, authored chat, cloak/exit, desktop footer, six gear colors, roaming map contacts.',
+      'PASS: v12, playthrough, contextual hailing, authored chat, cloak/exit, desktop footer, six gear colors, roaming map contacts.',
     );
   } finally {
     await browser.close();

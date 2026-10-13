@@ -42,6 +42,7 @@ public sealed partial class Room
         if (
             frozen
             || p.Held is null
+            || p.Held.Brake
             || !p.Connected
             || Gear(p, 12) == 0
             || p.LastDamage >= 0 && Tick - p.LastDamage < 5 * TickRate

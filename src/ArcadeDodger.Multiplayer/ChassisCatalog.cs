@@ -41,8 +41,8 @@ public sealed record ChassisDefinition(
     Vector2[] Hardpoints
 )
 {
-    public float Acceleration => 1200 * Speed / 220;
-    public float Steering => 1800 * Speed / 220;
+    public float Acceleration => 110 * Speed / 220;
+    public float Steering => 165 * Speed / 220;
     public float Radius => MathF.Sqrt(Length * Length + Width * Width) / 2;
     public float TurnRadians => TurnRate * MathF.PI / 180;
 }

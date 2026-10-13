@@ -103,7 +103,7 @@ public sealed partial class Room
         var startAt = existing?.Start ?? Tick + 10 * TickRate;
         var key = string.Create(
             CultureInfo.InvariantCulture,
-            $"{Sector.Seed}:{kind}:{p.Chassis}:{Gear(p, 12)}:{MoveSpeedFor(p):F2}:{TurnRateFor(p):F3}:{AccelerationFor(p):F2}:{SteeringFor(p):F2}"
+            $"flight{Movement.ModelVersion}:{Sector.Seed}:{kind}:{p.Chassis}:{Gear(p, 12)}:{MoveSpeedFor(p):F2}:{TurnRateFor(p):F3}:{AccelerationFor(p):F2}:{SteeringFor(p):F2}"
         );
         races[p.Id] = new()
         {

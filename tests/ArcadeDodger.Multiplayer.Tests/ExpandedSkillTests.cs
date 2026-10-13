@@ -169,8 +169,8 @@ public class ExpandedSkillTests
         Set(Player(r), "Skills", All("thruster", "vector", "slipstream", "cruise", "impact"));
         var p = r.Snapshot().Players[0];
         Assert.Equal(286, p.MoveSpeed, 2);
-        Assert.Equal(1800, p.Acceleration);
-        Assert.Equal(2700, p.Steering);
+        Assert.Equal(165, p.Acceleration);
+        Assert.Equal(247.5f, p.Steering);
         r.Input(1, new(1, 1, 0, 0, false, false));
         r.Step();
         Assert.Empty(r.Snapshot().Shots);

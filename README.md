@@ -19,7 +19,7 @@ For Visual Studio, select **ArcadeDodger.Server** as the startup project. F5 bui
 
 ## Play
 
-- A/D or Left/Right: rotate the hull. W/S or Up/Down: raise/lower throttle. Throttle holds when released; reduce it to zero to coast to a stop.
+- A/D or Left/Right: rotate the hull. W/S or Up/Down: raise/lower throttle. Throttle controls engine thrust and holds when released. Turning preserves drift; zero throttle coasts indefinitely. Hold X or the Brake button to stop, or turn against your travel direction and thrust.
 - Mouse: aim; left click or Space: fire.
 - Right click a friendly ship or cargo: radio, trade, work, or tow. Remote radio does not stop combat.
 - Shift: engage/cancel an equipped Warp Cruise Drive. Cruise needs five damage-free seconds and disables weapons.
@@ -29,7 +29,7 @@ For Visual Studio, select **ArcadeDodger.Server** as the startup project. F5 bui
 
 Explore a 24,000 × 16,000 sector with solid rocky planets, surface outposts, and orbital stations. Fly around planet rims, fight hostile patrols, and follow radio beacons to cooperative relief-ship rescues. Hail three roaming contacts for module trading and assignments. Search asteroid caches for personal loot. Fund shared salvage defenses and repair drones, then repel raids from The Sundering's factory. Buy modules at stations or roaming traders and edit complete weapon builds anywhere. Bays open at levels 1/8/16/24; each subsequent level activates a mod socket. Installed mods stay with unequipped weapons. Enemy equipment drops include ready-made weapons and six types of ship attachments; inventory is scrollable with no carrying cap. Fresh runs start at level 1 with four kinetic emitters and no purchased modules. Death permanently adds 5 credits to the next starting wallet (100 + 5 per replay). Leave starts fresh without adding a replay; an unexpected disconnect can resume the current run for less than 60 seconds. Friendships remain saved by callsign.
 
-Protocol v11 adds seven station-sold chassis, level-I–IV components, finite convoy stock, civilian roles, police, towing, and derelict encounters. Ship purchases retain equipment and current damage. Control eight sites to expand friendly territory; larger holdings attract stronger factory raids. Invasions, ancient signals, and resource rushes operate alongside contracts and rescues. Radio assignments cover bounties, interception, smuggling, recovery, exploration, and protection. Sprint, obstacle, and rally races keep class-specific personal records and ghosts without economic rewards. See [the combined release tracker](PLAN.md) for tuning and verification evidence.
+Protocol v12 adds inertial flight, held braking, and a speed/travel-direction display. Race records are separated by flight model. The fleet systems include seven station-sold chassis, level-I–IV components, finite convoy stock, civilian roles, police, towing, and derelict encounters. Ship purchases retain equipment and current damage. Control eight sites to expand friendly territory; larger holdings attract stronger factory raids. Invasions, ancient signals, and resource rushes operate alongside contracts and rescues. Radio assignments cover bounties, interception, smuggling, recovery, exploration, and protection. Sprint, obstacle, and rally races keep class-specific personal records and ghosts without economic rewards. See [the combined release tracker](PLAN.md) for tuning and verification evidence.
 
 ## Projects and verification
 

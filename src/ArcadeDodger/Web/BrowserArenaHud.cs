@@ -42,9 +42,10 @@ internal static partial class BrowserArenaHud
     {
         sector = value;
         territoryCells = TerritoryGeometry.Cells(value);
-        navigation = new(value, new SectorCollision(value));
-        route = [];
-        routeKnown = false;
+        navigation?.Dispose();
+        navigation = new(new SectorNavigation(value, new SectorCollision(value)));
+        routeJson = "[]";
+        routeRevision = -1;
     }
 
     private static readonly List<Vector2> groups = [];
@@ -64,7 +65,7 @@ internal static partial class BrowserArenaHud
         groups.Clear();
         float x = 20,
             y = 18;
-        foreach (var size in new float[] { 90, 188, 60, 210, 140, 150, 130 })
+        foreach (var size in new float[] { 90, 188, 60, 210, 140, 150, 170 })
         {
             if (x + size > width - 16 && x > 20)
             {
@@ -151,7 +152,15 @@ internal static partial class BrowserArenaHud
         Text($"PLAYTHROUGH {self?.Playthrough ?? 1}", (int)p.X, (int)p.Y + 10, 12, Ink);
         p = groups[6];
         Text($"THROTTLE {(self?.Throttle ?? 0):P0}", (int)p.X, (int)p.Y, 12, Cyan);
-        Meter((int)p.X, (int)p.Y + 24, 110, 5, self?.Throttle ?? 0, Cyan);
+        var speed = new Vector2(self?.VelocityX ?? 0, self?.VelocityY ?? 0).Length();
+        Text(
+            $"{speed:0} U/S{(self?.Braking == true ? " BRAKING" : "")}",
+            (int)p.X,
+            (int)p.Y + 14,
+            10,
+            self?.Braking == true ? Amber : Ink
+        );
+        Meter((int)p.X, (int)p.Y + 28, 110, 4, self?.Throttle ?? 0, Cyan);
         Panel((int)footer.X, (int)footer.Y, (int)footer.Width, (int)footer.Height, Cyan);
         DrawRadar(snapshot, ownId, origin, worldView, time, reducedEffects);
         if (menuOpen || self is null || self.Hull <= 0)
@@ -203,11 +212,11 @@ internal static partial class BrowserArenaHud
         NeonRendering.DrawConsolePanel(x, y, width, height, accent);
 
     private static void Text(string text, int x, int y, int size, Color color) =>
-        Raylib.DrawText(text, x, y, size, color);
+        BrowserText.DrawText(text, x, y, size, color);
 
     private static void Right(string text, int x, int y, int size, Color color) =>
-        Text(text, x - Raylib.MeasureText(text, size), y, size, color);
+        Text(text, x - BrowserText.MeasureText(text, size), y, size, color);
 
     private static void Center(string text, int y, int size, Color color, int width = 960) =>
-        Text(text, (width - Raylib.MeasureText(text, size)) / 2, y, size, color);
+        Text(text, (width - BrowserText.MeasureText(text, size)) / 2, y, size, color);
 }

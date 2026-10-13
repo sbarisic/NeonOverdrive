@@ -49,12 +49,15 @@ public partial class BrowserHost
         BrowserArenaHud.Navigation(x, y, tx, ty);
 
     [JSExport]
+    public static bool ArenaRoutePending() => BrowserArenaHud.NavigationPending;
+
+    [JSExport]
     public static string ArenaHudLayout(double width, double height) =>
         BrowserArenaHud.Configure(width, height);
 
     [JSExport]
-    public static void ArenaInput(double x, double y, double aim, bool menu) =>
-        arena?.Input(x, y, aim, menu);
+    public static void ArenaInput(double x, double y, double aim, bool menu, bool brake) =>
+        arena?.Input(x, y, aim, menu, brake);
 
     [JSExport]
     public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);
@@ -72,6 +75,7 @@ public partial class BrowserHost
             throw new InvalidOperationException("Raylib window initialization failed.");
         Raylib.SetWindowSize(1920, 1080); // Synchronize the initial GL viewport before CSS-sized frames.
         Raylib.SetTargetFPS(0); // Yield to requestAnimationFrame instead of blocking the browser.
+        BrowserText.Load();
         initialized = true;
         ActivateArena();
     }
@@ -104,7 +108,10 @@ public partial class BrowserHost
         arena?.Release();
         arena = null;
         if (initialized)
+        {
+            BrowserText.Release();
             Raylib.CloseWindow();
+        }
         initialized = false;
     }
 }

@@ -222,7 +222,7 @@ public class EquipmentTests
         Assert.Equal(3 + (kind == 8 ? tier : 0), view.MaxHull);
         Assert.Equal(2 + (kind == 0 ? tier : 0), view.MaxShield);
         Assert.Equal(220 * (1 + (kind == 2 ? .05f * tier : 0)), view.MoveSpeed, 3);
-        Assert.Equal(1200 * (1 + (kind == 3 ? .1f * tier : 0)), view.Acceleration, 3);
+        Assert.Equal(110 * (1 + (kind == 3 ? .1f * tier : 0)), view.Acceleration, 3);
         Assert.Equal(1200 + (kind == 4 ? 250 * tier : 0), view.SurveyRadius);
         Assert.Equal(1200 + (kind == 5 ? 200 * tier : 0), view.DetectionRadius);
         Assert.Equal(1 + (kind == 10 ? .05f * tier : 0), view.WeaponStats![0].Damage, 4);

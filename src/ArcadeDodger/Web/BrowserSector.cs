@@ -120,7 +120,7 @@ internal sealed partial class BrowserArenaWorld
                 case "cache":
                     var searched = snapshot.Sector?.Services?.ClaimedCaches.Contains(l.Id) == true;
                     Raylib.DrawPolyLinesEx(p, 4, 16, 45, 2, searched ? MutedMine : Gold);
-                    Raylib.DrawText(
+                    BrowserText.DrawText(
                         searched ? "SEARCHED" : "E / SEARCH CACHE",
                         (int)p.X - 60,
                         (int)p.Y - 35,
@@ -156,7 +156,7 @@ internal sealed partial class BrowserArenaWorld
                         new Color(255, 255, 255, 255)
                     );
                     Raylib.DrawCircleLines((int)p.X, (int)p.Y, l.Radius, Raylib.Fade(tint, .65f));
-                    Raylib.DrawText(
+                    BrowserText.DrawText(
                         l.Name.ToUpperInvariant(),
                         (int)(p.X - l.Radius * .5f),
                         (int)(p.Y - l.Radius - 55),
@@ -183,8 +183,8 @@ internal sealed partial class BrowserArenaWorld
                     Raylib.DrawCircleLines((int)p.X, (int)p.Y, 180, Raylib.Fade(Cyan, .25f));
                     DrawPanels(StructureCatalog.Station, p, 0, stationColor);
                     DrawStationCore(p, 28, stationColor, time, reduced);
-                    Raylib.DrawText(l.Name, (int)p.X - 95, (int)p.Y - 145, 18, stationColor);
-                    Raylib.DrawText(
+                    BrowserText.DrawText(l.Name, (int)p.X - 95, (int)p.Y - 145, 18, stationColor);
+                    BrowserText.DrawText(
                         owner?.Owner == "hostile" ? "HOSTILE CONTROL"
                             : owner?.Contested == true ? "CONTESTED / DOCK CLOSED"
                             : "E / DOCK   SANCTUARY",
@@ -211,7 +211,7 @@ internal sealed partial class BrowserArenaWorld
                             44,
                             Raylib.Fade(c, .55f)
                         );
-                    Raylib.DrawText(
+                    BrowserText.DrawText(
                         destroyed ? "ARRAY DESTROYED" : l.Name,
                         (int)p.X - 110,
                         (int)p.Y - 110,
@@ -233,12 +233,12 @@ internal sealed partial class BrowserArenaWorld
                     break;
                 case "corridor":
                     Raylib.DrawCircleLines((int)p.X, (int)p.Y, 110, Hostile);
-                    Raylib.DrawText("HOSTILE ARRIVAL", (int)p.X - 90, (int)p.Y - 140, 16, Hostile);
+                    BrowserText.DrawText("HOSTILE ARRIVAL", (int)p.X - 90, (int)p.Y - 140, 16, Hostile);
                     break;
                 case "wreck":
                     Raylib.DrawPoly(p, 5, 40, 25, new Color(60, 63, 76, 255));
                     Raylib.DrawLineEx(p - new Vector2(30, 20), p + new Vector2(20, 35), 4, Gold);
-                    Raylib.DrawText("SALVAGE", (int)p.X - 35, (int)p.Y - 62, 12, Gold);
+                    BrowserText.DrawText("SALVAGE", (int)p.X - 35, (int)p.Y - 62, 12, Gold);
                     DrawScanProgress(snapshot, l, p - new Vector2(0, 92));
                     break;
                 case "beacon":
@@ -258,7 +258,7 @@ internal sealed partial class BrowserArenaWorld
                         var hot = phase >= 60;
                         Raylib.DrawCircleV(p, l.Radius, new Color(250, 80, 25, hot ? 55 : 18));
                         Raylib.DrawCircleLines((int)p.X, (int)p.Y, l.Radius, Gold);
-                        Raylib.DrawText(
+                        BrowserText.DrawText(
                             hot ? "THERMAL ERUPTION" : "THERMAL WARNING",
                             (int)p.X - 80,
                             (int)p.Y,
@@ -276,7 +276,7 @@ internal sealed partial class BrowserArenaWorld
                     32 + (reduced ? 0 : MathF.Sin(time * 8) * 8),
                     Gold
                 );
-                Raylib.DrawText(
+                BrowserText.DrawText(
                     $"LAUNCH {state.LaunchTicks / 30f:0.0}s",
                     (int)p.X - 65,
                     (int)p.Y + 145,
@@ -319,7 +319,7 @@ internal sealed partial class BrowserArenaWorld
             if (socket.Hull > 0 || !Visible(at, origin, 45))
                 continue;
             Raylib.DrawCircleLines((int)at.X, (int)at.Y, 26, Raylib.Fade(Cyan, .3f));
-            Raylib.DrawText(
+            BrowserText.DrawText(
                 new[] { "CORE", "TURRET 1", "TURRET 2", "REPAIR" }[socket.Slot],
                 (int)at.X - 24,
                 (int)at.Y - 5,
@@ -340,7 +340,7 @@ internal sealed partial class BrowserArenaWorld
         var y = (int)p.Y;
         Raylib.DrawRectangle(x - 7, y - 24, width + 14, 44, new Color(4, 12, 23, 235));
         var label = $"SCANNING {(int)(progress * 100)}%";
-        Raylib.DrawText(label, (int)p.X - Raylib.MeasureText(label, 14) / 2, y - 19, 14, Cyan);
+        BrowserText.DrawText(label, (int)p.X - BrowserText.MeasureText(label, 14) / 2, y - 19, 14, Cyan);
         Raylib.DrawRectangle(x, y, width, 10, new Color(33, 52, 66, 255));
         Raylib.DrawRectangle(x, y, (int)(width * progress), 10, Cyan);
         Raylib.DrawRectangleLines(x - 1, y - 1, width + 2, 12, Raylib.Fade(Cyan, .65f));

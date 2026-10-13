@@ -86,7 +86,9 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     TurnRate: Float(),
                     ActiveBays: Int(),
                     CruiseState: Text(),
-                    CruiseTicks: Int()
+                    CruiseTicks: Int(),
+                    Braking: Bool(),
+                    CruiseMultiplier: Float()
                 )
         );
         var shots = List(
