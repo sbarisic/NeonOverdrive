@@ -42,7 +42,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       );
       const frame = {
         ...base,
-        v: 10,
+        v: 11,
         players: [
           {
             ...base.players[0],

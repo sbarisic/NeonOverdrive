@@ -12,6 +12,7 @@ public sealed partial class Room
 
     private static void LoadEquipment(Player p, PilotProfile profile)
     {
+        p.Chassis = profile.Chassis;
         p.Weapons = profile.Weapons.ToImmutableArray();
         Array.Clear(p.GearTiers);
         if (profile.Equipment is { } e)

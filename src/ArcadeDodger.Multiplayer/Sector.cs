@@ -187,7 +187,7 @@ public sealed record SectorDefinition(
         );
         var collision = new SectorCollision(geometryDefinition);
         var routes = new SectorNavigation(geometryDefinition, collision);
-        var arrival = locations.Single(l => l.Id == 10).Position;
+        var arrival = locations.Single(l => l.Id == 10).Position + new Vector2(140, 0);
         for (var c = 0; c < clusters.Length; c++)
         {
             var chosen = new List<Vector2>();

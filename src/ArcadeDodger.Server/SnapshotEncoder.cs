@@ -18,14 +18,14 @@ public sealed class SnapshotEncoder
         return options;
     }
 
-    private readonly Dictionary<string, string> previous = [];
+    private readonly Dictionary<string, byte[]> previous = [];
     private int revision;
 
     private T? Changed<T>(string key, T? value)
         where T : class
     {
-        var encoded = JsonSerializer.Serialize(value, ArenaService.Json);
-        if (previous.GetValueOrDefault(key) == encoded)
+        var encoded = JsonSerializer.SerializeToUtf8Bytes(value, ArenaService.Json);
+        if (previous.TryGetValue(key, out var old) && old.AsSpan().SequenceEqual(encoded))
             return null;
         previous[key] = encoded;
         revision++;
@@ -45,6 +45,19 @@ public sealed class SnapshotEncoder
                 : frame.Sector with
                 {
                     Pilot = Changed("pilot", frame.Sector.Pilot),
+                    World = frame.Sector.World is not { } world
+                        ? null
+                        : world with
+                        {
+                            Stock = Changed("stock", world.Stock)!,
+                            Race = world.Race is not { } race
+                                ? null
+                                : race with
+                                {
+                                    Course = Changed("course", race.Course)!,
+                                    Ghost = Changed("ghost", race.Ghost)!,
+                                },
+                        },
                 },
         };
         return JsonSerializer.SerializeToUtf8Bytes(

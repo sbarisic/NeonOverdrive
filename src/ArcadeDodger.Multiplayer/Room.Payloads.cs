@@ -20,7 +20,10 @@ public sealed partial class Room
 
     private float Hit(Shot s, Player? p, Enemy? e, float amount)
     {
-        if (amount <= 0)
+        if (
+            amount <= 0
+            || s.Owner > 0 && players.TryGetValue(s.Owner, out var owner) && Racing(owner)
+        )
             return 0;
         float actual = 0;
         if (p is not null)
@@ -28,6 +31,7 @@ public sealed partial class Room
             if (p.Hull <= 0 || p.Editing || Safe(p) || Tick < p.ProtectedUntil || Friendly(s, p))
                 return 0;
             p.LastDamage = Tick;
+            CancelCruise(p);
             var shield = MathF.Min(
                 MathF.Max(0, p.Shield - p.ShieldFraction),
                 amount * s.ShieldMultiplier
@@ -42,7 +46,7 @@ public sealed partial class Room
             }
             var hull = MathF.Min(
                 MathF.Max(0, p.Hull - p.HullFraction),
-                amount * (1 - .05f * Gear(p, 9))
+                amount * (1 - .05f * Gear(p, 9)) * (1 - ChassisCatalog.Get(p.Chassis).Armor)
             );
             actual += hull;
             p.HullFraction += hull;
@@ -130,7 +134,10 @@ public sealed partial class Room
                 e.CorrosionUntil = Tick + Duration(20);
             }
             if (s.SalvageMark)
+            {
+                e.MarkValue = MathF.Max(Tick < e.MarkUntil ? e.MarkValue : 1, s.SalvageValue);
                 e.MarkUntil = Tick + Duration(28);
+            }
             if (s.Teslas > 0 && !e.Installation)
             {
                 e.Charge += actual * s.Teslas;
@@ -219,8 +226,7 @@ public sealed partial class Room
                 var next = candidates
                     .Where(t =>
                         VisibleLine(point, t.Pos)
-                        && Vector2.DistanceSquared(t.Pos, point)
-                            <= Definition(16).Radius * Definition(16).Radius
+                        && Vector2.DistanceSquared(t.Pos, point) <= s.RelayRadius * s.RelayRadius
                     )
                     .OrderBy(t => Vector2.DistanceSquared(t.Pos, point))
                     .FirstOrDefault();
@@ -249,7 +255,9 @@ public sealed partial class Room
     {
         var radius = MathF.Max(
             s.Blast,
-            s.Blasts > 0 ? Definition(23).Radius * s.RadiusMultiplier : 0
+            s.Blasts > 0
+                ? MathF.Max(Definition(23).Radius, s.ChamberRadius) * s.RadiusMultiplier
+                : 0
         );
         if (radius <= 0)
             return;
@@ -343,12 +351,19 @@ public sealed partial class Room
             if (e.Hull > 0 && Tick <= e.RadiationUntil)
                 foreach (
                     var target in enemyGrid
-                        .Query(e.Position, e.Position, 100)
+                        .Query(
+                            e.Position,
+                            e.Position,
+                            e.RadiationSource?.RadiationRadius ?? Definition(19).Radius
+                        )
                         .Where(n =>
                             n.Hull > 0
                             && VisibleLine(e.Position, n.Position)
                             && Vector2.DistanceSquared(n.Position, e.Position)
-                                <= Definition(19).Radius * Definition(19).Radius
+                                <= MathF.Pow(
+                                    e.RadiationSource?.RadiationRadius ?? Definition(19).Radius,
+                                    2
+                                )
                         )
                         .ToArray()
                 )

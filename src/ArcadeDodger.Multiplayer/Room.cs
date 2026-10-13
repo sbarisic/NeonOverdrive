@@ -45,12 +45,15 @@ public sealed partial class Room
         this.friends = friends ?? new();
         this.profiles = profiles ?? new();
         Sector = sectorEnabled ? SectorDefinition.Generate(seed ?? Random.Shared.Next()) : null;
+        locationsById = Sector?.Locations.ToDictionary(l => l.Id) ?? [];
+        stations = Sector?.Locations.Where(l => l.Kind == "station").ToArray() ?? [];
         geometry = Sector is null ? null : new(Sector);
         navigation = Sector is null ? null : new(Sector, geometry!);
         InitializeSector();
         InitializeAllies();
         InitializeOutposts();
         InitializeContacts();
+        InitializeLivingSector();
     }
 
     public void Step()
@@ -79,6 +82,7 @@ public sealed partial class Room
         StepOutposts();
         foreach (var enemy in enemies.Where(e => e.Hull <= 0))
         {
+            WorldEnemyDefeated(enemy);
             CombatFx(0, 2, enemy.Position, EnemyRadius(enemy));
             if (!enemy.Allied)
                 RewardEncounter(enemy);
@@ -90,6 +94,8 @@ public sealed partial class Room
             }
         }
         enemies.RemoveAll(e => e.Hull <= 0 || e.Type == "relief" && e.State == "arrived");
+        // Resolve contributions and removals before assignments inspect their designated groups.
+        StepLivingSector();
         AdmitPersonalDrops();
         StepPickupMotion();
         StepEnergy();
@@ -152,6 +158,7 @@ public sealed partial class Room
         if (target.Hull <= 0 || target.Editing || Safe(target))
             return;
         target.LastDamage = Tick;
+        CancelCruise(target);
         if (target.Shield > 0)
             target.Shield--;
         else

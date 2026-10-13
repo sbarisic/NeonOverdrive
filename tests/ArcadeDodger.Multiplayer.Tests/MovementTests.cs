@@ -17,7 +17,7 @@ public class MovementTests
         }
         var full = r.Snapshot().Players[0];
         Assert.InRange(full.Throttle, .999f, 1);
-        Assert.InRange(full.VelocityX, 299.9f, 300);
+        Assert.InRange(full.VelocityX, 219.9f, 220);
         for (int i = 61; i <= 90; i++)
         {
             r.Input(1, new(i, 0, 0, 0, false, false));
@@ -64,16 +64,16 @@ public class MovementTests
     public void DisconnectCoastsAndReconnectDoesNotReplaceBody()
     {
         var r = Start();
-        Set(Player(r), "Velocity", new Vector2(300, 0));
+        Set(Player(r), "Velocity", new Vector2(220, 0));
         r.SaveRuns();
-        Assert.Equal(300, ((ProfileStore)Get(r, "profiles")).Get("Modules").Run!.VelocityX);
+        Assert.Equal(220, ((ProfileStore)Get(r, "profiles")).Get("Modules").Run!.VelocityX);
         r.Disconnect(1);
         Step(r, 3);
         var p = r.Snapshot().Players[0];
-        Assert.Equal(270, p.VelocityX);
+        Assert.Equal(190, p.VelocityX);
         Assert.Equal(1, r.Join("Modules"));
         Assert.Equal(p.X, r.Snapshot().Players[0].X);
-        Assert.Equal(270, r.Snapshot().Players[0].VelocityX);
+        Assert.Equal(190, r.Snapshot().Players[0].VelocityX);
     }
 
     [Fact]
@@ -91,16 +91,16 @@ public class MovementTests
     public void KineticDefaultsAndConversionUseIndependentBaseSpeeds()
     {
         var stats = Room.CalculateWeaponStats([], 1);
-        Assert.Equal(1300, stats.Speed);
+        Assert.Equal(650, stats.Speed);
         Assert.Equal(5, stats.Interval);
         var r = Start();
         Equip(r, Weapon(1, 25));
         Fire(r);
         r.Input(1, new(4, 0, 0, 0, false, false));
-        Step(r, 2);
+        Step(r, 3);
         var shot = Assert.Single(r.Snapshot().Shots);
         Assert.Equal(4, shot.Kind);
-        Assert.Equal(520f / 30, new Vector2(shot.Dx, shot.Dy).Length(), 3);
+        Assert.Equal(300f / 30, new Vector2(shot.Dx, shot.Dy).Length(), 3);
     }
 
     [Fact]

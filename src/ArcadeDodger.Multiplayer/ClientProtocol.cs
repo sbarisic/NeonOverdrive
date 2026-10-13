@@ -37,7 +37,7 @@ public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 10;
+    public const int Version = 11;
     public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -197,6 +197,32 @@ public static class ClientProtocol
                                 "dock"
                                 or "undock"
                                 or "repair"
+                                or "buy_chassis"
+                                or "cruise"
+                                or "radio"
+                                or "radio_trade"
+                                or "radio_close"
+                                or "convoy_buy"
+                                or "tow"
+                                or "race_join"
+                                or "race_stop"
+                                or "race_retry"
+                                or "mission_bounty"
+                                or "mission_interception"
+                                or "mission_smuggling"
+                                or "mission_recovery"
+                                or "mission_exploration"
+                                or "mission_protection"
+                                or "mission_claim"
+                                or "mission_abandon"
+                                or "mission_scan"
+                                or "police_surrender"
+                                or "police_pay"
+                                or "police_refuse"
+                                or "wreck_reactor"
+                                or "wreck_cargo"
+                                or "wreck_navigation"
+                                or "wreck_abandon"
                                 or "accept"
                                 or "claim"
                                 or "interact"

@@ -221,7 +221,7 @@ public class EquipmentTests
         var view = r.Snapshot().Players[0];
         Assert.Equal(3 + (kind == 8 ? tier : 0), view.MaxHull);
         Assert.Equal(2 + (kind == 0 ? tier : 0), view.MaxShield);
-        Assert.Equal(300 * (1 + (kind == 2 ? .05f * tier : 0)), view.MoveSpeed, 3);
+        Assert.Equal(220 * (1 + (kind == 2 ? .05f * tier : 0)), view.MoveSpeed, 3);
         Assert.Equal(1200 * (1 + (kind == 3 ? .1f * tier : 0)), view.Acceleration, 3);
         Assert.Equal(1200 + (kind == 4 ? 250 * tier : 0), view.SurveyRadius);
         Assert.Equal(1200 + (kind == 5 ? 200 * tier : 0), view.DetectionRadius);
@@ -240,7 +240,7 @@ public class EquipmentTests
         r.Input(1, new(1, 0, 0, 0, false, false, true));
         Assert.True(r.Equipment(1, Draft(e)));
         var enemy = Enemy(r, 1200, hull: 100);
-        Fire(r, 8);
+        Fire(r, 10);
         Assert.Equal(99, Health(enemy));
         Assert.Equal(w.Attachments, s.Get("Modules").Weapons[0].Attachments);
     }

@@ -8,6 +8,12 @@ public sealed partial class Room
     {
         var result = "invalid_action";
         var station = Location(request.Target);
+        if (
+            station is not null
+            && territory.TryGetValue(station.Id, out var control)
+            && (!control.Friendly || control.Contested)
+        )
+            return "station_contested";
         if (station?.Kind != "station" || Vector2.Distance(p.Position, station.Position) > 180)
             result = "out_of_range";
         else

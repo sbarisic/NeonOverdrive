@@ -80,6 +80,9 @@ public class CombatPerformanceTests(ITestOutputHelper output)
         long bytes = 0,
             allocated = GC.GetTotalAllocatedBytes();
         int peakShots = 0;
+        var rootsByPilot = new int[24];
+        var quietWindow = new int[24];
+        var maximumQuietTicks = 0;
         var total = Stopwatch.StartNew();
         for (var tick = 1; tick <= 900; tick++)
         {
@@ -91,6 +94,21 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             if (tick > 300)
                 samples.Add(timer.Elapsed.TotalMilliseconds);
             var frame = r.Snapshot();
+            if (tick > 300)
+            {
+                for (var pilot = 0; pilot < 24; pilot++)
+                    quietWindow[pilot]++;
+                foreach (
+                    var shot in frame.Shots.Where(s =>
+                        s.Owner is > 0 and <= 24 && s.Parent == 0 && s.Born == r.Tick
+                    )
+                )
+                {
+                    rootsByPilot[shot.Owner - 1]++;
+                    quietWindow[shot.Owner - 1] = 0;
+                }
+                maximumQuietTicks = Math.Max(maximumQuietTicks, quietWindow.Max());
+            }
             peakShots = Math.Max(peakShots, frame.Shots.Length);
             Assert.InRange(frame.Shots.Length, 0, projectileLimit);
             Assert.InRange(frame.Enemies!.Length, 0, enemyLimit);
@@ -139,6 +157,8 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             projectileLimit,
             enemyLimit,
             peakShots,
+            minimumRootShotsPerPilot = rootsByPilot.Min(),
+            maximumQuietTicks,
             simulationP95 = P95(samples),
             endToEndP95 = P95(endToEnd),
             serialization24PeersP95 = P95(serialization),
@@ -153,14 +173,6 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             runtime = Environment.Version.ToString(),
         };
         output.WriteLine(JsonSerializer.Serialize(report));
-        if (
-            projectileLimit == Room.ProjectileCapacity
-            && Environment.GetEnvironmentVariable("NEON_PERF_ENFORCE") == "1"
-        )
-            Assert.True(
-                report.endToEndP95 < 25,
-                $"Production server p95 {report.endToEndP95:F2} ms exceeds 25 ms."
-            );
         if (folder is not null)
         {
             var recordingEncoder = new SnapshotEncoder();
@@ -183,6 +195,18 @@ public class CombatPerformanceTests(ITestOutputHelper output)
                     ArenaService.Json
                 )
             );
+        }
+        if (projectileLimit == Room.ProjectileCapacity)
+        {
+            Assert.True(
+                rootsByPilot.Min() > 0 && maximumQuietTicks < 300,
+                $"Saturated combat starved a pilot: minimum roots {rootsByPilot.Min()}, longest gap {maximumQuietTicks} ticks."
+            );
+            if (Environment.GetEnvironmentVariable("NEON_PERF_ENFORCE") == "1")
+                Assert.True(
+                    report.endToEndP95 < 25,
+                    $"Production server p95 {report.endToEndP95:F2} ms exceeds 25 ms."
+                );
         }
     }
 }

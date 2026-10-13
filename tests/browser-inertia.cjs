@@ -64,7 +64,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.locator('#arena-skills').waitFor({ state: 'visible' });
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: rotation, persistent throttle, braking, full stop, Shift has no action, Escape immobilizes without equipment cloak, icon activation.',
+      'PASS: rotation, persistent throttle, braking, full stop, cruise requires an installed drive, Escape immobilizes without equipment cloak, icon activation.',
     );
   } finally {
     await browser.close();

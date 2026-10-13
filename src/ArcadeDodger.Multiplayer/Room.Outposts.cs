@@ -100,6 +100,8 @@ public sealed partial class Room
             "turret_two" => 2,
             _ => 3,
         };
+        if (territory.TryGetValue(request.Target, out var control) && !control.Friendly)
+            return "capture_required";
         if (
             !salvageSites.TryGetValue(request.Target, out var site)
             || Vector2.Distance(p.Position, site.Location.Position) > 180
@@ -133,6 +135,7 @@ public sealed partial class Room
                         || Vector2.Distance(p.Position, site.Location.Position) > 180
                         || !ServiceLine(p.Position, site.Location.Position)
                         || generation != site.Generation
+                        || territory.TryGetValue(site.Location.Id, out var owner) && !owner.Friendly
                         || slot > 0 && !site.Active
                         || enemies.Count >= EnemyLimit
                     )
@@ -230,7 +233,7 @@ public sealed partial class Room
             foreach (var ally in enemyGrid.Query(repair.Position, repair.Position, 350))
                 if (
                     ally != repair
-                    && ally.Allied
+                    && ally.Allied == repair.Allied
                     && ally.Hull > 0
                     && Vector2.DistanceSquared(ally.Position, repair.Position) <= 350 * 350
                     && ServiceLine(repair.Position, ally.Position)
@@ -238,7 +241,8 @@ public sealed partial class Room
                     HealHull(ref ally.Hull, ref ally.DamageFraction, ally.MaxHull, amount);
             foreach (var pilot in players.Values)
                 if (
-                    pilot.Hull > 0
+                    repair.Allied
+                    && pilot.Hull > 0
                     && Vector2.DistanceSquared(pilot.Position, repair.Position) <= 350 * 350
                     && ServiceLine(repair.Position, pilot.Position)
                 )
@@ -263,7 +267,8 @@ public sealed partial class Room
         if (raidSite != 0)
         {
             if (
-                salvageSites[raidSite].Active
+                territory.TryGetValue(raidSite, out var defendedSite)
+                && defendedSite.Friendly
                 && enemies.Any(e => raiders.Contains(e.Id) && e.Hull > 0)
             )
                 return;
@@ -275,7 +280,8 @@ public sealed partial class Room
             }
             raidSite = 0;
             raiders.Clear();
-            raidAt = Tick + new Random(Sector.Seed ^ ++raidCount).Next(180, 301) * TickRate;
+            raidCount++;
+            raidAt = Tick + (int)((300 - 120 * FriendlyControl) * TickRate);
         }
         if (
             raidAt < 0
@@ -284,10 +290,10 @@ public sealed partial class Room
             || factory.Destroyed
         )
             return;
-        var site = salvageSites
-            .Values.Where(s => s.Active)
-            .OrderBy(s => Vector2.DistanceSquared(s.Location.Position, factory.Location.Position))
-            .ThenBy(s => s.Location.Id)
+        var site = territory
+            .Values.Where(s => s.Friendly)
+            .OrderBy(s => Vector2.DistanceSquared(s.Position, factory.Location.Position))
+            .ThenBy(s => s.Id)
             .FirstOrDefault();
         if (site is null)
             return;
@@ -303,15 +309,15 @@ public sealed partial class Room
                 && !(rescue is { State: "active" } r && r.Attackers.Contains(e.Id))
             )
             .OrderBy(e => e.Id)
-            .Take(6)
+            .Take(4 + (int)MathF.Round(8 * FriendlyControl))
             .ToArray();
-        if (group.Length < 6)
+        if (group.Length < 4 + (int)MathF.Round(8 * FriendlyControl))
             return;
-        raidSite = site.Location.Id;
+        raidSite = site.Id;
         raiders = group.Select(e => e.Id).ToHashSet();
         foreach (var p in players.Values)
         {
-            p.LootNotice = $"RAID WARNING: {site.Location.Name} is under threat";
+            p.LootNotice = $"RAID WARNING: {Location(site.Id)!.Name} is under threat";
             p.LootNoticeUntil = Tick + 300;
         }
     }
@@ -347,9 +353,11 @@ public sealed partial class Room
 
     private Enemy? RaidTarget(Enemy npc) =>
         raidSite != 0 && raiders.Contains(npc.Id)
-            ? salvageSites[raidSite]
-                .Units.Where(e => e is { Hull: > 0 })
-                .MinBy(e => Vector2.DistanceSquared(e!.Position, npc.Position))
+            ? enemies
+                .Where(e =>
+                    e.Hull > 0 && e.Allied && e.Home == raidSite && e.Type.StartsWith("salvage-")
+                )
+                .MinBy(e => Vector2.DistanceSquared(e.Position, npc.Position))
             : null;
 
     private RaidSnapshot? RaidState() =>

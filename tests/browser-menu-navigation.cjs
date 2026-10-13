@@ -54,7 +54,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       await navigate('pilot');
     }
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
-    await page.getByRole('button', { name: 'Dock [E]', exact: true }).click();
+    await page.keyboard.press('e');
+    const dock = page.getByRole('button', { name: 'Dock at Arrival Port', exact: true });
+    if (await dock.isVisible()) await dock.click();
     await page.locator('#sector-console[data-mode="station"]').waitFor({ state: 'visible' });
     active = 'station';
     for (const next of ['arsenal', 'skills', 'alliances', 'map', 'pilot', 'station'])

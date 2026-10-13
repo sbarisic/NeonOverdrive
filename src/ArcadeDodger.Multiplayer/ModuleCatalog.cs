@@ -9,7 +9,9 @@ public sealed record ModuleDefinition(
     string LaserDescription,
     float Value = 0,
     float Radius = 0,
-    float Seconds = 0
+    float Seconds = 0,
+    int Level = 1,
+    int BaseId = 0
 );
 
 public static class ModuleCatalog
@@ -40,7 +42,7 @@ public static class ModuleCatalog
         Salvage = 28;
     public static readonly ModuleDefinition[] Items =
     [
-        new(1, "Kinetic barrel", 0, "Emitter", "Ballistic round: 1 damage, 1,300 speed.", "", 650),
+        new(1, "Kinetic barrel", 0, "Emitter", "Ballistic round: 1 damage, 650 speed.", "", 650),
         new(2, "Laser emitter", 150, "Emitter", "Continuous beam: 4 base DPS.", "", 4),
         new(
             3,
@@ -49,10 +51,10 @@ public static class ModuleCatalog
             "Emitter",
             "Heavy rocket: 2 damage, 85-unit blast.",
             "",
-            430,
+            240,
             85
         ),
-        new(4, "Plasma core", 180, "Emitter", "Plasma orb: 2 damage, 45-unit blast.", "", 520, 45),
+        new(4, "Plasma core", 180, "Emitter", "Plasma orb: 2 damage, 45-unit blast.", "", 300, 45),
         new(
             5,
             "Amplifier",
@@ -293,9 +295,9 @@ public static class ModuleCatalog
         ),
     ];
 
-    public static ModuleDefinition Get(int id) => Items[id - 1];
+    public static ModuleDefinition Get(int id) => ModuleLevels.Resolve(id);
 
-    public static bool Valid(int id) => id is >= 1 and <= 28;
+    public static bool Valid(int id) => ModuleLevels.Valid(id);
 
     public static int ModSlots(int level, int bay) => Math.Clamp(level - UnlockLevels[bay], 0, 8);
 
@@ -308,7 +310,12 @@ public static class ModuleCatalog
     public static int[] UnlockLevels { get; } = [1, 8, 16, 24];
 }
 
-public sealed record WeaponConfig(int Emitter, int[] Attachments, bool Enabled = true)
+public sealed record WeaponConfig(
+    int Emitter,
+    int[] Attachments,
+    bool Enabled = true,
+    int EmitterLevel = 1
+)
 {
     public WeaponConfig Copy() => this with { Attachments = (int[])Attachments.Clone() };
 }
@@ -328,7 +335,8 @@ public sealed record RunCheckpoint(
     float VelocityX = 0,
     float VelocityY = 0,
     float Heading = 0,
-    float Throttle = 0
+    float Throttle = 0,
+    long CruiseCooldown = 0
 );
 
 public sealed record PilotProfile(
@@ -339,7 +347,10 @@ public sealed record PilotProfile(
     RunCheckpoint? Run = null,
     long ReplayCount = 0,
     bool RunPrepared = false,
-    EquipmentState? Equipment = null
+    EquipmentState? Equipment = null,
+    int Chassis = 0,
+    string[]? Transactions = null,
+    RaceRecord[]? RaceRecords = null
 )
 {
     public long StartingCredits => StartingCreditsFor(ReplayCount);
@@ -366,6 +377,8 @@ public sealed record PilotProfile(
             Owned = (int[])Owned.Clone(),
             Weapons = Weapons.Select(w => w.Copy()).ToArray(),
             Equipment = Equipment?.Copy(),
+            Transactions = Transactions is null ? null : [.. Transactions],
+            RaceRecords = RaceRecords?.Select(r => r with { Ghost = [.. r.Ghost] }).ToArray(),
             Run = Run is null
                 ? null
                 : Run with

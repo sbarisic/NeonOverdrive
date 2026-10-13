@@ -84,6 +84,7 @@ internal sealed partial class BrowserArenaWorld
         if (snapshot is null)
             return;
         DrawSector(snapshot, origin, time, reducedEffects);
+        DrawLivingSector(snapshot, origin, ownId);
         if (snapshot.Tick > tick)
             Observe(snapshot, ownId, origin, time, reducedEffects);
         ObserveShots(snapshot, ownId, origin, time, reducedEffects);
@@ -181,16 +182,16 @@ internal sealed partial class BrowserArenaWorld
     }
 
     private static Color EnemyColor(EnemySnapshot e) =>
-        e.Faction == "friendly"
-            ? Cyan
-            : e.Kind switch
-            {
-                "gunner" => Hostile,
-                "interceptor" => Gold,
-                "sniper" => new Color(195, 120, 255, 255),
-                "tender" => new Color(100, 240, 160, 255),
-                _ => Rammer,
-            };
+        e.Faction == "friendly" ? Cyan
+        : e.Faction == "neutral" ? Gold
+        : e.Kind switch
+        {
+            "gunner" => Hostile,
+            "interceptor" => Gold,
+            "sniper" => new Color(195, 120, 255, 255),
+            "tender" => new Color(100, 240, 160, 255),
+            _ => Rammer,
+        };
 
     private static Vector2 Direction(Vector2 d) =>
         d.LengthSquared() < .001f ? -Vector2.UnitY : Vector2.Normalize(d);

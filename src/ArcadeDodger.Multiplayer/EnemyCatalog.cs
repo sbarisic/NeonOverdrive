@@ -78,10 +78,10 @@ public static class EnemyCatalog
             1 => .6f,
             2 => 1,
             3 => 1.5f,
-            _ => 2,
+            _ => 2 + Math.Max(0, level - 4) * .5f,
         };
 
-    public static float Damage(int level) => Math.Clamp(level, 1, 4) * .25f;
+    public static float Damage(int level) => Math.Clamp(level, 1, 8) * .25f;
 
     public static int Region(int home) =>
         home switch

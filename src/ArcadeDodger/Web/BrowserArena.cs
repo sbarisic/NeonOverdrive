@@ -171,6 +171,26 @@ internal sealed class BrowserArena
         return Math.Atan2(target.Y - self.Y, target.X - self.X);
     }
 
+    public int Pick(double u, double v)
+    {
+        if (!double.IsFinite(u) || !double.IsFinite(v) || snapshot is null)
+            return 0;
+        var point = origin - cameraKick + new Vector2((float)u * view.X, (float)v * view.Y);
+        var ship = snapshot
+            .Enemies?.Where(e =>
+                e.Faction != "hostile" && Vector2.Distance(point, new(e.X, e.Y)) <= e.Radius + 15
+            )
+            .MinBy(e => Vector2.DistanceSquared(point, new(e.X, e.Y)));
+        if (ship is not null)
+            return ship.Id;
+        return snapshot
+                .Sector?.World?.Cargo.FirstOrDefault(c =>
+                    Vector2.Distance(point, new(c.X, c.Y)) < 65
+                )
+                ?.Id
+            ?? 0;
+    }
+
     public bool Frame()
     {
         var hudScale = MathF.Min(Raylib.GetScreenWidth() / 960f, Raylib.GetScreenHeight() / 540f);

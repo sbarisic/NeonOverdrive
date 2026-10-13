@@ -115,7 +115,8 @@ public sealed partial class Room
                 .ToArray(),
             pilot,
             RescueState(),
-            players.TryGetValue(player, out var viewer) ? ServicesFor(viewer) : null
+            players.TryGetValue(player, out var viewer) ? ServicesFor(viewer) : null,
+            viewer is not null ? LivingState(viewer) : null
         );
     }
 }

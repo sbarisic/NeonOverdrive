@@ -74,7 +74,7 @@ public class ExpandedSkillTests
         Equip(r, Weapon(2, 5));
         Set(Player(r), "Skills", s);
         Fire(r);
-        Assert.Equal(1000 + 2197 * .05f, r.Snapshot().Beams![0].EndX, 2);
+        Assert.Equal(MuzzleX + 2197 * .05f, r.Snapshot().Beams![0].EndX, 2);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class ExpandedSkillTests
         var r = Start();
         Set(Player(r), "Skills", All("thruster", "vector", "slipstream", "cruise", "impact"));
         var p = r.Snapshot().Players[0];
-        Assert.Equal(390, p.MoveSpeed, 2);
+        Assert.Equal(286, p.MoveSpeed, 2);
         Assert.Equal(1800, p.Acceleration);
         Assert.Equal(2700, p.Steering);
         r.Input(1, new(1, 1, 0, 0, false, false));
@@ -300,7 +300,7 @@ public class ExpandedSkillTests
             {
                 Assert.Equal(1300 * 1.2f * 1.3f, (float)Get(s, "InitialRange"), 2);
                 Assert.Equal(1.25f, Get(s, "ShieldMultiplier"));
-                Assert.Equal(520f / 30, ((Vector2)Get(s, "Velocity")).Length(), 3);
+                Assert.Equal(300f / 30, ((Vector2)Get(s, "Velocity")).Length(), 3);
             }
         );
     }

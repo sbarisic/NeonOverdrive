@@ -3,30 +3,35 @@ import { color } from './weapon-art.js';
 // A topology view, not a trajectory simulation. Sample complete paths uniformly
 // before grouping ancestors so dense chains stay symmetric and bounded.
 export function buildChainModel(weapon, stats, definitions) {
-  const effective = stats.find((s) => s.emitter === weapon.emitter),
-    baseDamage = effective?.damage ?? (weapon.emitter === 2 ? 4 : weapon.emitter >= 3 ? 2 : 1),
+  const emitter = weapon.emitter % 32,
+    emitterLevel = Math.floor(weapon.emitter / 32) + 1,
+    effective = stats.find((s) => s.emitter === emitter),
+    baseDamage =
+      (effective?.damage ?? (emitter === 2 ? 4 : emitter >= 3 ? 2 : 1)) *
+      (1 + 0.15 * (emitterLevel - 1)),
     stages = [];
   let damage = baseDamage,
     branches = 1,
     spread = 1,
     terminal = false,
-    tint = color(weapon.emitter);
+    tint = color(emitter);
   for (const [index, id] of weapon.attachments.entries()) {
     const definition = definitions.get(id),
+      kind = id % 32,
       reachable = !terminal;
     let split = 1,
       angle = null;
     if (reachable) {
-      if (id === 5) damage *= definition?.value ?? 2;
-      if (id === 9) spread *= 0.5;
-      if ([11, 12, 13].includes(id)) {
+      if (kind === 5) damage *= definition?.value ?? 2;
+      if (kind === 9) spread *= definition?.value ?? 0.5;
+      if ([11, 12, 13].includes(kind)) {
         split = definition?.value ?? (id === 11 ? 2 : id === 12 ? 3 : 6);
         damage /= split;
         branches *= split;
         angle = (definition?.radius ?? (id === 11 ? 0.22 : id === 12 ? 0.3 : 0.6)) * spread;
       }
-      if ([17, 18, 19, 20, 21, 25].includes(id)) tint = color(id);
-      if (id === 26) terminal = true;
+      if ([17, 18, 19, 20, 21, 25].includes(kind)) tint = color(kind);
+      if (kind === 26) terminal = true;
     }
     stages.push({
       id,
@@ -38,7 +43,7 @@ export function buildChainModel(weapon, stats, definitions) {
       split,
       angle,
       color: tint,
-      terminal: reachable && id === 26,
+      terminal: reachable && kind === 26,
     });
   }
   const active = stages.filter((s) => s.reachable),
@@ -65,7 +70,7 @@ export function buildChainModel(weapon, stats, definitions) {
   level(); // Emitter.
   let remaining = branches,
     previousDamage = baseDamage,
-    previousColor = color(weapon.emitter);
+    previousColor = color(emitter);
   function connect() {
     const parents = new Map(levels.at(-1).map((node) => [node.key, node]));
     for (const node of level())
@@ -101,7 +106,7 @@ export function buildChainModel(weapon, stats, definitions) {
     emitter: definitions.get(weapon.emitter)?.name ?? 'Emitter',
     range: effective?.range ?? 1300,
     rate: 30 / (effective?.interval ?? 5),
-    unit: weapon.emitter === 2 ? 'DPS' : 'damage',
-    laser: weapon.emitter === 2,
+    unit: emitter === 2 ? 'DPS' : 'damage',
+    laser: emitter === 2,
   };
 }

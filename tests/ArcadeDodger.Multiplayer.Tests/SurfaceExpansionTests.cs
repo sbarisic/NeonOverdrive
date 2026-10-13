@@ -90,9 +90,18 @@ public class SurfaceExpansionTests
     {
         var room = new Room(seed: 123);
         room.Join("AtPort");
+        var traffic = new List<string>();
         for (var tick = 0; tick < 20 * 60 * Room.TickRate; tick++)
         {
             room.Step();
+            if (tick % 900 == 0)
+            {
+                var fleet = room.Snapshot().Enemies!;
+                var relief = fleet.FirstOrDefault(e => e.Kind == "relief");
+                traffic.Add(
+                    $"{tick / 30}s NPCs={fleet.Length} relief={relief?.Hull}/{relief?.Shield} at={relief?.X},{relief?.Y} nearby={fleet.Count(e => e.Faction == "hostile" && relief is not null && Vector2.Distance(new(e.X, e.Y), new(relief.X, relief.Y)) < 1000)}"
+                );
+            }
             if (room.SectorSnapshot(1)!.Rescue is { State: "active" } rescue)
             {
                 Assert.InRange(rescue.Remaining, 6, 8);
@@ -101,7 +110,12 @@ public class SurfaceExpansionTests
             }
         }
         var ships = room.Snapshot().Enemies!.Where(e => e.Kind == "relief");
-        Assert.Fail("No natural rescue: " + JsonSerializer.Serialize(ships));
+        Assert.Fail(
+            "No natural rescue: "
+                + JsonSerializer.Serialize(ships)
+                + "\n"
+                + string.Join("\n", traffic)
+        );
     }
 
     private static object? Call(Room room, string name, params object?[] args) =>

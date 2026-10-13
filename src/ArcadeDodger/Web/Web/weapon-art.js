@@ -30,9 +30,10 @@ export const glyph = (id) =>
     '✥',
     '♡',
     '¤',
-  ][id] || '◇';
-export const color = (id) =>
-  id === 17
+  ][id % 32] || '◇';
+export const color = (component) => {
+  const id = component % 32;
+  return id === 17
     ? '#ff9958'
     : id === 19
       ? '#c3ef78'
@@ -45,3 +46,4 @@ export const color = (id) =>
             : id <= 4
               ? ['', '#dfc585', '#73e7f1', '#ffa26a', '#c390f5'][id]
               : '#ebce86';
+};

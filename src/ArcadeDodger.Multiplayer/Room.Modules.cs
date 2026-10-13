@@ -22,27 +22,21 @@ public sealed partial class Room
         var stats = Stats(p, kind);
         var range = stats.Range;
         var speed = stats.Speed;
+        var muzzle = ChassisCatalog.Hardpoint(p.Chassis, weapon, p.Position, p.Heading);
+        if (geometry?.TraceShips(p.Position, muzzle, 1.5f) is { } cover)
+            muzzle = Vector2.Lerp(p.Position, muzzle, MathF.Max(0, cover.T - .001f));
+        var emitterPower = 1 + .15f * (w.EmitterLevel - 1);
         return new Shot
         {
             Id = ++nextShot,
             Owner = p.Id,
             OwnerName = p.Name,
             Weapon = weapon,
-            Position = p.Position,
-            BirthPosition = p.Position,
+            Position = muzzle,
+            BirthPosition = muzzle,
             Born = Tick,
-            Expires =
-                Tick
-                + Math.Max(
-                    180,
-                    (int)
-                        MathF.Ceiling(
-                            range
-                                * MathF.Pow(1.3f, w.Attachments.Count(id => id == 7))
-                                / MathF.Min(speed, 520)
-                                * TickRate
-                        ) + 30
-                ),
+            // Distance is authoritative even after a late range or speed conversion.
+            Expires = long.MaxValue / 2,
             Kind = kind,
             Program = (int[])w.Attachments.Clone(),
             Range = range,
@@ -51,12 +45,12 @@ public sealed partial class Room
             SpeedMultiplier =
                 speed
                 / (
-                    kind == 3 ? 430
-                    : kind == 4 ? 520
-                    : kind == 1 ? 1300
+                    kind == 3 ? 240
+                    : kind == 4 ? 300
+                    : kind == 1 ? 650
                     : 650
                 ),
-            Damage = stats.Damage,
+            Damage = stats.Damage * emitterPower,
             VisualPower =
                 stats.Damage
                 / (
@@ -74,7 +68,7 @@ public sealed partial class Room
             SplashMultiplier = stats.SplashMultiplier,
             ShieldMultiplier = stats.ShieldMultiplier,
             Pierce = stats.Pierce,
-            StatusPower = stats.StatusPower,
+            StatusPower = stats.StatusPower * emitterPower,
         };
     }
 
@@ -114,7 +108,7 @@ public sealed partial class Room
                 return;
             while (s.Program is not null && s.Cursor < 8 && s.Program[s.Cursor] == 0)
                 s.Cursor++;
-            if (s.Program is not null && s.Distance >= s.Range - .001f)
+            if (s.Range > 0 && s.Distance >= s.Range - .001f)
             {
                 if (!s.IsBeam)
                     Explode(s, s.Position, null, null);
@@ -159,7 +153,7 @@ public sealed partial class Room
                     wall,
                     MathF.Min(
                         Gate(s) - s.Distance,
-                        s.Program is null ? float.PositiveInfinity : s.Range - s.Distance
+                        s.Range <= 0 ? float.PositiveInfinity : s.Range - s.Distance
                     )
                 )
             );
@@ -169,9 +163,10 @@ public sealed partial class Room
             var cover = TraceCover(start, end, coverRadius);
             float? sanctuary = null;
             if (Sector is not null)
-                foreach (var station in Sector.Locations.Where(l => l.Kind == "station"))
+                foreach (var station in stations)
                     if (
-                        SectorCollision.Circle(
+                        StationSanctuary(station.Id)
+                        && SectorCollision.Circle(
                             start - station.Position,
                             end - station.Position,
                             300

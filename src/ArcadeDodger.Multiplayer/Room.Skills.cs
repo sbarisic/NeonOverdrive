@@ -22,18 +22,21 @@ public sealed partial class Room
     private static int SkillPointsFor(Player p) =>
         Math.Max(0, 2 * (LevelForExperience(p.Experience) - 1) - p.Skills.Count);
 
-    private static int MaxShieldFor(Player p) => 2 + Rank(p, "shield") + Gear(p, 0);
+    private static int MaxShieldFor(Player p) =>
+        ChassisCatalog.Get(p.Chassis).Shield + Rank(p, "shield") + Gear(p, 0);
 
-    private static int MaxHullFor(Player p) => 3 + Rank(p, "hull") + Gear(p, 8);
+    private static int MaxHullFor(Player p) =>
+        ChassisCatalog.Get(p.Chassis).Hull + Rank(p, "hull") + Gear(p, 8);
 
     private static float MoveSpeedFor(Player p) =>
-        Speed * (1 + Value(p, "slipstream") + Value(p, "cruise") + .05f * Gear(p, 2));
+        ChassisCatalog.Get(p.Chassis).Speed
+        * (1 + Value(p, "slipstream") + Value(p, "cruise") + .05f * Gear(p, 2));
 
     private static float AccelerationFor(Player p) =>
-        1200 * (1 + Value(p, "thruster") + .1f * Gear(p, 3));
+        ChassisCatalog.Get(p.Chassis).Acceleration * (1 + Value(p, "thruster") + .1f * Gear(p, 3));
 
     private static float SteeringFor(Player p) =>
-        1800 * (1 + Value(p, "vector") + .1f * Gear(p, 3));
+        ChassisCatalog.Get(p.Chassis).Steering * (1 + Value(p, "vector") + .1f * Gear(p, 3));
 
     private static int ShieldDelay(Player p) =>
         (int)(MathF.Max(1, Value(p, "recharge", 5) - .5f * Gear(p, 1)) * TickRate);
@@ -120,9 +123,9 @@ public sealed partial class Room
             1 + M("radius"),
             range,
             (
-                emitter == 3 ? 430
-                : emitter == 4 ? 520
-                : emitter == 1 ? 1300
+                emitter == 3 ? 240
+                : emitter == 4 ? 300
+                : emitter == 1 ? 650
                 : 650
             )
                 * (emitter == 2 ? 1 : 1 + V("dynamics"))

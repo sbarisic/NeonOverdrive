@@ -7,6 +7,8 @@ namespace ArcadeDodger.Multiplayer.Tests;
 
 internal static class WorkshopRig
 {
+    public static float MuzzleX => 1000 + ChassisCatalog.Get(0).Hardpoints[0].X;
+
     public static object Get(object o, string key) =>
         o.GetType()
             .GetField(key, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!

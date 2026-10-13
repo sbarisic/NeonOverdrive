@@ -81,7 +81,12 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     SurveyRadius: Float(),
                     Heading: Float(),
                     Throttle: Float(),
-                    Playthrough: Long()
+                    Playthrough: Long(),
+                    Chassis: Int(),
+                    TurnRate: Float(),
+                    ActiveBays: Int(),
+                    CruiseState: Text(),
+                    CruiseTicks: Int()
                 )
         );
         var shots = List(
@@ -149,7 +154,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                 var kind = Int();
                 return new EnemySnapshot(
                     id,
-                    kinds[Math.Clamp(kind, 0, 8)],
+                    kinds[Math.Clamp(kind, 0, kinds.Length - 1)],
                     Float(),
                     Float(),
                     Float(),
@@ -161,10 +166,12 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     Int(),
                     Float(),
                     Int(),
-                    Bool() ? "friendly" : "hostile",
+                    Text(),
                     Int(),
                     Int(),
-                    Int()
+                    Int(),
+                    Int(),
+                    Text()
                 );
             }
         );
@@ -287,6 +294,39 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             );
             services = new(contacts, outposts, raid, hailing, claims, assignment, List(24, Int));
         }
+        var territory = List(8, () => new TerritorySnapshot(Int(), Text(), Float(), Bool()));
+        var cargo = List(
+            64,
+            () => new CargoSnapshot(Int(), Text(), Float(), Float(), Int(), Int())
+        );
+        var race = Bool()
+            ? new RaceSnapshot(
+                Text(),
+                Text(),
+                Int(),
+                Float(),
+                Int(),
+                List(16384, Float),
+                List(5400, Float)
+            )
+            : null;
+        var world = new LivingSnapshot(
+            [],
+            [],
+            cargo,
+            territory,
+            0,
+            "",
+            "",
+            [],
+            "",
+            0,
+            0,
+            "",
+            0,
+            0,
+            race
+        );
         if (cursor != data.Length)
             throw new FormatException();
         return new(
@@ -303,7 +343,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             Workshop: new(wallet, [], []),
             Credits: credits,
             Mines: mines,
-            Sector: new(locations, pilot, rescue, services),
+            Sector: new(locations, pilot, rescue, services, world),
             ModuleDrops: modules,
             CombatEvents: combat
         );

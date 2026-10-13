@@ -39,7 +39,12 @@ public sealed record PlayerSnapshot(
     float SurveyRadius = 1200,
     float Heading = 0,
     float Throttle = 0,
-    long Playthrough = 1
+    long Playthrough = 1,
+    int Chassis = 0,
+    float TurnRate = MathF.PI * 2 / 3,
+    int ActiveBays = 1,
+    string CruiseState = "ready",
+    int CruiseTicks = 0
 );
 
 public sealed record ShotSnapshot(

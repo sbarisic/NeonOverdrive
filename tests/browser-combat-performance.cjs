@@ -8,6 +8,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     headless: true,
     args: ['--enable-gpu', '--use-angle=d3d11'],
   });
+  const outputDirectory = process.env.PERF_OUTPUT || 'artifacts/combat-performance';
   try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } }),
       errors = [];
@@ -38,7 +39,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const results = [];
     for (const limit of process.env.PERF_LIMIT ? [+process.env.PERF_LIMIT] : [256, 512, 1024]) {
       const recording = JSON.parse(
-        fs.readFileSync(`artifacts/combat-performance/frames-${limit}.json`, 'utf8'),
+        fs.readFileSync(`${outputDirectory}/frames-${limit}.json`, 'utf8'),
       );
       recording.frames = recording.frames.slice(0, 45);
       recording.wireFrames = process.env.PERF_FULL_WORLD
@@ -80,6 +81,15 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
               if (frame[key] == null) frame[key] = privateState[key] ?? null;
             if (frame.sector && frame.sector.pilot == null)
               frame.sector.pilot = privateState.sector?.pilot ?? null;
+            if (frame.sector?.world) {
+              const world = frame.sector.world,
+                previous = privateState.sector?.world;
+              world.stock ??= previous?.stock ?? [];
+              if (world.race) {
+                world.race.course ??= previous?.race?.course ?? [];
+                world.race.ghost ??= previous?.race?.ghost ?? [];
+              }
+            }
             privateState = frame;
             frame.tick += offset;
             for (const s of frame.shots) s.born += offset;
@@ -111,11 +121,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       }, recording);
       results.push({ limit, ...result });
       console.log(results.at(-1));
-      fs.writeFileSync(
-        `artifacts/combat-performance/browser-${limit}.json`,
-        JSON.stringify(result, null, 2),
-      );
-      await page.screenshot({ path: `artifacts/combat-performance/browser-${limit}.png` });
+      fs.writeFileSync(`${outputDirectory}/browser-${limit}.json`, JSON.stringify(result, null, 2));
+      await page.screenshot({ path: `${outputDirectory}/browser-${limit}.png` });
       if (limit === 512 && !process.env.PERF_FULL_WORLD) {
         assert(
           result.renderP95 < 20,
@@ -129,7 +136,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     }
     assert.deepEqual(errors, []);
     fs.writeFileSync(
-      'artifacts/combat-performance/browser.json',
+      `${outputDirectory}/browser.json`,
       JSON.stringify({ browser: browser.version(), viewport: '1920x1080', results }, null, 2),
     );
     console.log(results);

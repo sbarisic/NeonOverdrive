@@ -7,7 +7,11 @@ public sealed partial class Room
 {
     private sealed class Player
     {
-        public int[] GearTiers = new int[12];
+        public int[] GearTiers = new int[13];
+        public bool Cruise;
+        public long CruiseAt,
+            CruiseReady;
+        public int Chassis;
         public int InventoryPage;
         public string LootNotice = "";
         public long LootNoticeUntil;
@@ -38,6 +42,7 @@ public sealed partial class Room
         public int CreditSequence,
             Docked;
         public long LastDamage = -1;
+        public long CollisionAt = -1;
         public string Name = "Pilot";
         public Vector2 Position,
             Previous,
@@ -83,8 +88,8 @@ public sealed partial class Room
             Spread = 1,
             ShieldMultiplier = 1;
         public int Bounces,
-            Relays,
-            Burns,
+            Relays;
+        public float Burns,
             Freezes,
             Rads,
             Corrodes,
@@ -92,6 +97,14 @@ public sealed partial class Room
             Gravity,
             Blasts,
             Leeches;
+        public float HomingRate = .09f,
+            HomingRadius = 600,
+            FuseRadius = 45,
+            RelayRadius = 180;
+        public float RadiationRadius = 100,
+            GravityRadius = 100,
+            ChamberRadius = 0,
+            SalvageValue = 1.25f;
         public bool Impact,
             Cancelled,
             Proximity,
@@ -107,6 +120,7 @@ public sealed partial class Room
         public long Expires,
             Born;
         public bool FriendlyNpc;
+        public int EnforcementTarget;
         public int Kind = 1,
             Cursor,
             Pierce;

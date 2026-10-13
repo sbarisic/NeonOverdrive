@@ -198,7 +198,10 @@ public class CooperativeRunTests
             e =>
             {
                 Assert.Equal(1, e.Level);
-                Assert.InRange(e.Radius, 10, 14);
+                Assert.Equal(
+                    ChassisCatalog.Get(e.Chassis).Radius * EnemyCatalog.Size(e.Level),
+                    e.Radius
+                );
             }
         );
         foreach (var type in new[] { "interceptor", "sniper", "tender" })

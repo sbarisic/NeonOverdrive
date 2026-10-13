@@ -53,5 +53,6 @@ public sealed record SectorState(
     LocationState[] Locations,
     SectorSessionSnapshot? Pilot = null,
     RescueSnapshot? Rescue = null,
-    ServiceSnapshot? Services = null
+    ServiceSnapshot? Services = null,
+    LivingSnapshot? World = null
 );

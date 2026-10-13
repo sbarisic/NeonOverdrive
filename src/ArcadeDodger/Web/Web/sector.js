@@ -12,6 +12,7 @@ export function createSectorConsole(
   route = () => [],
 ) {
   let definition,
+    chassisCatalog = [],
     contracts = [],
     self,
     state,
@@ -29,6 +30,10 @@ export function createSectorConsole(
     dockButton = el('button', 'Dock [E]');
   opener.type = dockButton.type = 'button';
   info.append(opener, dockButton);
+  const cruiseButton = el('button', 'Cruise [Shift]');
+  control(cruiseButton, 'mobility');
+  info.append(cruiseButton);
+  cruiseButton.onclick = () => action('cruise');
   opener.hidden = dockButton.hidden = true;
   const panel = el('section', '', 'arena-shell arena-panel');
   panel.id = 'sector-console';
@@ -60,6 +65,8 @@ export function createSectorConsole(
   const caption = el('div', 'LOCAL CONTRACTS · One active assignment per pilot', 'station-caption');
   panel.insertBefore(caption, board);
   document.body.append(panel);
+  const shipyard = el('div', '', 'station-board');
+  panel.insertBefore(shipyard, board);
   const guide = el('div');
   guide.id = 'sector-guide';
   guide.hidden = true;
@@ -205,6 +212,22 @@ export function createSectorConsole(
     caption.hidden = mode !== 'station';
     map.hidden = mode !== 'map';
     toolbar.hidden = board.hidden = mode !== 'station';
+    shipyard.hidden = mode !== 'station';
+    for (const card of shipyard.children) {
+      const design = chassisCatalog.find((d) => d.id === Number(card.dataset.chassis));
+      card.hidden = design.station !== docked;
+      const button = card.querySelector('button');
+      button.disabled =
+        !!pending || design.id === self.chassis || (frame?.workshop?.credits || 0) < design.price;
+      button.textContent =
+        design.id === self.chassis ? 'Current ship' : `Buy · ${design.price} credits`;
+      const current = chassisCatalog.find((d) => d.id === self.chassis);
+      if (current) {
+        const delta = (n) => (n > 0 ? `+${n}` : String(n));
+        card.querySelector('[data-comparison]').textContent =
+          `Compared with ${current.name}: ${delta(design.hull - current.hull)} hull, ${delta(design.shield - current.shield)} shields, ${delta(design.speed - current.speed)} speed, ${delta(design.turnRate - current.turnRate)}°/s. No repair or trade-in.`;
+      }
+    }
     close.textContent = mode === 'station' ? 'Undock [E / Esc]' : 'Return [Esc]';
     repair.textContent = state?.repairCost
       ? `Repair hull · ${state.repairCost} credits`
@@ -276,6 +299,8 @@ export function createSectorConsole(
       ...(frame.sector?.services?.outposts || []),
     ].some((l) => Math.hypot(l.x - self.x, l.y - self.y) <= 180);
     dockButton.disabled = !docked && !near && !nearServices;
+    cruiseButton.hidden = !self || self.hull <= 0;
+    cruiseButton.textContent = `Cruise · ${self.cruiseState || 'ready'}${self.cruiseTicks ? ' ' + Math.ceil(self.cruiseTicks / 30) + 's' : ''} [Shift]`;
     if (nearServices && !docked) dockButton.textContent = 'Hail / Services [E]';
     let text = docked
       ? 'DOCKED · E to undock'
@@ -312,6 +337,8 @@ export function createSectorConsole(
         waypoint.y = ally.y;
       }
     }
+    if (waypoint?.kind === 'assignment' && frame?.sector?.world?.objective?.id === waypoint.id)
+      waypoint = { ...frame.sector.world.objective };
     if (waypoint && self) {
       const dx = waypoint.x - self.x,
         dy = waypoint.y - self.y;
@@ -383,8 +410,37 @@ export function createSectorConsole(
       return mode;
     },
     setOpen,
-    setup(sector, catalog) {
+    cruise() {
+      action('cruise');
+    },
+    navigateTo(location) {
+      waypoint = location ? { ...location } : null;
+      render();
+    },
+    setup(sector, catalog, chassis = []) {
       definition = sector;
+      chassisCatalog = chassis;
+      shipyard.replaceChildren();
+      for (const design of chassis.filter((d) => d.id > 0)) {
+        const card = el('article', '', 'contract-card');
+        card.dataset.chassis = design.id;
+        const button = el('button', `Buy · ${design.price} credits`);
+        control(button, 'shop');
+        button.onclick = () => action('buy_chassis', design.id);
+        card.append(
+          el('h3', design.name),
+          el(
+            'p',
+            `${design.hull} hull · ${design.shield} shields · ${Math.round(design.armor * 100)}% armor`,
+          ),
+          el('p', `${design.speed} speed · ${design.turnRate}°/s turning · Equipment retained`),
+          button,
+        );
+        const comparison = el('p');
+        comparison.dataset.comparison = '';
+        card.insertBefore(comparison, button);
+        shipyard.append(card);
+      }
       contracts = catalog || [];
       board.replaceChildren();
       cards.clear();

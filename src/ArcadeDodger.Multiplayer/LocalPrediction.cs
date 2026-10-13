@@ -210,7 +210,9 @@ public sealed class LocalPrediction
                 p.Steering,
                 geometry,
                 p.Menu || held && intent.Menu,
-                held
+                held,
+                p.TurnRate,
+                ChassisCatalog.Get(p.Chassis).Radius
             );
             time = next;
         }

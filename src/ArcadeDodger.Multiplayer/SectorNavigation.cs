@@ -32,7 +32,7 @@ public sealed class SectorNavigation(SectorDefinition sector, SectorCollision ge
             var target = finish;
             var facing = MathF.Atan2(start.Y - target.Y, start.X - target.X);
             var found = false;
-            for (var distance = 100; distance <= 1600 && !found; distance += 100)
+            for (var distance = 50; distance <= 1600 && !found; distance += 50)
             for (var i = 0; i < 32 && !found; i++)
             {
                 var angle = facing + i * MathF.Tau / 32;

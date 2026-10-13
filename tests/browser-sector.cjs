@@ -33,7 +33,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         JSON.parse(document.querySelector('#network-info').dataset.snapshot).sector.pilot.docked ===
         10,
     );
-    assert.equal(await panel.locator('.contract-card:visible').count(), 4);
+    assert.equal(await panel.locator('.contract-card:not([data-chassis]):visible').count(), 4);
     await panel.getByRole('button', { name: 'Accept contract', exact: true }).first().click();
     await page.waitForFunction(
       () =>
@@ -52,8 +52,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.keyboard.press('m');
     await panel.waitFor({ state: 'visible' });
     assert.equal(
-      await panel.locator('.map-location:visible').count(),
-      await panel.locator('.map-location:not([data-kind=cache])').count(),
+      await panel
+        .locator('.map-location:not([data-kind=cache]):not([data-kind=contact]):visible')
+        .count(),
+      await panel.locator('.map-location:not([data-kind=cache]):not([data-kind=contact])').count(),
     );
     await panel.getByRole('button', { name: 'Arrival Port', exact: true }).click();
     await panel.getByRole('button', { name: 'Set waypoint', exact: true }).click();

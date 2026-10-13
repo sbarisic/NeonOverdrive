@@ -53,9 +53,10 @@ public class SectorTests
             var from = nodes.First(l => l.Kind == "station");
             foreach (var to in nodes.Where(l => l.Id != from.Id))
             {
-                var route = navigation.Route(from.Position, to.Position, Room.Radius);
+                var approach = from.Position + new Vector2(140, 0);
+                var route = navigation.Route(approach, to.Position, Room.Radius);
                 Assert.NotEmpty(route);
-                var previous = from.Position;
+                var previous = approach;
                 foreach (var point in route)
                 {
                     Assert.Null(geometry.TraceShips(previous, point, Room.Radius));
@@ -169,7 +170,11 @@ public class SectorTests
         Assert.Equal(empty.Snapshot().Enemies, occupied.Snapshot().Enemies);
         Assert.All(
             empty.Snapshot().Enemies!,
-            e => Assert.Contains(e.Home, new[] { 10, 20, 21, 22, 23, 30, 31, 80, 81, 83 })
+            e =>
+                Assert.Contains(
+                    e.Home,
+                    new[] { 10, 11, 12, 20, 21, 22, 23, 30, 31, 40, 41, 42, 43, 44, 45, 80, 81, 83 }
+                )
         );
     }
 
@@ -432,7 +437,7 @@ public class SectorTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":10,"type":"sector","seq":1,"action":"dock","target":10}"""
+                    """{"v":11,"type":"sector","seq":1,"action":"dock","target":10}"""
                 ),
                 out _
             )
@@ -440,7 +445,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":10,"type":"sector","seq":1,"action":"teleport","target":10}"""
+                    """{"v":11,"type":"sector","seq":1,"action":"teleport","target":10}"""
                 ),
                 out _
             )
@@ -448,7 +453,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":10,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
+                    """{"v":11,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
                 ),
                 out _
             )

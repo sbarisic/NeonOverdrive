@@ -34,6 +34,9 @@ public partial class BrowserHost
     public static double ArenaAim(double u, double v) => arena?.Aim(u, v) ?? 0;
 
     [JSExport]
+    public static int ArenaPick(double u, double v) => arena?.Pick(u, v) ?? 0;
+
+    [JSExport]
     public static void ArenaPresentation(bool menuOpen, bool reducedEffects) =>
         arena?.Presentation(menuOpen, reducedEffects);
 

@@ -85,7 +85,7 @@ public class SnapshotPlaybackTests
     {
         var room = WorkshopRig.Start();
         WorkshopRig.Enemy(room, 1100, hull: 1);
-        WorkshopRig.Fire(room, 3);
+        WorkshopRig.Fire(room, 5);
         var frame = room.Snapshot();
         var hit = Assert.Single(frame.CombatEvents!, e => e.Kind == 1);
         Assert.InRange(hit.X, 1070, 1100);

@@ -269,6 +269,8 @@ public sealed partial class Room
         if (!players.TryGetValue(id, out var p) || !p.Connected)
             return;
         p.Connected = false;
+        CancelCruise(p);
+        ReleaseTow(p);
         p.Throttle = 0;
         p.DisconnectedAt = clock.GetTimestamp();
         p.RemoveAt = Tick + 150;

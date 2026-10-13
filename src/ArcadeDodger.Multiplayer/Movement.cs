@@ -5,7 +5,7 @@ namespace ArcadeDodger.Multiplayer;
 /// <summary>Shared thrust, coasting and swept sliding for simulation and prediction.</summary>
 public static class Movement
 {
-    public static void Steer(
+    public static bool Steer(
         ref Vector2 position,
         ref Vector2 velocity,
         ref float heading,
@@ -17,7 +17,9 @@ public static class Movement
         float steering = 1800,
         SectorCollision? geometry = null,
         bool immobilized = false,
-        bool inputAvailable = true
+        bool inputAvailable = true,
+        float turnRate = MathF.Tau / 3,
+        float radius = Room.Radius
     )
     {
         if (immobilized || !inputAvailable)
@@ -25,32 +27,27 @@ public static class Movement
         if (immobilized)
         {
             velocity = Vector2.Zero;
-            return;
+            return false;
         }
         // Stationary pilots still turn, but need no repeated obstacle sweeps.
         if (throttle == 0 && velocity == Vector2.Zero && (!inputAvailable || controls.Y >= 0))
         {
             if (inputAvailable)
-                heading = MathF.IEEERemainder(
-                    heading + controls.X * (MathF.Tau / 3) * dt,
-                    MathF.Tau
-                );
-            return;
+                heading = MathF.IEEERemainder(heading + controls.X * turnRate * dt, MathF.Tau);
+            return false;
         }
         // Fixed substeps bound turn integration error independently of packet/render cadence.
         var remaining = dt;
+        var collided = false;
         while (remaining > .000001f)
         {
             var slice = MathF.Min(remaining, 1f / 120);
             if (!immobilized && inputAvailable)
             {
-                heading = MathF.IEEERemainder(
-                    heading + controls.X * (MathF.Tau / 3) * slice,
-                    MathF.Tau
-                );
+                heading = MathF.IEEERemainder(heading + controls.X * turnRate * slice, MathF.Tau);
                 throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
             }
-            Step(
+            collided |= Step(
                 ref position,
                 ref velocity,
                 new Vector2(MathF.Cos(heading), MathF.Sin(heading)) * throttle,
@@ -59,13 +56,15 @@ public static class Movement
                 acceleration,
                 steering,
                 geometry,
-                immobilized
+                immobilized,
+                radius
             );
             remaining -= slice;
         }
+        return collided;
     }
 
-    public static void Step(
+    public static bool Step(
         ref Vector2 position,
         ref Vector2 velocity,
         Vector2 input,
@@ -74,13 +73,14 @@ public static class Movement
         float acceleration = 1200,
         float steering = 1800,
         SectorCollision? geometry = null,
-        bool immobilized = false
+        bool immobilized = false,
+        float radius = Room.Radius
     )
     {
         if (immobilized)
         {
             velocity = Vector2.Zero;
-            return;
+            return false;
         }
         if (input.LengthSquared() > 1)
             input = Vector2.Normalize(input);
@@ -104,18 +104,19 @@ public static class Movement
             + (previous + velocity) * (.5f * accelerating)
             + velocity * (dt - accelerating);
         if (geometry is not null)
-            position = geometry.Move(position, end, Room.Radius, ref velocity);
+            position = geometry.Move(position, end, radius, ref velocity);
         else
         {
             position = Vector2.Clamp(
                 end,
-                new(Room.Radius),
-                new(Room.Width - Room.Radius, Room.Height - Room.Radius)
+                new(radius),
+                new(Room.Width - radius, Room.Height - radius)
             );
             if (position.X != end.X)
                 velocity.X = 0;
             if (position.Y != end.Y)
                 velocity.Y = 0;
         }
+        return Vector2.DistanceSquared(position, end) > .000001f;
     }
 }

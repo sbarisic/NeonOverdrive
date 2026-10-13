@@ -224,7 +224,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     } else if (item.type === 'gear') {
       const g = model.gear.get(item.id);
       detailName.textContent = gearName(g);
-      detailName.parentElement.dataset.gearCategory = g.kind >> 1;
+      detailName.parentElement.dataset.gearCategory = g.kind === 12 ? 1 : g.kind >> 1;
       const d = gearCatalog[g?.kind];
       const old = d ? model.gear.get(model.ship[d.slot]) : null;
       detailText.textContent =
@@ -316,7 +316,10 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
   }
   function placeGear(i) {
     if (!canEdit()) return;
-    if (selected?.type === 'gear' && model.gear.get(selected.id)?.kind >> 1 === i) {
+    if (
+      selected?.type === 'gear' &&
+      (model.gear.get(selected.id)?.kind === 12 ? 1 : model.gear.get(selected.id)?.kind >> 1) === i
+    ) {
       model.mark();
       model.ship[i] = selected.id;
       selected = null;
@@ -389,7 +392,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
       for (const w of model.saved.values())
         if (!model.bays.some((b) => b.weapon === w.id)) result.push({ type: 'weapon', id: w.id });
     if (filter === 'All' || filter === 'Mods')
-      for (let id = 5; id <= 28; id++)
+      for (let id = 5; id < model.loose.length; id++)
         if (model.spare(id) > 0) result.push({ type: 'module', module: id });
     if (filter === 'All' || filter === 'Ship gear')
       for (const g of model.gear.values())
@@ -431,7 +434,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
         render();
       });
       b.className = 'inventory-cell module-item';
-      if (g) b.dataset.gearCategory = g.kind >> 1;
+      if (g) b.dataset.gearCategory = g.kind === 12 ? 1 : g.kind >> 1;
       b.dataset.itemKey = item.id || `mod-${item.module}`;
       b.dataset.index = start * cols + offset;
       if (item.module) b.dataset.moduleId = item.module;
@@ -441,14 +444,21 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
           : selected?.module && selected.module === item.module,
       );
       b.append(
-        element('b', w ? glyph(w.emitter) : g ? shipIcons[g.kind >> 1] : glyph(item.module)),
+        element(
+          'b',
+          w
+            ? glyph(w.emitter)
+            : g
+              ? shipIcons[g.kind === 12 ? 1 : g.kind >> 1]
+              : glyph(item.module),
+        ),
         element('span', w ? weaponName(w) : g ? gearName(g) : moduleName(item.module)),
         element(
           'small',
           w
             ? `${w.attachments.filter(Boolean).length}/8 mods`
             : g
-              ? slotNames[g.kind >> 1]
+              ? slotNames[g.kind === 12 ? 1 : g.kind >> 1]
               : `×${model.spare(item.module)}`,
         ),
       );
@@ -563,7 +573,9 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
   }
   function renderShop() {
     shopGrid.replaceChildren();
-    for (const d of catalog.filter((d) => shopFilter === 'All' || d.category === shopFilter)) {
+    for (const d of catalog.filter(
+      (d) => (d.level || 1) === 1 && (shopFilter === 'All' || d.category === shopFilter),
+    )) {
       const card = element('article', '', 'shop-card');
       card.dataset.moduleId = d.id;
       const canvas = element('canvas');

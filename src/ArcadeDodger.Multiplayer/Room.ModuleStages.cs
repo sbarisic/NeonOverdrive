@@ -11,6 +11,8 @@ public sealed partial class Room
         if (id == 0)
             return false;
         var d = ModuleCatalog.Get(id);
+        id = ModuleLevels.Kind(id);
+        var strength = ModuleLevels.Bonus(d.Level);
         switch (id)
         {
             case 5:
@@ -42,6 +44,7 @@ public sealed partial class Room
             case 11:
             case 12:
             case 13:
+                s.Range = s.Distance + (s.Range - s.Distance) * (1 + .1f * (d.Level - 1));
                 var count = (int)d.Value;
                 if (
                     s.IsBeam
@@ -71,6 +74,8 @@ public sealed partial class Room
                 return true;
             case 14:
                 s.Homing = true;
+                s.HomingRate = MathF.Max(s.HomingRate, d.Value);
+                s.HomingRadius = MathF.Max(s.HomingRadius, d.Radius);
                 Guide(s);
                 break;
             case 15:
@@ -78,42 +83,48 @@ public sealed partial class Room
                 break;
             case 16:
                 s.Relays++;
+                s.RelayRadius = MathF.Max(s.RelayRadius, d.Radius);
                 break;
             case 17:
-                s.Burns++;
+                s.Burns += strength;
                 s.Burning = true;
                 break;
             case 18:
-                s.Freezes++;
+                s.Freezes += MathF.Log(d.Value) / MathF.Log(ModuleCatalog.Get(18).Value);
                 s.Cryo = true;
                 break;
             case 19:
-                s.Rads++;
+                s.Rads += strength;
+                s.RadiationRadius = MathF.Max(s.RadiationRadius, d.Radius);
                 s.Radiation = true;
                 break;
             case 20:
-                s.Corrodes++;
+                s.Corrodes += strength;
                 break;
             case 21:
-                s.Teslas++;
+                s.Teslas += strength;
                 break;
             case 22:
-                s.Gravity++;
+                s.Gravity += strength;
+                s.GravityRadius = MathF.Max(s.GravityRadius, d.Radius);
                 break;
             case 23:
-                s.Blasts++;
+                s.Blasts += strength;
+                s.ChamberRadius = MathF.Max(s.ChamberRadius, d.Radius);
                 break;
             case 24:
                 s.Proximity = true;
+                s.FuseRadius = MathF.Max(s.FuseRadius, d.Radius);
                 break;
             case 25:
                 if (s.Kind == 4)
                     break;
+                s.RadiusMultiplier *= strength;
                 if (!s.IsBeam)
                 {
                     s.Kind = 4;
                     s.Blast = MathF.Max(s.Blast, 45 * s.RadiusMultiplier);
-                    s.Velocity = Vector2.Normalize(s.Velocity) * 520 * s.SpeedMultiplier / TickRate;
+                    s.Velocity = Vector2.Normalize(s.Velocity) * 300 * s.SpeedMultiplier / TickRate;
                     break;
                 }
                 if (s.EmitPlasma && shots.Count < ProjectileLimit)
@@ -129,14 +140,14 @@ public sealed partial class Room
                     child.Damage /= 2;
                     child.Blast = 45 * child.RadiusMultiplier;
                     child.Velocity =
-                        Vector2.Normalize(s.Velocity) * 520 * s.SpeedMultiplier / TickRate;
-                    child.Expires = Tick + 180;
+                        Vector2.Normalize(s.Velocity) * 300 * s.SpeedMultiplier / TickRate;
                     shots.Add(child);
                     if (players.TryGetValue(s.Owner, out var p))
                         p.PlasmaReady[s.Weapon] = Tick + 15;
                 }
                 return true;
             case 26:
+                s.RadiusMultiplier *= strength;
                 if (!s.IsBeam || s.EmitMine)
                 {
                     if (AddMine(s))
@@ -147,6 +158,7 @@ public sealed partial class Room
                     else if (!s.IsBeam)
                     {
                         // Keep the payload at its checkpoint and retry when deployment capacity returns.
+                        s.RadiusMultiplier /= strength;
                         s.Cursor--;
                         s.Expires++;
                         return true;
@@ -155,10 +167,11 @@ public sealed partial class Room
                 s.Expires = Tick;
                 return true;
             case 27:
-                s.Leeches++;
+                s.Leeches += strength;
                 break;
             case 28:
                 s.SalvageMark = true;
+                s.SalvageValue = MathF.Max(s.SalvageValue, d.Value);
                 break;
         }
         return false;

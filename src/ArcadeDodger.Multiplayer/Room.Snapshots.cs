@@ -26,16 +26,16 @@ public sealed partial class Room
                     p.Experience,
                     LevelForExperience(p.Experience),
                     p.Velocity.Y,
-                    AccelerationFor(p),
-                    SteeringFor(p),
+                    AccelerationFor(p) * (p.Cruise ? 2 : 1),
+                    SteeringFor(p) * (p.Cruise ? 2 : 1),
                     p.Life,
                     SkillPointsFor(p),
                     p.Skills.Order().ToImmutableArray(),
                     MaxShieldFor(p),
                     WeaponFor(p),
                     MaxHullFor(p),
-                    MoveSpeedFor(p),
-                    p.Menu,
+                    MoveSpeedFor(p) * CruiseMultiplier(p) * (Living(p).Tow == 0 ? 1 : .6f),
+                    p.Menu || RaceCountdown(p),
                     p.Editing,
                     p.Weapons,
                     p.EquipSequence,
@@ -48,7 +48,17 @@ public sealed partial class Room
                     Survey(p),
                     p.Heading,
                     p.Throttle,
-                    profiles.ReplayCountFor(p.Name) + 1
+                    profiles.ReplayCountFor(p.Name) + 1,
+                    p.Chassis,
+                    TurnRateFor(p),
+                    Enumerable
+                        .Range(0, 4)
+                        .Aggregate(0, (mask, bay) => mask | (Active(p, bay) ? 1 << bay : 0)),
+                    p.Cruise ? "active"
+                        : p.CruiseAt > 0 ? "spooling"
+                        : Tick < p.CruiseReady ? "cooldown"
+                        : "ready",
+                    (int)Math.Max(0, (p.CruiseAt > 0 ? p.CruiseAt : p.CruiseReady) - Tick)
                 ))
                 .ToArray(),
             shots
@@ -95,10 +105,12 @@ public sealed partial class Room
                     e.Level,
                     EnemyRadius(e),
                     e.MaxHull,
-                    e.Allied ? "friendly" : "hostile",
+                    e.Faction.ToString().ToLowerInvariant(),
                     e.Shield,
                     e.MaxShield,
-                    e.SurfacePlanet
+                    e.SurfacePlanet,
+                    e.Chassis,
+                    e.Role.ToString().ToLowerInvariant()
                 ))
                 .ToArray(),
             energy

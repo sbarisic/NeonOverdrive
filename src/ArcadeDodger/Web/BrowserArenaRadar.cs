@@ -34,6 +34,15 @@ internal static partial class BrowserArenaHud
                 Raylib.Fade(Border, .4f)
             );
         Raylib.DrawRectangleLinesEx(map, 1, Border);
+        foreach (var site in snapshot?.Sector?.World?.Territory ?? [])
+            if (territoryCells.TryGetValue(site.Id, out var points))
+                for (var i = 0; i < points.Length; i++)
+                    Raylib.DrawLineEx(
+                        Map(points[i], map),
+                        Map(points[(i + 1) % points.Length], map),
+                        1,
+                        Raylib.Fade(site.Owner == "friendly" ? Cyan : Enemy, .4f)
+                    );
         foreach (var location in sector?.Locations ?? [])
         {
             var at = Map(new(location.X, location.Y), map);
@@ -94,6 +103,16 @@ internal static partial class BrowserArenaHud
             }
             Raylib.DrawCircleLines((int)start.X, (int)start.Y, 5, Amber);
         }
+        if (snapshot?.Sector?.World?.EventObjective is { } signal)
+        {
+            var at = Map(new(signal.X, signal.Y), map);
+            at = Vector2.Clamp(
+                at,
+                new(map.X + 8, map.Y + 8),
+                new(map.X + map.Width - 8, map.Y + map.Height - 19)
+            );
+            Raylib.DrawPolyLinesEx(at, 4, 7, 45, 2, Amber);
+        }
         if (snapshot?.Sector?.Rescue is { State: "active" } distress)
         {
             var at = Map(new(distress.X, distress.Y), map);
@@ -121,7 +140,9 @@ internal static partial class BrowserArenaHud
                     Raylib.DrawCircleV(
                         Map(new(enemy.X, enemy.Y), map),
                         2,
-                        enemy.Faction == "friendly" ? Cyan : Enemy
+                        enemy.Faction == "friendly" ? Cyan
+                            : enemy.Faction == "neutral" ? Amber
+                            : Enemy
                     );
             foreach (var player in snapshot.Players)
             {

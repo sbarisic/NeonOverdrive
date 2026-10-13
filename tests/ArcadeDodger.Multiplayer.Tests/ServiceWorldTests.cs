@@ -41,7 +41,10 @@ public class ServiceWorldTests
     private static object Unit(Room room, string type) =>
         ((IList)Get(room, "enemies"))
             .Cast<object>()
-            .First(e => (string)e.GetType().GetProperty("Type")!.GetValue(e)! == type);
+            .First(e =>
+                (bool)Get(e, "Allied")
+                && (string)e.GetType().GetProperty("Type")!.GetValue(e)! == type
+            );
 
     [Fact]
     public void ThreeDistinctContactsHailTradeAndReleaseCloakWithoutDocking()
@@ -218,7 +221,7 @@ public class ServiceWorldTests
         var before = r.Snapshot().Enemies!.Length;
         Set(r, "<Tick>k__BackingField", 7200L);
         Call(r, "StepRaid");
-        Assert.Equal(6, r.SectorSnapshot(1)!.Services!.Raid!.Remaining);
+        Assert.Equal(8, r.SectorSnapshot(1)!.Services!.Raid!.Remaining);
         Assert.Equal(before, r.Snapshot().Enemies!.Length);
         var attackers = (HashSet<int>)Get(r, "raiders");
         foreach (
@@ -422,7 +425,7 @@ public class ServiceWorldTests
     }
 
     [Fact]
-    public void SiteDestructionSendsSurvivingRaidersHome()
+    public void CapturedSiteSendsSurvivingRaidersHome()
     {
         var r = World(true);
         At(r, r.Sector!.Locations.Single(l => l.Id == 40).Position);
@@ -432,11 +435,13 @@ public class ServiceWorldTests
         Set(r, "<Tick>k__BackingField", 7200L);
         Call(r, "StepRaid");
         var attackers = ((HashSet<int>)Get(r, "raiders")).ToArray();
+        var target = (int)Get(r, "raidSite");
+        Set(((IDictionary)Get(r, "territory"))[target]!, "Friendly", false);
         Set(Unit(r, "salvage-core"), "Hull", 0);
         Call(r, "StepOutposts");
         Assert.Null(r.SectorSnapshot(1)!.Services!.Raid);
         var returns = (HashSet<int>)Get(r, "returningRaiders");
-        Assert.Equal(6, returns.Count);
+        Assert.Equal(8, returns.Count);
         var npc = ((IList)Get(r, "enemies"))
             .Cast<object>()
             .Single(e => (int)Get(e, "Id") == attackers[0]);
@@ -458,7 +463,7 @@ public class ServiceWorldTests
             var caches = r.Sector!.Locations.Where(l => l.Kind == "cache").ToArray();
             Assert.Equal(24, caches.Length);
             var navigation = new SectorNavigation(r.Sector, geometry);
-            var arrival = r.Sector.Locations.Single(l => l.Id == 10).Position;
+            var arrival = r.Sector.Locations.Single(l => l.Id == 10).Position + new Vector2(140, 0);
             foreach (var cache in caches)
             {
                 Assert.Null(geometry.TraceShips(cache.Position, cache.Position, 30));

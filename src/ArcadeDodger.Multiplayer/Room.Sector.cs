@@ -6,6 +6,8 @@ public sealed partial class Room
 {
     public SectorDefinition? Sector { get; }
     private readonly SectorCollision? geometry;
+    private readonly Dictionary<int, SectorLocation> locationsById;
+    private readonly SectorLocation[] stations;
     private readonly Dictionary<int, Source> sources = [];
     private readonly Dictionary<int, System.Numerics.Vector2[]> patrolRoutes = [];
 
@@ -106,24 +108,38 @@ public sealed partial class Room
             s.Ready = false;
     }
 
-    private SectorLocation? Location(int id) => Sector?.Locations.FirstOrDefault(l => l.Id == id);
+    private SectorLocation? Location(int id) => locationsById.GetValueOrDefault(id);
 
-    private bool Sanctuary(Vector2 p) =>
-        Sector?.Locations.Any(l =>
-            l.Kind == "station" && Vector2.DistanceSquared(p, l.Position) <= 300 * 300
-        ) == true;
+    private bool StationSanctuary(int id) =>
+        id == 10 || territory.TryGetValue(id, out var site) && site.Friendly && !site.Contested;
 
-    private bool Safe(Player p) => p.Docked != 0 || Sanctuary(p.Position);
-
-    private bool VisibleLine(Vector2 from, Vector2 to) =>
-        TraceCover(from, to) is null
-        && !(
-            Sector?.Locations.Any(l =>
-                l.Kind == "station"
-                && SectorCollision.Circle(from - l.Position, to - l.Position, 300).HasValue
+    private bool Sanctuary(Vector2 p)
+    {
+        foreach (var station in stations)
+            if (
+                Vector2.DistanceSquared(p, station.Position) <= 300 * 300
+                && StationSanctuary(station.Id)
             )
-            ?? false
-        );
+                return true;
+        return false;
+    }
+
+    private bool Safe(Player p) => Racing(p) || p.Docked != 0 || Sanctuary(p.Position);
+
+    private bool VisibleLine(Vector2 from, Vector2 to)
+    {
+        if (TraceCover(from, to) is not null)
+            return false;
+        foreach (var station in stations)
+            if (
+                StationSanctuary(station.Id)
+                && SectorCollision
+                    .Circle(from - station.Position, to - station.Position, 300)
+                    .HasValue
+            )
+                return false;
+        return true;
+    }
 
     private (float T, Vector2 Normal)? TraceCover(Vector2 from, Vector2 to, float radius = 0)
     {
@@ -195,6 +211,7 @@ public sealed partial class Room
                 var target = Location(s.InteractionTarget)!;
                 if (
                     p.Editing
+                    || Racing(p)
                     || p.Menu
                     || p.Docked != 0
                     || p.Position != p.Previous

@@ -75,12 +75,15 @@ public sealed partial class Room
             if (contact.Ship is null && Tick >= contact.ReplaceAt && enemies.Count < EnemyLimit)
             {
                 var at =
-                    Location(10)!.Position
-                    + new Vector2(-100 + contacts.IndexOf(contact) * 100, 100);
+                    Location(10)!.Position + new Vector2(220, -80 + contacts.IndexOf(contact) * 80);
                 contact.Ship = new()
                 {
                     Id = ++nextEnemy,
                     Type = "contact",
+                    Role =
+                        contact.Role == "trader" ? NpcRole.Trader
+                        : contact.Role == "bounty" ? NpcRole.Mercenary
+                        : NpcRole.Scavenger,
                     Allied = true,
                     Home = 10,
                     Position = at,
@@ -100,7 +103,7 @@ public sealed partial class Room
             var state = ExplorationFor(p);
             if (state.Hailing == 0)
                 continue;
-            var npc = contacts.FirstOrDefault(c => c.Ship?.Id == state.Hailing)?.Ship;
+            var npc = enemies.FirstOrDefault(e => e.Id == state.Hailing && e.Allied);
             if (
                 !p.Connected
                 || p.Hull <= 0
@@ -120,7 +123,7 @@ public sealed partial class Room
         var contact = contacts.FirstOrDefault(c => c.Ship == npc);
         if (contact is null)
             return true;
-        npc.State = "contact";
+        npc.State = Tick < contact.DepartAt ? "docking" : "traveling";
         if (
             players.Values.Any(p =>
                 p.Connected && p.Hull > 0 && ExplorationFor(p).Hailing == npc.Id
@@ -129,10 +132,13 @@ public sealed partial class Room
             return true;
         if (Tick < contact.DepartAt)
             return true;
+        if (!FriendlyStation(contact.Destination))
+            contact.Destination = NextFriendlyStation(npc.Home);
         var destination = Location(contact.Destination)!.Position + new Vector2(150, 0);
         if (Vector2.Distance(npc.Position, destination) < 180)
         {
-            contact.Destination = 10 + (contact.Destination - 9) % 3;
+            npc.Home = contact.Destination;
+            contact.Destination = NextFriendlyStation(npc.Home);
             contact.DepartAt = Tick + 60 * TickRate;
             return true;
         }
@@ -186,6 +192,7 @@ public sealed partial class Room
             )
                 return "out_of_range";
             state.Hailing = ship.Id;
+            p.Pending = p.Held = null;
             state.InteractionTarget = 0;
             p.Editing = true;
             p.Menu = true;
@@ -204,18 +211,19 @@ public sealed partial class Room
             p.EconomyPending = true;
             state.Receipt = new(request.Sequence, "pending");
             var reward = state.Job == "explorer" ? 40 : 60;
+            var xp = state.Job == "explorer" ? 30 : 45;
+            var checkpoint = Checkpoint(p);
+            var transaction =
+                $"contact-job:{Sector!.Seed}:{state.Job}:{state.JobCooldown}:{string.Join(',', state.JobTargets)}";
             PersistForRun(
                 p,
-                () => profiles.Credit(p.Name, reward),
+                () => profiles.WorldReward(p.Name, transaction, reward, xp, checkpoint),
                 result =>
                 {
                     p.EconomyPending = false;
                     if (result == "ok")
                     {
-                        p.Experience = Math.Min(
-                            MaxExperience,
-                            p.Experience + (state.Job == "explorer" ? 30 : 45)
-                        );
+                        p.Experience = Math.Min(MaxExperience, p.Experience + xp);
                         state.Job = "";
                         state.JobProgress.Clear();
                         state.JobTargets = [];
@@ -228,7 +236,11 @@ public sealed partial class Room
         }
         if (contact is null || state.Hailing != request.Target || contact.Role == "trader")
             return "unavailable";
-        if (state.Job.Length > 0 || Tick < state.JobCooldown)
+        if (
+            state.Job.Length > 0
+            || Living(p).Job.Length > 0
+            || Tick < Math.Max(state.JobCooldown, Living(p).JobCooldown)
+        )
             return "assignment_unavailable";
         var targets =
             contact.Role == "explorer"

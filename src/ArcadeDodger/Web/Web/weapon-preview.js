@@ -2,6 +2,7 @@ import { glyph, color } from './weapon-art.js';
 
 export function drawChain(canvas, w, time, stats, definitions, mini = false) {
   const ctx = canvas.getContext('2d'),
+    emitter = w.emitter % 32,
     width = canvas.width,
     height = canvas.height;
   ctx.clearRect(0, 0, width, height);
@@ -10,9 +11,10 @@ export function drawChain(canvas, w, time, stats, definitions, mini = false) {
         y: height / 2,
         angle: 0,
         power:
-          (stats.find((s) => s.emitter === w.emitter)?.damage ||
-            (w.emitter === 2 ? 4 : w.emitter >= 3 ? 2 : 1)) /
-          (w.emitter === 2 ? 4 : w.emitter >= 3 ? 2 : 1),
+          ((stats.find((s) => s.emitter === emitter)?.damage ||
+            (emitter === 2 ? 4 : emitter >= 3 ? 2 : 1)) *
+            (1 + 0.15 * Math.floor(w.emitter / 32))) /
+          (emitter === 2 ? 4 : emitter >= 3 ? 2 : 1),
         color: color(w.emitter),
       },
     ],
@@ -29,7 +31,7 @@ export function drawChain(canvas, w, time, stats, definitions, mini = false) {
       ctx.moveTo(last, ray.y);
       ctx.lineTo(end, y);
       ctx.stroke();
-      if (w.emitter !== 2) {
+      if (emitter !== 2) {
         const f = (time * 0.5) % 1;
         ctx.fillStyle = '#fff';
         ctx.fillRect(last + (end - last) * f - 2, ray.y + (y - ray.y) * f - 2, 4, 4);
@@ -39,7 +41,8 @@ export function drawChain(canvas, w, time, stats, definitions, mini = false) {
     last = end;
   }
   for (let i = 0; i < w.attachments.length; i++) {
-    const id = w.attachments[i];
+    const component = w.attachments[i],
+      id = component % 32;
     const x = 10 + (width - 25) * (points[i] ?? 0.5);
     segment(x);
     if (!mini) {
@@ -48,10 +51,10 @@ export function drawChain(canvas, w, time, stats, definitions, mini = false) {
       ctx.fillText((i + 1) * 5 + '%', x - 8, height - 7);
     }
     if (!id) continue;
-    if (id === 5) rays.forEach((r) => (r.power *= 2));
-    if (id === 9) spread *= 0.5;
+    if (id === 5) rays.forEach((r) => (r.power *= definitions.get(component)?.value ?? 2));
+    if (id === 9) spread *= definitions.get(component)?.value ?? 0.5;
     if ([11, 12, 13].includes(id)) {
-      const d = definitions.get(id);
+      const d = definitions.get(component);
       if (d)
         rays = rays
           .flatMap((r) =>

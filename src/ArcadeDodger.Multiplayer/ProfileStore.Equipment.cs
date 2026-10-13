@@ -23,11 +23,13 @@ public sealed partial class ProfileStore
             e.Revision < 0
             || e.Weapons is null
             || e.Gear is null
-            || e.Loose is not { Length: 29 }
+            || e.Loose is null
+            || e.Loose.Length != 29 && e.Loose.Length != ModuleLevels.StockSize
             || e.Bays is not { Length: 4 }
             || e.Ship is not { Length: 6 }
             || e.Loose.Any(i => i < 0)
             || e.Loose.Take(5).Any(i => i != 0)
+            || e.Loose.Where((count, key) => count != 0 && !ModuleLevels.IsMod(key)).Any()
         )
             return false;
         var ids = new HashSet<string>();
@@ -36,10 +38,10 @@ public sealed partial class ProfileStore
                 w is null
                 || !Guid.TryParseExact(w.Id, "N", out _)
                 || !ids.Add(w.Id)
-                || w.Emitter is < 1 or > 4
+                || !ModuleLevels.IsEmitter(w.Emitter)
                 || w.Tier is < 0 or > 4
                 || w.Attachments is not { Length: 8 }
-                || w.Attachments.Any(i => i != 0 && i is < 5 or > 28)
+                || w.Attachments.Any(i => i != 0 && !ModuleLevels.IsMod(i))
             )
                 return false;
         foreach (var g in e.Gear)
@@ -47,7 +49,7 @@ public sealed partial class ProfileStore
                 g is null
                 || !Guid.TryParseExact(g.Id, "N", out _)
                 || !ids.Add(g.Id)
-                || g.Kind is < 0 or > 11
+                || g.Kind is < 0 or > 12
                 || g.Tier is < 1 or > 4
             )
                 return false;
@@ -61,7 +63,10 @@ public sealed partial class ProfileStore
         for (var i = 0; i < 6; i++)
             if (
                 e.Ship[i] is { } id
-                && (!equipped.Add(id) || !e.Gear.Any(g => g.Id == id && g.Kind / 2 == i))
+                && (
+                    !equipped.Add(id)
+                    || !e.Gear.Any(g => g.Id == id && EquipmentCatalog.Slot(g.Kind) == i)
+                )
             )
                 return false;
         return true;
@@ -95,7 +100,7 @@ public sealed partial class ProfileStore
                 || !seen.Add(edit.Id)
                 || !map.TryGetValue(edit.Id, out var w)
                 || edit.Attachments is not { Length: 8 }
-                || edit.Attachments.Any(i => i != 0 && i is < 5 or > 28)
+                || edit.Attachments.Any(i => i != 0 && !ModuleLevels.IsMod(i))
             )
                 return "invalid_equipment";
             foreach (var part in w.Attachments.Where(i => i > 0))
@@ -126,8 +131,14 @@ public sealed partial class ProfileStore
         {
             int Tier(int kind) =>
                 e.Gear.Where(g => g.Kind == kind && e.Ship.Contains(g.Id)).Sum(g => g.Tier);
-            var hull = 3 + SkillCatalog.Rank(checkpoint.Skills, "hull") + Tier(8);
-            var shield = 2 + SkillCatalog.Rank(checkpoint.Skills, "shield") + Tier(0);
+            var hull =
+                ChassisCatalog.Get(p.Chassis).Hull
+                + SkillCatalog.Rank(checkpoint.Skills, "hull")
+                + Tier(8);
+            var shield =
+                ChassisCatalog.Get(p.Chassis).Shield
+                + SkillCatalog.Rank(checkpoint.Skills, "shield")
+                + Tier(0);
             checkpoint = checkpoint with
             {
                 Hull = Math.Min(checkpoint.Hull, hull),
@@ -192,7 +203,7 @@ public sealed partial class ProfileStore
         else
         {
             if (
-                request.Module is < 5 or > 28
+                !ModuleLevels.IsMod(request.Module)
                 || request.Quantity < 1
                 || request.Quantity > e.Loose[request.Module]
             )
@@ -209,7 +220,7 @@ public sealed partial class ProfileStore
     private static PilotProfile AddModule(PilotProfile p, int module)
     {
         var e = p.Equipment!;
-        if (module <= 4)
+        if (ModuleLevels.IsEmitter(module))
             e = e with
             {
                 Weapons = [.. e.Weapons, new(Guid.NewGuid().ToString("N"), module, new int[8])],

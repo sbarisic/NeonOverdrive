@@ -33,7 +33,7 @@ public sealed partial class Room
         }
     }
 
-    private void Launch(Source source, bool gunner, int offset = 0)
+    private void Launch(Source source, bool gunner, int offset = 0, int? levelOverride = null)
     {
         var p = Exterior(
             source.Location.Position + new Vector2(200 + offset * 35, offset * 35),
@@ -41,6 +41,9 @@ public sealed partial class Room
         );
         p = Vector2.Clamp(p, new(25), new(Width - 25, Height - 25));
         var level = EnemyCatalog.Region(source.Location.Id);
+        if (territory.Count > 0 && source.Location.Id == 23)
+            level = Math.Min(8, level + (int)(4 * FriendlyControl));
+        level = levelOverride ?? level;
         var available = EnemyCatalog
             .Items.Where(t =>
                 t.MinimumLevel <= level
@@ -63,7 +66,12 @@ public sealed partial class Room
             {
                 Id = ++nextEnemy,
                 Type = type.Id,
+                Role =
+                    source.LaunchCount % 7 == 0 ? NpcRole.Courier
+                    : source.LaunchCount % 5 == 0 ? NpcRole.Pirate
+                    : NpcRole.Combat,
                 Level = level,
+                ChassisOverride = level >= 5 ? 3 + source.LaunchCount % 4 : -1,
                 MaxHull = hull,
                 Gunner = type.Id != "rammer",
                 Home = source.Location.Id,

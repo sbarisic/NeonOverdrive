@@ -82,6 +82,11 @@ export function presentSnapshot(host, f) {
       p.heading ?? 0,
       p.throttle ?? 0,
       p.playthrough ?? 1,
+      p.chassis ?? 0,
+      p.turnRate ?? (Math.PI * 2) / 3,
+      p.activeBays ?? 1,
+      label(p.cruiseState || 'ready'),
+      p.cruiseTicks || 0,
     ),
   );
   list(f.shots, (s) => {
@@ -135,10 +140,12 @@ export function presentSnapshot(host, f) {
       e.level ?? 1,
       e.radius ?? 20,
       e.maxHull ?? 3,
-      +(e.faction === 'friendly'),
+      label(e.faction || 'hostile'),
       e.shield || 0,
       e.maxShield || 0,
       e.surfacePlanet || 0,
+      e.chassis || 0,
+      label(e.role || 'combat'),
     ),
   );
   list(f.energy, (e) => a.push(e.id, e.x, e.y, e.value, e.owner || 0));
@@ -203,6 +210,16 @@ export function presentSnapshot(host, f) {
     list(job.targets, (id) => a.push(id));
     a.push(+job.ready, job.credits, job.experience, job.cooldown);
     list(services.knownCaches, (id) => a.push(id));
+  }
+  const world = f.sector?.world;
+  list(world?.territory, (t) => a.push(t.id, label(t.owner), t.capture, +t.contested));
+  list(world?.cargo, (c) => a.push(c.id, label(c.kind), c.x, c.y, c.credits, c.towOwner));
+  const race = world?.race;
+  a.push(+!!race);
+  if (race) {
+    a.push(label(race.category), label(race.state), race.checkpoint, race.seconds, race.countdown);
+    list(race.course, (n) => a.push(n));
+    list(race.ghost, (n) => a.push(n));
   }
   host.ArenaSnapshotPacked(a, text);
 }

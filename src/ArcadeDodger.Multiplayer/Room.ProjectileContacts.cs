@@ -29,11 +29,11 @@ public sealed partial class Room
                 || s.HitPlayers.Contains(p.Id)
             )
                 continue;
-            var t = Intersection(
-                start - Vector2.Lerp(p.Previous, p.Position, startTime),
-                end - Vector2.Lerp(p.Previous, p.Position, endTime),
-                s.Proximity ? Definition(24).Radius : Radius + ProjectileRadius(s)
-            );
+            var from = start - Vector2.Lerp(p.Previous, p.Position, startTime);
+            var to = end - Vector2.Lerp(p.Previous, p.Position, endTime);
+            var t = s.Proximity
+                ? Intersection(from, to, s.FuseRadius)
+                : ChassisCollision.Trace(p.Chassis, from, to, p.Heading, ProjectileRadius(s));
             if (t.HasValue)
                 result.Add((t.Value, p, null));
         }
@@ -46,13 +46,26 @@ public sealed partial class Room
                 || s.HitEnemies.Contains(e.Id)
             )
                 continue;
-            var t = Intersection(
-                start - Vector2.Lerp(e.Previous, e.Position, startTime),
-                end - Vector2.Lerp(e.Previous, e.Position, endTime),
-                s.Proximity
-                    ? (e.Installation ? 85 : 0) + Definition(24).Radius
-                    : EnemyRadius(e) + ProjectileRadius(s)
-            );
+            var from = start - Vector2.Lerp(e.Previous, e.Position, startTime);
+            var to = end - Vector2.Lerp(e.Previous, e.Position, endTime);
+            var mobile = !e.Installation && e.SurfacePlanet == 0 && !e.Type.StartsWith("salvage-");
+            var scale = EnemyCatalog.Size(e.Level);
+            var t =
+                !s.Proximity && mobile
+                    ? ChassisCollision.Trace(
+                        e.Chassis,
+                        from / scale,
+                        to / scale,
+                        e.Aim,
+                        ProjectileRadius(s) / scale
+                    )
+                    : Intersection(
+                        from,
+                        to,
+                        s.Proximity
+                            ? (e.Installation ? 85 : 0) + s.FuseRadius
+                            : EnemyRadius(e) + ProjectileRadius(s)
+                    );
             if (t.HasValue)
                 result.Add((t.Value, null, e));
         }
@@ -73,7 +86,7 @@ public sealed partial class Room
         if (!s.Homing)
             return;
         var target = enemyGrid
-            .Query(s.Position, s.Position, 600)
+            .Query(s.Position, s.Position, s.HomingRadius)
             .Where(e =>
                 e.Hull > 0
                 && CanHit(s, e)
@@ -86,19 +99,12 @@ public sealed partial class Room
         if (target is null)
             return;
         var delta = target.Position - s.Position;
-        if (
-            delta.LengthSquared() < 1
-            || delta.LengthSquared() > Definition(14).Radius * Definition(14).Radius
-        )
+        if (delta.LengthSquared() < 1 || delta.LengthSquared() > s.HomingRadius * s.HomingRadius)
             return;
         var speed = s.Velocity.Length();
         var direction = s.IsBeam
             ? Vector2.Normalize(delta)
-            : Vector2.Lerp(
-                Vector2.Normalize(s.Velocity),
-                Vector2.Normalize(delta),
-                Definition(14).Value
-            );
+            : Vector2.Lerp(Vector2.Normalize(s.Velocity), Vector2.Normalize(delta), s.HomingRate);
         if (direction.LengthSquared() > .00001f)
             s.Velocity = Vector2.Normalize(direction) * speed;
     }
@@ -109,7 +115,7 @@ public sealed partial class Room
             return;
         foreach (
             var e in enemyGrid
-                .Query(at, at, 100)
+                .Query(at, at, s.GravityRadius)
                 .Where(e =>
                     e.Hull > 0
                     && CanHit(s, e)
@@ -123,7 +129,7 @@ public sealed partial class Room
         {
             var delta = at - e.Position;
             var distance = delta.Length();
-            if (distance > .001f && distance < Definition(22).Radius)
+            if (distance > .001f && distance < s.GravityRadius)
             {
                 e.Position = MoveShip(
                     e.Position,

@@ -19,55 +19,29 @@ internal sealed partial class BrowserArenaWorld
         if (p.Hull <= 0 || !Visible(position, origin, 65))
             return;
         Color color = PlayerColor(p);
+        var radius = MathF.Max(20, ChassisCatalog.Get(p.Chassis).Radius);
         if (p.Editing)
             color = Raylib.Fade(color, .35f);
-        Vector2 bow = new(MathF.Cos(p.Heading), MathF.Sin(p.Heading));
-        Vector2 side = new(-bow.Y, bow.X);
-        Raylib.DrawRectanglePro(
-            new(p.X, p.Y, 28, 14),
-            new(14, 7),
-            p.Heading * 180 / MathF.PI,
-            Raylib.Fade(color, .6f)
-        );
-        var corners = new[]
-        {
-            position - bow * 14 - side * 7,
-            position + bow * 14 - side * 7,
-            position + bow * 14 + side * 7,
-            position - bow * 14 + side * 7,
-        };
-        for (var i = 0; i < 4; i++)
-            Raylib.DrawLineEx(corners[i], corners[(i + 1) % 4], 2, color);
-        Raylib.DrawLineEx(position - side * 7, position + side * 7, 1, color);
-        Raylib.DrawTriangle(
-            position + bow * 14,
-            position + bow * 8 - side * 5,
-            position + bow * 8 + side * 5,
-            NeonRendering.Ink
-        );
-        if (p.Throttle > 0)
-        {
-            var aft = position - bow * 14;
-            Raylib.DrawLineEx(aft, aft - bow * (5 + 17 * p.Throttle), 5, color);
-            if (!low)
-                Raylib.DrawCircleV(aft, 8 + p.Throttle * 6, Raylib.Fade(color, .15f));
-        }
-        Vector2 forward = new(MathF.Cos(p.Aim), MathF.Sin(p.Aim));
-        Raylib.DrawLineEx(position, position + forward * 23, 5, NeonRendering.Ink);
+        DrawChassis(p.Chassis, position, p.Heading, p.Aim, p.Throttle, p.ActiveBays, color, low);
         if (p.Shield > 0)
         {
-            Raylib.DrawCircleLines((int)p.X, (int)p.Y, 22, Shield);
-            for (int i = 0; i < Math.Min(p.Shield, 2); i++)
-                Raylib.DrawRectangle((int)p.X - 8 + i * 10, (int)p.Y + 35, 6, 2, Shield);
+            Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 2, Shield);
+            Raylib.DrawRectangle(
+                (int)p.X - 20,
+                (int)(p.Y + radius + 15),
+                (int)(40f * p.Shield / Math.Max(1, p.MaxShield)),
+                2,
+                Shield
+            );
         }
         if (p.Protected)
         {
             // Always visible, including reduced FX: protection is gameplay information.
-            Raylib.DrawCircleLines((int)p.X, (int)p.Y, 26, NeonRendering.Ink);
+            Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 6, NeonRendering.Ink);
             Raylib.DrawText(
                 p.Editing ? "CLOAKED" : "SAFE",
                 (int)p.X - 12,
-                (int)p.Y - 49,
+                (int)(p.Y - radius - 29),
                 10,
                 NeonRendering.Ink
             );
@@ -77,25 +51,31 @@ internal sealed partial class BrowserArenaWorld
         if (friendly)
         {
             name += " [ALLY]";
-            Raylib.DrawCircleLines((int)p.X, (int)p.Y, 30, new Color(120, 245, 170, 255));
+            Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 10, new Color(120, 245, 170, 255));
         }
         if (!p.Connected)
             name += " [LINK]";
         Raylib.DrawText(
             name,
             (int)p.X - Raylib.MeasureText(name, 10) / 2,
-            (int)p.Y - 36,
+            (int)(p.Y - radius - 16),
             10,
             color
         );
-        for (int i = 0; i < 3; i++)
-            Raylib.DrawRectangle(
-                (int)p.X - 14 + i * 10,
-                (int)p.Y + 29,
-                8,
-                3,
-                i < p.Hull ? color : new Color(35, 42, 55, 255)
-            );
+        Raylib.DrawRectangle(
+            (int)p.X - 20,
+            (int)(p.Y + radius + 9),
+            40,
+            3,
+            new Color(35, 42, 55, 255)
+        );
+        Raylib.DrawRectangle(
+            (int)p.X - 20,
+            (int)(p.Y + radius + 9),
+            (int)(40f * p.Hull / Math.Max(1, p.MaxHull)),
+            3,
+            color
+        );
     }
 
     private static Color PlayerColor(PlayerSnapshot p) =>
@@ -174,9 +154,46 @@ internal sealed partial class BrowserArenaWorld
                 for (var wheel = -1; wheel <= 1; wheel++)
                     Raylib.DrawCircleV(foot + tangent * radius * wheel, 5, color);
         }
-        Raylib.DrawPoly(p, sides, radius, angle, Raylib.Fade(color, .4f));
-        Raylib.DrawPolyLinesEx(p, sides, radius, angle, 2, color);
-        if (gunner)
+        var structural =
+            e.Kind
+            is "installation"
+                or "turret"
+                or "rover"
+                or "salvage-core"
+                or "salvage-turret"
+                or "repair-bot";
+        if (!structural)
+            DrawChassis(
+                e.Chassis,
+                p,
+                e.Aim,
+                e.Aim,
+                e.State is "patrol" or "traveling" ? .6f : .2f,
+                gunner ? 1 : 0,
+                color,
+                low,
+                EnemyCatalog.Size(e.Level)
+            );
+        else if (e.Kind is "turret" or "rover" or "salvage-turret")
+            DrawPanels(
+                e.Kind == "rover" ? StructureCatalog.Rover : StructureCatalog.Turret,
+                p,
+                e.Aim,
+                color,
+                EnemyCatalog.Size(e.Level)
+            );
+        else
+        {
+            Raylib.DrawPoly(p, sides, radius, angle, Raylib.Fade(color, .4f));
+            Raylib.DrawPolyLinesEx(p, sides, radius, angle, 2, color);
+            Raylib.DrawRectanglePro(
+                new(p.X, p.Y, radius * 1.3f, radius * .7f),
+                new(radius * .65f, radius * .35f),
+                angle,
+                Raylib.Fade(color, .6f)
+            );
+        }
+        if (gunner && structural)
             Raylib.DrawLineEx(p, p + d * (radius + 10), e.Kind == "sniper" ? 3 : 5, color);
         if (e.Kind == "tender")
         {

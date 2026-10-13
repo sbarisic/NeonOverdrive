@@ -25,6 +25,7 @@ internal static partial class BrowserArenaHud
         grid,
         map;
     private static SectorDefinition? sector;
+    private static Dictionary<int, Vector2[]> territoryCells = [];
     private static Vector2 radarCenter,
         waypoint;
     private static float radarWidth = 3600;
@@ -40,6 +41,7 @@ internal static partial class BrowserArenaHud
     public static void SetSector(SectorDefinition value)
     {
         sector = value;
+        territoryCells = TerritoryGeometry.Cells(value);
         navigation = new(value, new SectorCollision(value));
         route = [];
         routeKnown = false;

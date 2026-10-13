@@ -19,15 +19,32 @@ public sealed record EnemySnapshot(
     string Faction = "hostile",
     int Shield = 0,
     int MaxShield = 0,
-    int SurfacePlanet = 0
-);
+    int SurfacePlanet = 0,
+    int Chassis = 0,
+    string Role = "combat"
+)
+{
+    public string Activity =>
+        State switch
+        {
+            "engage" or "fighting" => "fighting",
+            "return" or "fleeing" => "fleeing",
+            "arrived" or "docking" or "contact" => "docking",
+            "guard" or "working" => "working",
+            "repairing" => "repairing",
+            _ => "traveling",
+        };
+}
 
 public sealed partial class Room
 {
     public const int EnemyCapacity = 192;
 
     private static float EnemyRadius(Enemy e) =>
-        e.Installation ? 85 : EnemyCatalog.Get(e.Type).Radius * EnemyCatalog.Size(e.Level);
+        e.Installation ? 85
+        : e.SurfacePlanet != 0 || e.Type.StartsWith("salvage-") || e.Type == "repair-bot"
+            ? EnemyCatalog.Get(e.Type).Radius * EnemyCatalog.Size(e.Level)
+        : ChassisCatalog.Get(e.Chassis).Radius * EnemyCatalog.Size(e.Level);
 
     private readonly List<Enemy> enemies = [];
     private int nextEnemy;
@@ -212,12 +229,14 @@ public sealed partial class Room
                         {
                             Id = ++nextShot,
                             Owner = -enemy.Id,
-                            Position = enemy.Position,
-                            Velocity = aim * ((enemy.Type == "sniper" ? 720 : 280f) / TickRate),
+                            Position = NpcMuzzle(enemy),
+                            BirthPosition = NpcMuzzle(enemy),
+                            Range = enemy.Type == "sniper" ? 2160 : 840,
+                            Velocity = aim * ((enemy.Type == "sniper" ? 650 : 300f) / TickRate),
                             Damage =
                                 EnemyCatalog.Damage(enemy.Level) * (enemy.Type == "sniper" ? 2 : 1),
                             Born = Tick,
-                            Expires = Tick + 90,
+                            Expires = long.MaxValue / 2,
                         }
                     );
                 if (enemy.Type == "interceptor" && enemy.Burst == 0)
@@ -258,6 +277,35 @@ public sealed partial class Room
     private sealed class Enemy
     {
         public bool Allied;
+        public bool Neutral;
+        public NpcFaction Faction
+        {
+            get =>
+                Neutral ? NpcFaction.Neutral
+                : Allied ? NpcFaction.Friendly
+                : NpcFaction.Hostile;
+            set
+            {
+                Neutral = value == NpcFaction.Neutral;
+                Allied = value != NpcFaction.Hostile;
+            }
+        }
+        public NpcRole Role = NpcRole.Combat;
+        public int ChassisOverride = -1;
+        public float MarkValue = 1.25f;
+        public int Chassis =>
+            ChassisOverride >= 0
+                ? ChassisOverride
+                : Type switch
+                {
+                    "interceptor" => 1,
+                    "gunner" => 2,
+                    "contact" => 3,
+                    "tender" => 4,
+                    "sniper" => 5,
+                    "relief" => 6,
+                    _ => 0,
+                };
         public int SurfacePlanet,
             NpcTarget,
             Shield,
@@ -267,6 +315,8 @@ public sealed partial class Room
         public int SurfaceDirection = 1;
         public long LastHit,
             RepathAt;
+        public int CourierDestination = 12;
+        public long CourierDepartAt;
         public Vector2 RouteGoal;
         public Vector2[] Route = [];
         public int RouteIndex;

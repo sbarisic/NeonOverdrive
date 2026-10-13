@@ -52,6 +52,7 @@ public sealed partial class ProfileStore
             {
                 RunId = Guid.NewGuid().ToString("N"),
                 RunPrepared = true,
+                RaceRecords = p.RaceRecords,
             }
         );
     }
@@ -69,6 +70,7 @@ public sealed partial class ProfileStore
             PilotProfile.Starter(p.ReplayCount) with
             {
                 RunId = Guid.NewGuid().ToString("N"),
+                RaceRecords = p.RaceRecords,
             }
         );
     }
@@ -81,7 +83,7 @@ public sealed partial class ProfileStore
         if (!ModuleCatalog.Valid(module))
             return "invalid_item";
         var p = Get(name);
-        if (p.Owned[module] == int.MaxValue)
+        if (p.Owned[ModuleLevels.Kind(module)] == int.MaxValue)
             return "inventory_full";
         return Commit(name, AddModule(p, module));
     }
@@ -191,10 +193,10 @@ public sealed partial class ProfileStore
                 used[w.Emitter]++;
             foreach (var id in w.Attachments)
             {
-                if (id != 0 && id is < 5 or > 28)
+                if (id != 0 && !ModuleLevels.IsMod(id))
                     return false;
                 if (id > 0)
-                    used[id]++;
+                    used[ModuleLevels.Kind(id)]++;
             }
         }
         return Enumerable.Range(1, 28).All(i => used[i] <= owned[i]);
@@ -203,6 +205,7 @@ public sealed partial class ProfileStore
     private static bool Valid(PilotProfile p) =>
         p is not null
         && p.Credits >= 0
+        && ChassisCatalog.Valid(p.Chassis)
         && p.ReplayCount is >= 0 and <= PilotProfile.MaxReplayCount
         && p.Owned is { Length: 29 }
         && p.Owned.All(n => n >= 0)
@@ -228,6 +231,7 @@ public sealed partial class ProfileStore
             && r.Throttle is >= 0 and <= 1
             && r.ShieldDelay >= 0
             && r.HullDelay >= 0
+            && r.CruiseCooldown >= 0
             && r.WeaponCooldown is { Length: 4 }
             && r.WeaponCooldown.All(t => double.IsFinite(t) && t >= 0)
             && r.PlasmaCooldown is { Length: 4 }
@@ -237,7 +241,7 @@ public sealed partial class ProfileStore
 
     public string Buy(string name, int module)
     {
-        if (!ModuleCatalog.Valid(module) || module == 1)
+        if (!ModuleCatalog.Valid(module) || module == 1 || ModuleLevels.Level(module) != 1)
             return "invalid_item";
         var p = Get(name);
         var price = ModuleCatalog.Get(module).Price;
@@ -251,6 +255,22 @@ public sealed partial class ProfileStore
     public string Equip(string name, WeaponConfig[] weapons, int? level = null)
     {
         var p = Get(name);
+        // The legacy count-based command cannot represent component levels or ship gear.
+        // Keep it for level-I legacy callers; modern equipment must use a revisioned draft.
+        if (
+            p.Equipment is { } equipment
+            && (
+                equipment.Gear.Length > 0
+                || equipment.Weapons.Any(w =>
+                    ModuleLevels.Level(w.Emitter) > 1
+                    || w.Attachments.Any(m => m > 0 && ModuleLevels.Level(m) > 1)
+                )
+                || equipment
+                    .Loose.Where((count, key) => count > 0 && ModuleLevels.Level(key) > 1)
+                    .Any()
+            )
+        )
+            return "equipment_refresh_required";
         return !ValidLoadout(weapons, p.Owned) ? "invalid_inventory"
             : !ModuleCatalog.LevelAllows(
                 weapons,

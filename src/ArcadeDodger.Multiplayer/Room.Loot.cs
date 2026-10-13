@@ -138,7 +138,12 @@ public sealed partial class Room
     }
 
     private bool Eligible(Player p, int owner) =>
-        p.Hull > 0 && p.Connected && !p.Editing && p.Docked == 0 && (owner == 0 || p.Id == owner);
+        p.Hull > 0
+        && p.Connected
+        && !p.Editing
+        && !Racing(p)
+        && p.Docked == 0
+        && (owner == 0 || p.Id == owner);
 
     private void StepModuleDrops()
     {
@@ -222,11 +227,21 @@ public sealed partial class Room
                     .FirstOrDefault();
                 var tier = Math.Clamp(region?.Id ?? 1, 1, 4);
                 var roll = CreditRoll(enemy.Id ^ 0x725b1, id);
-                var weapon = roll < .5f ? EquipmentCatalog.Build(1 + (int)(roll * 8), tier) : null;
+                var componentLevel = ModuleLevels.Roll(
+                    enemy.Level,
+                    CreditRoll(enemy.Id ^ 0x21a11, id)
+                );
+                var weapon =
+                    roll < .5f
+                        ? EquipmentCatalog.Build(1 + (int)(roll * 8), tier, componentLevel)
+                        : null;
                 var gear = weapon is null
                     ? new ShipItem(
                         Guid.NewGuid().ToString("N"),
-                        Math.Min(11, (int)((roll - .5f) * 24)),
+                        EquipmentCatalog.GearForRoll(
+                            (roll - .5f) * 2,
+                            CreditRoll(enemy.Id ^ 0x59a2, id)
+                        ),
                         tier
                     )
                     : null;
@@ -263,7 +278,10 @@ public sealed partial class Room
                 new(
                     ++nextCredit,
                     reward.Position,
-                    (int)MathF.Ceiling(40 * enemy.Level * (Tick < enemy.MarkUntil ? 1.25f : 1)),
+                    (int)
+                        MathF.Ceiling(
+                            40 * enemy.Level * (Tick < enemy.MarkUntil ? enemy.MarkValue : 1)
+                        ),
                     Tick + EnergyLifetimeTicks,
                     p.Id
                 )

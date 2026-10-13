@@ -6,8 +6,34 @@ public sealed partial class Room
 {
     private readonly SectorNavigation? navigation;
 
-    private static bool CanHit(Shot shot, Enemy target) =>
-        shot.Owner > 0 || shot.FriendlyNpc ? !target.Allied : target.Allied;
+    private Vector2 NpcMuzzle(Enemy npc)
+    {
+        var point =
+            npc.Position
+            + ChassisCatalog.Rotate(
+                ChassisCatalog.Get(npc.Chassis).Hardpoints[0] * EnemyCatalog.Size(npc.Level),
+                npc.Aim
+            );
+        if (npc.SurfacePlanet != 0 || npc.Type.StartsWith("salvage-"))
+            point = npc.Position + new Vector2(MathF.Cos(npc.Aim), MathF.Sin(npc.Aim)) * 20;
+        return geometry?.TraceShips(npc.Position, point, 3) is { } hit
+            ? Vector2.Lerp(npc.Position, point, MathF.Max(0, hit.T - .001f))
+            : point;
+    }
+
+    private bool CanHit(Shot shot, Enemy target)
+    {
+        if (shot.EnforcementTarget != 0)
+            return false;
+        if (shot.Owner > 0 && players.TryGetValue(shot.Owner, out var pilot))
+        {
+            if (Racing(pilot))
+                return false;
+            if (target.Role == NpcRole.Police && Living(pilot).Police == "wanted")
+                return true;
+        }
+        return shot.Owner > 0 || shot.FriendlyNpc ? !target.Allied : target.Allied;
+    }
 
     private Vector2 Exterior(Vector2 goal, float clearance = 80)
     {
@@ -107,7 +133,12 @@ public sealed partial class Room
 
     private bool StepNpcCombat(Enemy npc)
     {
-        if (MoveContact(npc) || ReturnFromRaid(npc))
+        if (
+            MoveWorldMissionNpc(npc)
+            || MoveCivilian(npc)
+            || MoveContact(npc)
+            || ReturnFromRaid(npc)
+        )
             return true;
         // Tenders support their own faction; seeing a relief ship is not attacking it.
         if (npc.Type == "tender")
@@ -134,8 +165,22 @@ public sealed partial class Room
             && mission.Ship.Hull > 0
                 ? mission.Ship
                 : RaidTarget(npc);
+        var valuableCargo =
+            npc.Role == NpcRole.Pirate
+                ? civilians
+                    .Where(c =>
+                        c.Ship.Hull > 0
+                        && (c.Stock.Count > 0 || c.Cargo != 0)
+                        && Vector2.DistanceSquared(c.Ship.Position, npc.Position) < 1800 * 1800
+                    )
+                    .OrderByDescending(c => c.Stock.Sum(s => s.Price))
+                    .ThenBy(c => Vector2.DistanceSquared(c.Ship.Position, npc.Position))
+                    .FirstOrDefault()
+                    ?.Ship
+                : null;
         var opponent =
             assignedShip
+            ?? valuableCargo
             ?? enemyGrid
                 .Query(npc.Position, npc.Position, 1000)
                 .Where(e =>
@@ -152,7 +197,13 @@ public sealed partial class Room
             npc.FireAt = Math.Max(npc.FireAt, Tick + (npc.Type == "sniper" ? 30 : 15));
         if (npc.Type == "relief" && npc.Patrol > 0)
             opponent = null;
-        if (!npc.Allied && npc.SurfacePlanet == 0 && opponent is null)
+        if (
+            !npc.Allied
+            && npc.SurfacePlanet == 0
+            && opponent is null
+            && !npc.Type.StartsWith("salvage-")
+            && npc.Type != "repair-bot"
+        )
             return false;
         npc.Target = 0;
         Player? pilot = null;
@@ -200,7 +251,22 @@ public sealed partial class Room
         else if (npc.Type is not ("salvage-core" or "salvage-turret" or "repair-bot"))
         {
             Vector2 goal;
-            if (target.HasValue)
+            if (npc.Type == "relief" && rescue is not { State: "active" })
+            {
+                // Shipping traffic keeps its route while defending itself. Stopping at
+                // gunner range lets a small skirmish pin the ship before a rescue can form.
+                goal =
+                    npc.Patrol == 0
+                        ? Location(npc.Home)!.Position + new Vector2(650, 0)
+                        : Location(npc.Home == 22 ? 12 : 11)!.Position + new Vector2(200, 0);
+                if (Vector2.Distance(npc.Position, Exterior(goal)) < 120)
+                {
+                    npc.Patrol++;
+                    if (npc.Patrol >= 2)
+                        npc.State = "arrived";
+                }
+            }
+            else if (target.HasValue)
             {
                 var offset = target.Value - npc.Position;
                 var distance = offset.Length();
@@ -292,12 +358,13 @@ public sealed partial class Room
                     Id = ++nextShot,
                     Owner = -npc.Id,
                     FriendlyNpc = npc.Allied,
-                    Position = npc.Position,
-                    BirthPosition = npc.Position,
-                    Velocity = direction * (npc.Type == "sniper" ? 720 : 280) / TickRate,
+                    Position = NpcMuzzle(npc),
+                    BirthPosition = NpcMuzzle(npc),
+                    Range = npc.Type == "sniper" ? 2160 : 840,
+                    Velocity = direction * (npc.Type == "sniper" ? 650 : 300) / TickRate,
                     Damage = EnemyCatalog.Damage(npc.Level) * (npc.Type == "sniper" ? 2 : 1),
                     Born = Tick,
-                    Expires = Tick + 90,
+                    Expires = long.MaxValue / 2,
                 }
             );
             if (npc.Type == "interceptor" && npc.Burst == 0)

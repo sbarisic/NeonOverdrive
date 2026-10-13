@@ -33,6 +33,7 @@ public sealed partial class Room
                 || p.Hull <= 0
                 || p.Editing
                 || p.Menu
+                || p.Cruise
                 || Safe(p)
                 || p.Held?.Fire != true
             )

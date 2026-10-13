@@ -8,7 +8,7 @@ export class EquipmentDraft {
     this.revision = -1;
     this.bays = [];
     this.ship = [];
-    this.loose = Array(29).fill(0);
+    this.loose = Array(128).fill(0);
   }
   receive(page) {
     if (page.revision !== this.revision) {

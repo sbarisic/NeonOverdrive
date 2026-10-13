@@ -39,10 +39,10 @@ const assert = require('node:assert/strict');
     await b.bringToFront();
     await b.locator('#canvas').focus();
     await b.keyboard.down('d');
-    await b.waitForTimeout(1500);
+    await b.waitForTimeout(750);
     await b.keyboard.up('d');
     await b.keyboard.down('w');
-    await b.waitForTimeout(1700);
+    await b.waitForTimeout(2600);
     await b.keyboard.up('w');
     await b.keyboard.down('s');
     await b.waitForTimeout(2100);
@@ -50,27 +50,27 @@ const assert = require('node:assert/strict');
     await a.bringToFront();
     await a.locator('#canvas').focus();
     await a.keyboard.down('d');
-    await a.waitForTimeout(1500);
+    await a.waitForTimeout(750);
     await a.keyboard.up('d');
     await a.keyboard.down('w');
-    await a.waitForTimeout(2800);
+    await a.waitForTimeout(3900);
     await a.keyboard.up('w');
     await a.keyboard.down('s');
     await a.waitForTimeout(2100);
     await a.keyboard.up('s');
-    await a.waitForTimeout(200);
+    await a.waitForTimeout(1200);
     const moved = await read(b);
     assert(
-      moved.snapshot.players.find((p) => p.id === initial.id).x <
-        initial.snapshot.players.find((p) => p.id === initial.id).x - 700,
+      moved.snapshot.players.find((p) => p.id === initial.id).y >
+        initial.snapshot.players.find((p) => p.id === initial.id).y + 500,
     );
     const now = await read(a),
       self = now.snapshot.players.find((p) => p.id === initial.id),
       target = now.snapshot.players.find((p) => p.id === second.id);
-    const ox = Math.max(0, Math.min(12000 - 1280, self.x - 640)),
-      oy = Math.max(0, Math.min(8000 - 720, self.y - 360));
+    const ox = Math.max(0, Math.min(24000 - 1280, self.x - 640)),
+      oy = Math.max(0, Math.min(16000 - 720, self.y - 360));
     const box = await a.locator('#canvas').boundingBox();
-    // Aim left towards Beta, even when Beta lies outside the local viewport.
+    // Aim toward Beta after both pilots have stopped outside the station body and sanctuary.
     const dx = target.x - self.x,
       dy = target.y - self.y,
       scale = 200 / Math.hypot(dx, dy);
@@ -79,6 +79,10 @@ const assert = require('node:assert/strict');
       box.y + ((self.y - oy + dy * scale) / 720) * box.height,
     );
     await a.keyboard.down('Space');
+    console.log(
+      'PvP positions',
+      JSON.stringify({ self: [self.x, self.y], target: [target.x, target.y] }),
+    );
     await b.waitForFunction(
       (id) =>
         JSON.parse(document.querySelector('#network-info').dataset.snapshot).shots.some(

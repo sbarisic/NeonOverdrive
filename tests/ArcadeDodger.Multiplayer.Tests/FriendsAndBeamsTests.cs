@@ -140,7 +140,7 @@ public class FriendsAndBeamsTests
         Enemy(r, 1070, 800);
         Equip(r, 3);
         r.Input(1, new(3, 0, 0, 0, true, false));
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 8; i++)
             r.Step();
         Assert.Equal(2, r.Snapshot().Players[1].Shield);
         Assert.NotEmpty(r.Snapshot().Explosions!);
@@ -160,8 +160,12 @@ public class FriendsAndBeamsTests
         Assert.Equal(96, Get(e, "Hull"));
         Assert.Empty(r.Snapshot().Shots);
         var beam = r.Snapshot().Beams![0];
-        Assert.Equal(1000, beam.X);
-        Assert.Equal(1184, r.Snapshot().Beams![^1].EndX, 3);
+        Assert.Equal(WorkshopRig.MuzzleX, beam.X);
+        var size = EnemyCatalog.Size(1);
+        var contact = ChassisCollision
+            .Trace(0, new Vector2(-200, 0) / size, new Vector2(1100, 0) / size, 0, 3 / size)!
+            .Value;
+        Assert.Equal(1000 + 1300 * contact, r.Snapshot().Beams![^1].EndX, 3);
         r.Input(1, new(33, 0, 1, MathF.PI / 2, true, false));
         r.Step();
         beam = r.Snapshot().Beams![0];
@@ -180,12 +184,18 @@ public class FriendsAndBeamsTests
         r.Input(1, new(3, 0, 0, 0, true, false));
         r.Step();
         var beam = r.Snapshot().Beams!;
-        Assert.Contains(beam, b => MathF.Abs(b.EndX - 1130) < .01f);
+        Assert.Contains(beam, b => MathF.Abs(b.EndX - (WorkshopRig.MuzzleX + 130)) < .01f);
         Assert.Equal(
             2,
-            beam.Count(b => MathF.Abs(b.X - 1130) < .01f && MathF.Abs(b.Y - 800) < .01f)
+            beam.Count(b =>
+                MathF.Abs(b.X - (WorkshopRig.MuzzleX + 130)) < .01f && MathF.Abs(b.Y - 800) < .01f
+            )
         );
-        var e = Enemy(r, 1130 + 200 * MathF.Cos(.22f), 800 + 200 * MathF.Sin(.22f));
+        var e = Enemy(
+            r,
+            WorkshopRig.MuzzleX + 130 + 200 * MathF.Cos(.22f),
+            800 + 200 * MathF.Sin(.22f)
+        );
         for (var i = 0; i < 30; i++)
         {
             r.Input(1, new(i + 4, 0, 0, 0, true, false));
@@ -285,7 +295,7 @@ public class FriendsAndBeamsTests
             valid,
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    $"{{\"v\":10,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"
+                    $"{{\"v\":11,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"
                 ),
                 out _
             )

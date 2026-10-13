@@ -42,22 +42,27 @@ public static class SkillCatalog
 
     public static SkillDefinition? Get(string id) => ById.GetValueOrDefault(id);
 
-    public static int Rank(IEnumerable<string> skills, string family) =>
-        skills
-            .Select(Get)
-            .Where(s => s?.Family == family)
-            .Select(s => s!.Tier)
-            .DefaultIfEmpty()
-            .Max();
+    public static int Rank(IEnumerable<string> skills, string family)
+    {
+        var rank = 0;
+        foreach (var id in skills)
+            if (Get(id) is { } skill && skill.Family == family)
+                rank = Math.Max(rank, skill.Tier);
+        return rank;
+    }
 
-    public static float Value(IEnumerable<string> skills, string family, float fallback = 0) =>
-        skills
-            .Select(Get)
-            .Where(s => s?.Family == family)
-            .OrderByDescending(s => s!.Tier)
-            .FirstOrDefault()
-            ?.Value
-        ?? fallback;
+    public static float Value(IEnumerable<string> skills, string family, float fallback = 0)
+    {
+        var rank = -1;
+        var value = fallback;
+        foreach (var id in skills)
+            if (Get(id) is { } skill && skill.Family == family && skill.Tier > rank)
+            {
+                rank = skill.Tier;
+                value = skill.Value;
+            }
+        return value;
+    }
 
     public static string Migrate(string id) =>
         id switch

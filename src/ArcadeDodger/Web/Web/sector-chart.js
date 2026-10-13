@@ -1,5 +1,6 @@
 import { names, colors, paths } from './sector-chart-symbols.js';
 import { chartStyles } from './sector-chart.styles.js';
+import { territoryCells } from './territory.js';
 // Desktop tactical chart. Marker coordinates stay fixed in world space; labels never move them.
 export function createSectorChart(el, root, actions) {
   const css = el('style');
@@ -59,7 +60,8 @@ export function createSectorChart(el, root, actions) {
   const context = el('div', '', 'chart-context');
   context.hidden = true;
   view.append(context);
-  let sector,
+  let cells = [],
+    sector,
     frame,
     self,
     state,
@@ -268,6 +270,18 @@ export function createSectorChart(el, root, actions) {
     }
     c.strokeStyle = '#4c7184';
     c.strokeRect(0, 0, sector.width, sector.height);
+    for (const cell of cells) {
+      const ownership = frame?.sector?.world?.territory?.find((t) => t.id === cell.id);
+      if (!ownership || cell.points.length < 3) continue;
+      c.beginPath();
+      cell.points.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+      c.closePath();
+      const tint = ownership.owner === 'friendly' ? '#4ade80' : '#fb7185';
+      c.fillStyle = tint + '0b';
+      c.strokeStyle = tint + '55';
+      c.fill();
+      c.stroke();
+    }
     c.fillStyle = '#446176';
     for (let i = 0; i < 180; i++) {
       const x = (i * 7919 + sector.seed) % sector.width,
@@ -328,7 +342,17 @@ export function createSectorChart(el, root, actions) {
         c.restore();
       }
       if (l.kind === 'station' && enabled.has('station'))
-        circle(l.x, l.y, 300, '#5bdca510', '#5bdca560');
+        circle(
+          l.x,
+          l.y,
+          300,
+          '#5bdca510',
+          frame?.sector?.world?.territory?.some(
+            (t) => t.id === l.id && (t.owner === 'hostile' || t.contested),
+          )
+            ? '#ff796c80'
+            : '#5bdca560',
+        );
       if (
         l.kind === 'base' &&
         enabled.has('danger') &&
@@ -345,10 +369,17 @@ export function createSectorChart(el, root, actions) {
           );
     }
     if (self) {
+      const event = frame?.sector?.world?.eventObjective;
+      if (event) circle(event.x, event.y, Math.max(event.uncertainty, 12 * line), null, '#f2bf65');
       circle(self.x, self.y, self.surveyRadius || 1200, '#5adce008', '#5adce040');
       for (const e of frame?.enemies || [])
         if (e.hull > 0 && Math.hypot(e.x - self.x, e.y - self.y) <= (self.detectionRadius || 1200))
-          circle(e.x, e.y, 2.5 * line, e.faction === 'friendly' ? '#65e6be' : '#ff796c');
+          circle(
+            e.x,
+            e.y,
+            2.5 * line,
+            e.faction === 'friendly' ? '#65e6be' : e.faction === 'neutral' ? '#e8ca82' : '#ff796c',
+          );
       const wp = actions.waypoint();
       if (wp) {
         c.strokeStyle = '#edcc7a';
@@ -462,6 +493,7 @@ export function createSectorChart(el, root, actions) {
   return {
     setup(s) {
       sector = s;
+      cells = territoryCells(s);
       selected = null;
       zoom = 1;
       cx = sector.width / 2;
@@ -497,7 +529,19 @@ export function createSectorChart(el, root, actions) {
           old.l.y = a.y;
         } else addMarker({ ...a, kind: 'pilot', pilot: a.id });
       }
-      const contacts = f.sector?.services?.contacts || [];
+      const contacts = [
+        ...(f.sector?.services?.contacts || []),
+        ...(f.enemies || [])
+          .filter(
+            (e) =>
+              e.faction !== 'hostile' &&
+              e.surfacePlanet === 0 &&
+              !e.kind.startsWith('salvage-') &&
+              e.kind !== 'installation',
+          )
+          .filter((e) => !(f.sector?.services?.contacts || []).some((c) => c.id === e.id))
+          .map((e) => ({ ...e, name: e.role + ' · ' + e.state })),
+      ];
       for (const [key, marker] of markers)
         if (marker.l.kind === 'contact' && !contacts.some((c) => c.id === marker.l.id)) {
           marker.b.remove();

@@ -60,12 +60,13 @@ public sealed partial class Room
             p.Velocity.X,
             p.Velocity.Y,
             p.Heading,
-            p.Throttle
+            p.Throttle,
+            Math.Max(0, p.CruiseReady - Tick)
         );
 
     private void SaveCheckpoint(Player p)
     {
-        if (p.Hull <= 0 || p.CheckpointPending || p.ResetPending)
+        if (p.Hull <= 0 || p.CheckpointPending || p.ResetPending || p.EconomyPending)
             return;
         var checkpoint = Checkpoint(p);
         var run = p.RunId;
@@ -99,6 +100,7 @@ public sealed partial class Room
 
     private void RetireRun(Player p)
     {
+        ReleaseTow(p);
         p.Throttle = 0;
         p.Heading = 0;
         p.Velocity = System.Numerics.Vector2.Zero;

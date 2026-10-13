@@ -24,8 +24,8 @@ public class ModularWeaponTests
             children,
             c =>
             {
-                Assert.Equal(1130, c.BirthX, 2);
-                Assert.True(c.X > 1130);
+                Assert.Equal(MuzzleX + 130, c.BirthX, 2);
+                Assert.True(c.X > MuzzleX + 130);
                 Assert.True(c.Parent > 0);
             }
         );
@@ -36,9 +36,9 @@ public class ModularWeaponTests
     }
 
     [Theory]
-    [InlineData(1, 1300)]
-    [InlineData(3, 430)]
-    [InlineData(4, 520)]
+    [InlineData(1, 650)]
+    [InlineData(3, 240)]
+    [InlineData(4, 300)]
     public void EmittersKeepTheirOwnVelocity(int emitter, float speed)
     {
         var r = Start();
@@ -118,10 +118,10 @@ public class ModularWeaponTests
         Equip(r, Weapon(2, 5, 0, 11));
         Fire(r);
         var b = r.Snapshot().Beams!;
-        Assert.Contains(b, x => x.X == 1000 && x.EndX == 1065 && x.Power == 1);
-        Assert.Contains(b, x => x.X == 1065 && x.Power == 2);
-        Assert.Equal(2, b.Count(x => MathF.Abs(x.X - 1195) < .01f && x.Power == 1));
-        var e = Enemy(r, 1195 + 200 * MathF.Cos(.22f), 800 + 200 * MathF.Sin(.22f));
+        Assert.Contains(b, x => x.X == MuzzleX && x.EndX == MuzzleX + 65 && x.Power == 1);
+        Assert.Contains(b, x => x.X == MuzzleX + 65 && x.Power == 2);
+        Assert.Equal(2, b.Count(x => MathF.Abs(x.X - (MuzzleX + 195)) < .01f && x.Power == 1));
+        var e = Enemy(r, MuzzleX + 195 + 200 * MathF.Cos(.22f), 800 + 200 * MathF.Sin(.22f));
         Fire(r, 30, 4);
         Assert.Equal(96, Health(e), 3);
     }
@@ -197,7 +197,7 @@ public class ModularWeaponTests
         var r = Start();
         Equip(r, Weapon(2, 9, 11));
         Fire(r);
-        var branch = r.Snapshot().Beams!.First(b => MathF.Abs(b.X - 1130) < .01f);
+        var branch = r.Snapshot().Beams!.First(b => MathF.Abs(b.X - (MuzzleX + 130)) < .01f);
         Assert.Equal(
             .11f,
             MathF.Abs(MathF.Atan2(branch.EndY - branch.Y, branch.EndX - branch.X)),
@@ -288,7 +288,7 @@ public class ModularWeaponTests
         var converted = q.Snapshot().Shots[0];
         Assert.Equal(4, converted.Kind);
         Assert.True(converted.Parent > 0);
-        Assert.Equal(1065, converted.BirthX);
+        Assert.Equal(MuzzleX + 65, converted.BirthX);
         q.Input(1, new(4, 0, 0, 0, false, false));
         Step(q, 6);
         Assert.Equal(4f, Get(((IList)Get(q, "shots"))[0]!, "Damage"));
@@ -419,7 +419,7 @@ public class ModularWeaponTests
         r.Input(1, new(8, 0, 0, 0, false, false));
         Step(r, 5);
         Assert.Single(r.Snapshot().Shots);
-        Assert.Equal(1065, r.Snapshot().Shots[0].X, 2);
+        Assert.Equal(MuzzleX + 65, r.Snapshot().Shots[0].X, 2);
         mines.Clear();
         r.Step();
         Assert.Empty(r.Snapshot().Shots);
@@ -497,7 +497,7 @@ public class ModularWeaponTests
             valid,
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    $"{{\"v\":10,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
+                    $"{{\"v\":11,\"type\":\"buy\",\"seq\":1,\"module\":{module}}}"
                 ),
                 out _
             )

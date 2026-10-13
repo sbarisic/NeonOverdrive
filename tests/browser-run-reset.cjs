@@ -58,10 +58,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     );
     await victim.locator('#canvas').focus();
     await victim.keyboard.down('d');
-    await victim.waitForTimeout(1500);
+    await victim.waitForTimeout(750);
     await victim.keyboard.up('d');
     await victim.keyboard.down('w');
-    await victim.waitForTimeout(1700);
+    await victim.waitForTimeout(3000);
     await victim.keyboard.up('w');
     await victim.keyboard.down('s');
     await victim.waitForTimeout(2100);
@@ -69,21 +69,21 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await join(attacker, 'Attack' + suffix, room);
     await attacker.locator('#canvas').focus();
     await attacker.keyboard.down('d');
-    await attacker.waitForTimeout(1500);
+    await attacker.waitForTimeout(750);
     await attacker.keyboard.up('d');
     await attacker.keyboard.down('w');
-    await attacker.waitForTimeout(2800);
+    await attacker.waitForTimeout(4300);
     await attacker.keyboard.up('w');
     await attacker.keyboard.down('s');
     await attacker.waitForTimeout(2100);
     await attacker.keyboard.up('s');
-    await attacker.waitForTimeout(200);
+    await attacker.waitForTimeout(1200);
     const now = await read(attacker),
       self = now.self,
       target = now.snapshot.players.find((p) => p.id === before.self.id);
     const box = await attacker.locator('#canvas').boundingBox(),
-      ox = Math.max(0, Math.min(12000 - 1280, self.x - 640)),
-      oy = Math.max(0, Math.min(8000 - 720, self.y - 360));
+      ox = Math.max(0, Math.min(24000 - 1280, self.x - 640)),
+      oy = Math.max(0, Math.min(16000 - 720, self.y - 360));
     const dx = target.x - self.x,
       dy = target.y - self.y,
       scale = 200 / Math.hypot(dx, dy);

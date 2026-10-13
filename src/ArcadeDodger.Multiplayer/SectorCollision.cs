@@ -7,11 +7,16 @@ public sealed class SectorCollision
 {
     private readonly SectorDefinition sector;
     private readonly int geometryCount;
+    private readonly (Vector2 Position, float Radius)[] shipObstacles;
     private readonly Dictionary<(int, int), List<SectorObstacle>> cells = [];
 
     public SectorCollision(SectorDefinition sector)
     {
         this.sector = sector;
+        shipObstacles = sector
+            .Locations.Where(l => l.Kind is "base" or "outpost" or "station")
+            .Select(l => (l.Position, l.Kind == "station" ? 90f : l.Radius))
+            .ToArray();
         var obstacles = sector
             .Obstacles.Concat(
                 sector
@@ -85,7 +90,7 @@ public sealed class SectorCollision
     public (float T, Vector2 Normal)? TraceShips(Vector2 from, Vector2 to, float radius)
     {
         var hit = Trace(from, to, radius);
-        foreach (var l in sector.Locations.Where(l => l.Kind is "base" or "outpost"))
+        foreach (var l in shipObstacles)
             if (
                 Circle(from - l.Position, to - l.Position, l.Radius + radius) is { } t
                 && (hit is null || t < hit.Value.T)

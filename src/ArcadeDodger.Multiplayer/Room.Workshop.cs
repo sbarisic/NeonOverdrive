@@ -127,9 +127,7 @@ public sealed partial class Room
                 drop.Position,
                 (int)
                     MathF.Ceiling(
-                        (e.Gunner ? 12 : 5)
-                            * e.Level
-                            * (Tick < e.MarkUntil ? Definition(28).Value : 1)
+                        (e.Gunner ? 12 : 5) * e.Level * (Tick < e.MarkUntil ? e.MarkValue : 1)
                     ),
                 Tick + 30 * TickRate
             )

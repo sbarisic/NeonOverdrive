@@ -165,29 +165,29 @@ internal sealed partial class BrowserArenaWorld
                     );
                     break;
                 case "station":
-                    Raylib.DrawCircleV(p, 300, new Color(30, 160, 135, 12));
-                    Raylib.DrawCircleLines((int)p.X, (int)p.Y, 300, new Color(40, 130, 120, 100));
-                    Raylib.DrawCircleLines((int)p.X, (int)p.Y, 180, Raylib.Fade(Cyan, .25f));
-                    for (var i = 0; i < 4; i++)
+                    var owner = snapshot.Sector?.World?.Territory.FirstOrDefault(t => t.Id == l.Id);
+                    var stationColor =
+                        owner?.Owner == "hostile" ? Hostile
+                        : owner?.Contested == true ? Gold
+                        : Cyan;
+                    if (owner?.Owner != "hostile" && owner?.Contested != true)
                     {
-                        var arm = new Vector2(
-                            MathF.Cos(i * MathF.PI / 2),
-                            MathF.Sin(i * MathF.PI / 2)
+                        Raylib.DrawCircleV(p, 300, new Color(30, 160, 135, 12));
+                        Raylib.DrawCircleLines(
+                            (int)p.X,
+                            (int)p.Y,
+                            300,
+                            new Color(40, 130, 120, 100)
                         );
-                        Raylib.DrawLineEx(
-                            p + arm * 40,
-                            p + arm * 100,
-                            25,
-                            new Color(35, 58, 79, 255)
-                        );
-                        Raylib.DrawCircleV(p + arm * 100, 7, Cyan);
                     }
-                    Raylib.DrawPoly(p, 6, 58, 30, new Color(22, 38, 56, 255));
-                    Raylib.DrawPolyLinesEx(p, 6, 58, 30, 3, Cyan);
-                    DrawStationCore(p, 36, Cyan, time, reduced);
-                    Raylib.DrawText(l.Name, (int)p.X - 95, (int)p.Y - 145, 18, Cyan);
+                    Raylib.DrawCircleLines((int)p.X, (int)p.Y, 180, Raylib.Fade(Cyan, .25f));
+                    DrawPanels(StructureCatalog.Station, p, 0, stationColor);
+                    DrawStationCore(p, 28, stationColor, time, reduced);
+                    Raylib.DrawText(l.Name, (int)p.X - 95, (int)p.Y - 145, 18, stationColor);
                     Raylib.DrawText(
-                        "E / DOCK   SANCTUARY",
+                        owner?.Owner == "hostile" ? "HOSTILE CONTROL"
+                            : owner?.Contested == true ? "CONTESTED / DOCK CLOSED"
+                            : "E / DOCK   SANCTUARY",
                         (int)p.X - 94,
                         (int)p.Y + 130,
                         12,

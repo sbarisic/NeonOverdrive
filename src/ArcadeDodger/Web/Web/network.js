@@ -8,6 +8,7 @@ import { shellStyles } from './network.styles.js';
 import { presentSnapshot, expandCombat } from './snapshot.js';
 // Browser transport/input and accessible shell only. World/HUD stay in C#/WASM/raylib.
 import { createSectorConsole } from './sector.js';
+import { createLivingSector } from './living-sector.js';
 import { createSkillTree } from './skills.js';
 import { createWeaponBench } from './weapons.js';
 import { createArenaAudio } from './audio.js';
@@ -70,6 +71,19 @@ export function startNetwork(host, canvas, status) {
     aim = 0,
     pointer = null;
   let reducedEffects = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const living = createLivingSector(
+    element,
+    canvas,
+    host,
+    (action, target) => {
+      if (!joined || dead || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 4096)
+        return;
+      socket.send(JSON.stringify({ v: 11, type: 'sector', seq: ++seq, action, target }));
+      return seq;
+    },
+    (location) => sector.navigateTo(location),
+    () => bench.openShop(),
+  );
   effects.checked = reducedEffects;
   const keys = new Set();
   const supported = new Set([
@@ -112,7 +126,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 10, type: 'choice', seq: ++seq, choice: id }));
+      socket.send(JSON.stringify({ v: 11, type: 'choice', seq: ++seq, choice: id }));
     },
     (open) => {
       if (open && sector?.open) sector.setOpen('');
@@ -135,7 +149,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 10, type: 'equipment', seq: ++seq, ...command }));
+      socket.send(JSON.stringify({ v: 11, type: 'equipment', seq: ++seq, ...command }));
       return seq;
     },
     (module) => {
@@ -145,7 +159,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 10, type: 'buy', seq: ++seq, module }));
+      socket.send(JSON.stringify({ v: 11, type: 'buy', seq: ++seq, module }));
       return seq;
     },
     (open) => {
@@ -168,7 +182,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 10, type: 'friend', seq: ++seq, name, action }));
+      socket.send(JSON.stringify({ v: 11, type: 'friend', seq: ++seq, name, action }));
       return seq;
     },
     (open) => {
@@ -191,7 +205,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 10, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 11, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (open) => {
@@ -265,8 +279,15 @@ export function startNetwork(host, canvas, status) {
       y: blocked ? 0 : held('KeyS', 'ArrowDown') - held('KeyW', 'ArrowUp'),
       aim,
       fire: !blocked && (mouseFire || !!held('Space')),
-      menu: !!sector?.open || skills.open || !!bench?.open || !!friends?.open || menuOpen,
-      editing: !!sector?.cloaked || skills.open || !!bench?.open || !!friends?.open,
+      menu:
+        living.trading ||
+        !!sector?.open ||
+        skills.open ||
+        !!bench?.open ||
+        !!friends?.open ||
+        menuOpen,
+      editing:
+        living.trading || !!sector?.cloaked || skills.open || !!bench?.open || !!friends?.open,
     };
     host.ArenaInput(intent.x, intent.y, intent.aim, intent.menu);
     return intent;
@@ -278,7 +299,7 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     const intent = localInput();
-    socket.send(JSON.stringify({ v: 10, type: 'input', seq: ++seq, ...intent }));
+    socket.send(JSON.stringify({ v: 11, type: 'input', seq: ++seq, ...intent }));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -347,6 +368,7 @@ export function startNetwork(host, canvas, status) {
     document.body.classList.add('arena-fullscreen');
     audio.reset();
     sector.update(null, {}, false);
+    living.update(null, {});
     friends.update(null, {}, false);
     bench.update(null, false);
     skills.update(null, false);
@@ -360,7 +382,7 @@ export function startNetwork(host, canvas, status) {
     leave.disabled = true;
     resume.disabled = true;
     connection.textContent = 'Ending run…';
-    socket.send(JSON.stringify({ v: 10, type: 'leave', seq: pendingLeave }));
+    socket.send(JSON.stringify({ v: 11, type: 'leave', seq: pendingLeave }));
     const leaving = socket;
     leaveTimeout = setTimeout(() => {
       if (socket === leaving && pendingLeave)
@@ -376,7 +398,7 @@ export function startNetwork(host, canvas, status) {
     clearInput();
     retry.disabled = true;
     retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({ v: 10, type: 'respawn', seq: ++seq }));
+    socket.send(JSON.stringify({ v: 11, type: 'respawn', seq: ++seq }));
     canvas.focus();
   });
   window.addEventListener('keydown', (e) => {
@@ -404,6 +426,16 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     if (bench.keydown(e)) return;
+    if (
+      joined &&
+      !dead &&
+      !menuOpen &&
+      !editable(e.target) &&
+      ['ShiftLeft', 'ShiftRight'].includes(e.code)
+    ) {
+      if (!e.repeat) sector.cruise();
+      return;
+    }
     if (skills.keydown(e)) return;
     if (joined && !dead && !menuOpen && e.code === 'KeyI' && !editable(e.target)) {
       e.preventDefault();
@@ -538,7 +570,7 @@ export function startNetwork(host, canvas, status) {
     current.addEventListener('open', () => {
       if (socket === current)
         current.send(
-          JSON.stringify({ v: 10, type: 'join', name: name.value, room: params.get('room') || '' }),
+          JSON.stringify({ v: 11, type: 'join', name: name.value, room: params.get('room') || '' }),
         );
     });
     current.addEventListener('message', (e) => {
@@ -547,7 +579,7 @@ export function startNetwork(host, canvas, status) {
         if (typeof e.data !== 'string' || e.data.length > 524288)
           throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 10) throw new Error('Protocol mismatch');
+        if (message.v !== 11) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit = 0;
           lastCreditLife = -1;
@@ -555,7 +587,7 @@ export function startNetwork(host, canvas, status) {
           if (joined) throw new Error('Duplicate welcome');
           bench.setCatalog(message.catalog, message.unlockLevels, message.shipCatalog);
           skills.setCatalog(message.skills);
-          sector.setup(message.sector, message.contracts);
+          sector.setup(message.sector, message.contracts, message.chassisCatalog);
           host.ArenaSector(JSON.stringify(message.sector));
           try {
             localStorage.setItem('neon.lastName', name.value.trim());
@@ -588,6 +620,15 @@ export function startNetwork(host, canvas, status) {
           }
           if (message.sector && message.sector.pilot == null)
             message.sector.pilot = current.privateState?.sector?.pilot ?? null;
+          const world = message.sector?.world,
+            previousWorld = current.privateState?.sector?.world;
+          if (world) {
+            if (world.stock == null) world.stock = previousWorld?.stock ?? [];
+            if (world.race) {
+              if (world.race.course == null) world.race.course = previousWorld?.race?.course ?? [];
+              if (world.race.ghost == null) world.race.ghost = previousWorld?.race?.ghost ?? [];
+            }
+          }
           current.privateState = message;
           if (message.workshop)
             replayScore.textContent = `Replays: ${message.workshop.replayCount} · Starting credits: ${message.workshop.startingCredits}`;
@@ -634,6 +675,7 @@ export function startNetwork(host, canvas, status) {
             payoutTimer = setTimeout(() => (payout.hidden = true), 1600);
           }
           sector.update(self, message, joined);
+          living.update(self, message);
           setRescue(message.sector?.rescue, self);
           friends.update(self, message, joined);
           skills.update(self, joined, message.skillReceipt);

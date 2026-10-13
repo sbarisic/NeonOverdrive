@@ -20,7 +20,7 @@ public class RoomTests
         var end = room.Snapshot().Players.Single();
         Assert.Equal(100, end.Ack);
         Assert.Equal(
-            .1f,
+            220f / 60 / 30 * .625f,
             MathF.Sqrt(MathF.Pow(end.X - start.X, 2) + MathF.Pow(end.Y - start.Y, 2)),
             2
         );
@@ -46,7 +46,7 @@ public class RoomTests
             room.Step();
         }
         var end = room.Snapshot().Players.Single();
-        Assert.Equal(Room.Width - Room.Radius, end.X);
+        Assert.Equal(Room.Width - ChassisCatalog.Get(0).Radius, end.X);
         Assert.InRange(end.Y, Room.Radius, Room.Height - Room.Radius);
     }
 
