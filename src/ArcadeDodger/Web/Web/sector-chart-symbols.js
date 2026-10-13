@@ -33,3 +33,10 @@ paths.rescue =
 names.outpost = 'Allied outpost';
 colors.outpost = '#65e6be';
 paths.outpost = paths.base;
+
+names.cache = 'Asteroid cache';
+colors.cache = '#eedb7a';
+paths.cache = paths.wreck;
+names.contact = 'Roaming contact';
+colors.contact = '#77e6ae';
+paths.contact = paths.pilot;

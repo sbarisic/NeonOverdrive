@@ -53,6 +53,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.match(await b.locator('#sector-guide').innerText(), /Arrival Port/);
     await b.keyboard.press('Escape');
     await b.keyboard.press('e');
+    if (await b.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await b.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     const card = b.locator('.contract-card').filter({ hasText: 'INTERDICT' });
     await card.getByRole('button', { name: 'Accept contract', exact: true }).click();
     await b.waitForFunction(

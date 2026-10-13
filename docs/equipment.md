@@ -1,4 +1,4 @@
-# Equipment and inventory — protocol v9
+# Equipment and inventory — protocol v10
 
 Weapons are individual objects with a permanent ID, an emitter, and eight editable mod positions. A weapon keeps its complete build when moved into inventory or another bay. Loose modules stack separately. Equipped components cannot be duplicated or sold individually without removing them first.
 

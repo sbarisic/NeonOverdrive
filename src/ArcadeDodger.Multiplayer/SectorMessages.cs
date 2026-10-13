@@ -52,5 +52,6 @@ public sealed record MapPing(
 public sealed record SectorState(
     LocationState[] Locations,
     SectorSessionSnapshot? Pilot = null,
-    RescueSnapshot? Rescue = null
+    RescueSnapshot? Rescue = null,
+    ServiceSnapshot? Services = null
 );

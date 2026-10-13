@@ -113,13 +113,19 @@ public class LocalPredictionTests
     public void AccelerationAndCoastingMatchSharedPhysicsAcrossInputBoundaries()
     {
         var prediction = Start();
-        prediction.Input(1, 0, 0, false, 0);
-        Assert.Equal(106, prediction.Sample(.1)!.X, 3);
+        prediction.Input(0, -1, 0, false, 0);
+        Vector2 position = new(100),
+            velocity = Vector2.Zero;
+        float heading = 0,
+            throttle = 0;
+        Movement.Steer(ref position, ref velocity, ref heading, ref throttle, new(0, -1), .1f);
+        Assert.Equal(position.X, prediction.Sample(.1)!.X, 3);
         prediction.Input(0, 0, 0, false, .1);
-        Assert.Equal(116.5f, prediction.Sample(.2)!.X, 3);
-        Assert.Equal(90, prediction.Sample(.2)!.VelocityX, 3);
+        Movement.Steer(ref position, ref velocity, ref heading, ref throttle, Vector2.Zero, .1f);
+        Assert.Equal(position.X, prediction.Sample(.2)!.X, 3);
+        Assert.Equal(.05f, prediction.Sample(.2)!.Throttle, 4);
         prediction.Input(0, 0, 0, true, .2);
-        Assert.Equal(116.5f, prediction.Sample(.3)!.X, 3);
+        Assert.Equal(position.X, prediction.Sample(.3)!.X, 3);
         Assert.Equal(0, prediction.Sample(.3)!.VelocityX);
     }
 
@@ -131,9 +137,9 @@ public class LocalPredictionTests
         var p = Start(room.Snapshot().Players[0]);
         for (int seq = 1; seq <= 100; seq++)
         {
-            p.Input(-1, 0, 0, false, 0);
+            p.Input(-1, -1, 0, false, 0);
             p.SentInput(seq, 0);
-            room.Input(id, new(seq, -1, 0, 0, false, false));
+            room.Input(id, new(seq, -1, -1, 0, false, false));
         }
         room.Step();
         Assert.Equal(room.Snapshot().Players[0].X, p.Sample(1d / 30)!.X, 3);
@@ -150,12 +156,50 @@ public class LocalPredictionTests
     }
 
     [Fact]
+    public void SteeringPredictionMatchesSharedIntegratorWithEngineBonuses()
+    {
+        var pilot = Pilot(1000, 1000) with
+        {
+            MoveSpeed = 360,
+            Acceleration = 1800,
+            Steering = 2700,
+        };
+        var prediction = Start(pilot);
+        for (var i = 0; i <= 30; i++)
+        {
+            prediction.Input(.5f, -1, -2, false, i / 60d);
+            prediction.SentInput(i + 1, i / 60d);
+        }
+        Vector2 position = new(1000),
+            velocity = Vector2.Zero;
+        float heading = 0,
+            throttle = 0;
+        for (var i = 0; i < 15; i++)
+            Movement.Steer(
+                ref position,
+                ref velocity,
+                ref heading,
+                ref throttle,
+                new(.5f, -1),
+                1f / 30,
+                360,
+                1800,
+                2700
+            );
+        var sampled = prediction.Sample(.5)!;
+        Assert.InRange(Vector2.Distance(position, new(sampled.X, sampled.Y)), 0, .02f);
+        Assert.Equal(heading, sampled.Heading, 4);
+        Assert.Equal(throttle, sampled.Throttle, 4);
+        Assert.Equal(-2, sampled.Aim);
+    }
+
+    [Fact]
     public void MouseRefreshDoesNotDiscardAccelerationHistory()
     {
         var p = Start();
         for (int i = 0; i <= 500; i++)
-            p.Input(1, 0, i / 1000f, false, i / 1000d);
-        Assert.InRange(p.Sample(.5)!.X, 212.4f, 212.6f);
+            p.Input(0, -1, i / 1000f, false, i / 1000d);
+        Assert.InRange(p.Sample(.5)!.X, 118.7f, 119.5f);
         Assert.InRange(p.HistoryCount, 1, 4);
     }
 }

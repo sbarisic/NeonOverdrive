@@ -74,8 +74,6 @@ public sealed class LocalPrediction
             return;
         lastTime = seconds;
         var direction = new Vector2(Math.Clamp(x, -1, 1), Math.Clamp(y, -1, 1));
-        if (direction.LengthSquared() > 1)
-            direction = Vector2.Normalize(direction);
         aim = MathF.IEEERemainder(aim, MathF.Tau);
         // RAF, pointer movement and transport can all refresh the same held keys.
         // Preserve the start of that interval instead of evicting replay history at high event rates.
@@ -119,6 +117,9 @@ public sealed class LocalPrediction
             || !float.IsFinite(p.Aim)
             || !float.IsFinite(p.VelocityX)
             || !float.IsFinite(p.VelocityY)
+            || !float.IsFinite(p.Heading)
+            || !float.IsFinite(p.Throttle)
+            || p.Throttle is < 0 or > 1
             || !float.IsFinite(p.MoveSpeed)
             || p.MoveSpeed <= 0
             || !float.IsFinite(p.Acceleration)
@@ -175,6 +176,8 @@ public sealed class LocalPrediction
         var position = new Vector2(p.X, p.Y);
         var aim = p.Aim;
         var velocity = new Vector2(p.VelocityX, p.VelocityY);
+        var heading = p.Heading;
+        var throttle = p.Throttle;
         var end = Math.Min(seconds, anchorTime + MaxPredictionSeconds);
         var time = anchorTime;
         var index = -1;
@@ -195,16 +198,19 @@ public sealed class LocalPrediction
             var dt = (float)(next - time);
             if (held)
                 aim = intent.Aim;
-            Movement.Step(
+            Movement.Steer(
                 ref position,
                 ref velocity,
+                ref heading,
+                ref throttle,
                 held ? intent.Direction : Vector2.Zero,
                 dt,
                 p.MoveSpeed,
                 p.Acceleration,
                 p.Steering,
                 geometry,
-                held && intent.Menu
+                p.Menu || held && intent.Menu,
+                held
             );
             time = next;
         }
@@ -219,6 +225,8 @@ public sealed class LocalPrediction
             Aim = aim,
             VelocityX = velocity.X,
             VelocityY = velocity.Y,
+            Heading = heading,
+            Throttle = throttle,
         };
     }
 

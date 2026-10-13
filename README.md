@@ -19,13 +19,13 @@ For Visual Studio, select **ArcadeDodger.Server** as the startup project. F5 bui
 
 ## Play
 
-- WASD or arrows: thrust; release to coast to a stop.
+- A/D or Left/Right: rotate the hull. W/S or Up/Down: raise/lower throttle. Throttle holds when released; reduce it to zero to coast to a stop.
 - Mouse: aim; left click or Space: fire.
 - Tab: skills. I: modular weapon workshop. P: friends.
-- M: sector map and pings. E: dock, undock, or interact.
+- M: sector map and pings. E: hail, dock, search, or manage nearby salvage sites.
 - Escape: menu. R: reduced visual effects.
 
-Explore a 24,000 × 16,000 sector with solid rocky planets, surface outposts, and orbital stations. Fly around planet rims, fight hostile patrols, and follow radio beacons to cooperative relief-ship rescues. Buy modules at stations and edit complete weapon builds anywhere. Bays open at levels 1/8/16/24; each subsequent level activates a mod socket. Installed mods stay with unequipped weapons. Enemy equipment drops include ready-made weapons and six types of ship attachments; inventory is scrollable with no carrying cap. Fresh runs start at level 1 with four kinetic emitters and no purchased modules. Death permanently adds 5 credits to the next starting wallet (100 + 5 per replay). Leave starts fresh without adding a replay; an unexpected disconnect can resume the current run for less than 60 seconds. Friendships remain saved by callsign.
+Explore a 24,000 × 16,000 sector with solid rocky planets, surface outposts, and orbital stations. Fly around planet rims, fight hostile patrols, and follow radio beacons to cooperative relief-ship rescues. Hail three roaming contacts for module trading and assignments. Search asteroid caches for personal loot. Fund shared salvage defenses and repair drones, then repel raids from The Sundering's factory. Buy modules at stations or roaming traders and edit complete weapon builds anywhere. Bays open at levels 1/8/16/24; each subsequent level activates a mod socket. Installed mods stay with unequipped weapons. Enemy equipment drops include ready-made weapons and six types of ship attachments; inventory is scrollable with no carrying cap. Fresh runs start at level 1 with four kinetic emitters and no purchased modules. Death permanently adds 5 credits to the next starting wallet (100 + 5 per replay). Leave starts fresh without adding a replay; an unexpected disconnect can resume the current run for less than 60 seconds. Friendships remain saved by callsign.
 
 ## Projects and verification
 
@@ -45,7 +45,7 @@ node tests/browser-inertia.cjs
 
 Browser regressions use Playwright with Microsoft Edge. Use an isolated test server and profile store for gameplay tests. `BrowserRoot`, `ProfilesFile`, and `FriendsFile` configure deployment paths; protect the persistent profile and friendship files when deploying or restarting.
 
-See [sector rules](docs/inhabited-sector.md), [skills and workshop](docs/multiplayer-skills.md), and [current combat and performance verification](docs/cooperative-combat.md). Earlier implementation journals retain historical test results.
+See [ship handling and salvage services](docs/ship-services.md), [sector rules](docs/inhabited-sector.md), [skills and workshop](docs/multiplayer-skills.md), and [current combat and performance verification](docs/cooperative-combat.md). Earlier implementation journals retain historical test results.
 
 ## Code organization
 

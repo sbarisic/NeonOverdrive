@@ -12,8 +12,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       source = source
         .replace(/return\s*\{\s*get open\(\)/, 'return window.__bench={get open()')
         .replace(
-          /update\(self,\s*connected,\s*profile\)\s*\{/,
-          'update(self,connected,profile){if(window.__hold)return;',
+          /update\(self,\s*connected,\s*profile,\s*services\)\s*\{/,
+          'update(self,connected,profile,services){if(window.__hold)return;',
         );
       await route.fulfill({ response, body: source });
     });

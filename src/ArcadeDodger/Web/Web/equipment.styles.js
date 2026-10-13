@@ -47,4 +47,15 @@ export const equipmentStyles = `
  #weapon-bench .equipment-chain .weapon-slot { height:58px; min-height:58px; }
  #weapon-bench .bench-detail { min-height:32px; }
 }
+
+#weapon-bench [data-gear-category="0"] { --gear-color:#60A5FA; }
+#weapon-bench [data-gear-category="1"] { --gear-color:#FB923C; }
+#weapon-bench [data-gear-category="2"] { --gear-color:#C084FC; }
+#weapon-bench [data-gear-category="3"] { --gear-color:#4ADE80; }
+#weapon-bench [data-gear-category="4"] { --gear-color:#FB7185; }
+#weapon-bench [data-gear-category="5"] { --gear-color:#FACC15; }
+#weapon-bench [data-gear-category] { border-color:var(--gear-color); color:var(--gear-color); }
+#weapon-bench [data-gear-category] b { color:var(--gear-color); }
+#weapon-bench .equipment-drop-target { outline:2px solid var(--gear-color, #edd28c); outline-offset:2px; }
+#weapon-bench [data-gear-category]:focus-visible { outline:2px solid var(--gear-color); }
 `;

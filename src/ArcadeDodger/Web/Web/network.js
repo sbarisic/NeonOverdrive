@@ -112,7 +112,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 9, type: 'choice', seq: ++seq, choice: id }));
+      socket.send(JSON.stringify({ v: 10, type: 'choice', seq: ++seq, choice: id }));
     },
     (open) => {
       if (open && sector?.open) sector.setOpen('');
@@ -135,7 +135,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 9, type: 'equipment', seq: ++seq, ...command }));
+      socket.send(JSON.stringify({ v: 10, type: 'equipment', seq: ++seq, ...command }));
       return seq;
     },
     (module) => {
@@ -145,7 +145,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 9, type: 'buy', seq: ++seq, module }));
+      socket.send(JSON.stringify({ v: 10, type: 'buy', seq: ++seq, module }));
       return seq;
     },
     (open) => {
@@ -168,7 +168,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 9, type: 'friend', seq: ++seq, name, action }));
+      socket.send(JSON.stringify({ v: 10, type: 'friend', seq: ++seq, name, action }));
       return seq;
     },
     (open) => {
@@ -191,7 +191,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 9, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 10, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (open) => {
@@ -266,7 +266,7 @@ export function startNetwork(host, canvas, status) {
       aim,
       fire: !blocked && (mouseFire || !!held('Space')),
       menu: !!sector?.open || skills.open || !!bench?.open || !!friends?.open || menuOpen,
-      editing: !!sector?.open || skills.open || !!bench?.open || !!friends?.open,
+      editing: !!sector?.cloaked || skills.open || !!bench?.open || !!friends?.open,
     };
     host.ArenaInput(intent.x, intent.y, intent.aim, intent.menu);
     return intent;
@@ -278,7 +278,7 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     const intent = localInput();
-    socket.send(JSON.stringify({ v: 9, type: 'input', seq: ++seq, ...intent }));
+    socket.send(JSON.stringify({ v: 10, type: 'input', seq: ++seq, ...intent }));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -360,7 +360,7 @@ export function startNetwork(host, canvas, status) {
     leave.disabled = true;
     resume.disabled = true;
     connection.textContent = 'Ending run…';
-    socket.send(JSON.stringify({ v: 9, type: 'leave', seq: pendingLeave }));
+    socket.send(JSON.stringify({ v: 10, type: 'leave', seq: pendingLeave }));
     const leaving = socket;
     leaveTimeout = setTimeout(() => {
       if (socket === leaving && pendingLeave)
@@ -376,7 +376,7 @@ export function startNetwork(host, canvas, status) {
     clearInput();
     retry.disabled = true;
     retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({ v: 9, type: 'respawn', seq: ++seq }));
+    socket.send(JSON.stringify({ v: 10, type: 'respawn', seq: ++seq }));
     canvas.focus();
   });
   window.addEventListener('keydown', (e) => {
@@ -538,7 +538,7 @@ export function startNetwork(host, canvas, status) {
     current.addEventListener('open', () => {
       if (socket === current)
         current.send(
-          JSON.stringify({ v: 9, type: 'join', name: name.value, room: params.get('room') || '' }),
+          JSON.stringify({ v: 10, type: 'join', name: name.value, room: params.get('room') || '' }),
         );
     });
     current.addEventListener('message', (e) => {
@@ -547,7 +547,7 @@ export function startNetwork(host, canvas, status) {
         if (typeof e.data !== 'string' || e.data.length > 524288)
           throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 9) throw new Error('Protocol mismatch');
+        if (message.v !== 10) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit = 0;
           lastCreditLife = -1;
@@ -637,7 +637,7 @@ export function startNetwork(host, canvas, status) {
           setRescue(message.sector?.rescue, self);
           friends.update(self, message, joined);
           skills.update(self, joined, message.skillReceipt);
-          bench.update(self, joined, message.workshop);
+          bench.update(self, joined, message.workshop, message.sector?.services);
           updateMenuNavigation();
           audio.observe(message, Number(info.dataset.player));
           // Read-only transport diagnostics also used by browser acceptance tests.

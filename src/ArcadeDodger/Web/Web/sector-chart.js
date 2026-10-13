@@ -82,12 +82,14 @@ export function createSectorChart(el, root, actions) {
       'danger',
       'rescue',
       'outpost',
+      'contact',
+      'cache',
     ]);
   for (const [label, kinds] of [
     ['Planets', ['planet']],
     ['Stations', ['station']],
     ['Hostiles', ['base', 'corridor']],
-    ['Salvage', ['wreck']],
+    ['Salvage', ['wreck', 'cache']],
     ['Beacons', ['beacon']],
     ['Danger', ['danger']],
   ]) {
@@ -144,21 +146,27 @@ export function createSectorChart(el, root, actions) {
       ? 'Select an icon to inspect it. Set a waypoint when you are ready to travel.'
       : l.kind === 'rescue'
         ? `Save the relief ship: ${l.hull}/${l.maxHull} hull · ${l.shield}/${l.maxShield} shields · ${l.remaining} attackers. Open cooperative mission.`
-        : l.kind === 'station'
-          ? 'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.'
-          : l.kind === 'base'
-            ? destroyed
-              ? 'This installation is permanently destroyed. Its wreck remains cover.'
-              : `Destroying this installation stops its launches. Eligible contributors receive ${40 * (level || 1)} credits and ${30 * (level || 1)} XP in pickups, plus a chance of a module.`
-            : l.kind === 'corridor'
-              ? 'Patrols arrive here from outside the sector. This navigation corridor cannot be destroyed.'
-              : l.kind === 'wreck'
-                ? 'A wreck that may hold a recovery contract objective.'
-                : l.kind === 'beacon'
-                  ? 'Survey contract location. Hold position while interacting to scan.'
-                  : l.kind === 'pilot'
-                    ? 'Friendly pilot. A defense ping asks allies to assist against a threatening patrol.'
-                    : 'Planetary scenery lies below the flight plane. Orbital hazards and installations occupy flight space.';
+        : l.kind === 'contact'
+          ? 'Roaming friendly contact. Approach within 180 units and hail with E for trade or assignments.'
+          : l.kind === 'cache'
+            ? 'Hold still and search for three seconds. Personal credits and XP; each pilot can claim once per sector.'
+            : l.kind === 'station'
+              ? 'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.'
+              : l.kind === 'base'
+                ? destroyed
+                  ? 'This installation is permanently destroyed. Its wreck remains cover.'
+                  : `Destroying this installation stops its launches. Eligible contributors receive ${40 * (level || 1)} credits and ${30 * (level || 1)} XP in pickups, plus a chance of a module.`
+                : l.kind === 'corridor'
+                  ? 'Patrols arrive here from outside the sector. This navigation corridor cannot be destroyed.'
+                  : l.kind === 'wreck'
+                    ? 'Recovery-contract wreck and shared salvage site. Approach to fund a core, two turrets, and a repair drone bay.'
+                    : l.kind === 'beacon'
+                      ? 'Survey contract location. Hold position while interacting to scan.'
+                      : l.kind === 'pilot'
+                        ? 'Friendly pilot. A defense ping asks allies to assist against a threatening patrol.'
+                        : l.solid
+                          ? 'Solid planet. Navigate around its rim; surface outposts and patrols guard its exterior.'
+                          : 'Gas giant. Orbital hazards and installations occupy flight space.';
     navigate.disabled = !l;
     ping.hidden = broadcast.hidden = !l || l.kind === 'pilot';
     defend.hidden = l?.kind !== 'pilot';
@@ -174,6 +182,7 @@ export function createSectorChart(el, root, actions) {
   function addMarker(l) {
     const b = el('button', '', 'map-location');
     b.type = 'button';
+    b.dataset.kind = l.kind;
     b.style.setProperty('--marker', colors[l.kind]);
     b.setAttribute('aria-label', l.name);
     b.title = `${l.name} · ${names[l.kind]}`;
@@ -224,7 +233,10 @@ export function createSectorChart(el, root, actions) {
       context.querySelector('button')?.focus();
     };
     view.append(b);
-    markers.set(['pilot', 'rescue'].includes(l.kind) ? l.kind + ':' + l.id : l.id, { b, l });
+    markers.set(['pilot', 'rescue', 'contact'].includes(l.kind) ? l.kind + ':' + l.id : l.id, {
+      b,
+      l,
+    });
   }
   function draw() {
     if (!sector || root.hidden || !view.clientWidth) return;
@@ -367,10 +379,26 @@ export function createSectorChart(el, root, actions) {
       player.style.left = x + 'px';
       player.style.top = y + 'px';
     }
+    const contacts = [...markers.values()]
+      .filter((m) => m.l.kind === 'contact')
+      .sort((a, b) => a.l.id - b.l.id);
     for (const { b, l } of markers.values()) {
-      const x = t.x + l.x * t.scale,
+      let x = t.x + l.x * t.scale,
         y = t.y + l.y * t.scale;
-      b.hidden = !enabled.has(l.kind) || x < 14 || x > t.w - 14 || y < 14 || y > t.h - 14;
+      // Contacts gather near stations. Fan their icons out without moving navigation targets.
+      if (l.kind === 'contact') {
+        x += (contacts.findIndex((m) => m.l === l) - 1) * 26;
+        y += 30;
+      }
+      b.hidden =
+        (l.kind === 'cache' &&
+          !state?.discovered?.includes(l.id) &&
+          !frame.sector?.services?.assignment?.targets.includes(l.id)) ||
+        !enabled.has(l.kind) ||
+        x < 14 ||
+        x > t.w - 14 ||
+        y < 14 ||
+        y > t.h - 14;
       b.style.left = x + 'px';
       b.style.top = y + 'px';
       b.setAttribute('aria-pressed', String(selected === l));
@@ -468,6 +496,25 @@ export function createSectorChart(el, root, actions) {
           old.l.x = a.x;
           old.l.y = a.y;
         } else addMarker({ ...a, kind: 'pilot', pilot: a.id });
+      }
+      const contacts = f.sector?.services?.contacts || [];
+      for (const [key, marker] of markers)
+        if (marker.l.kind === 'contact' && !contacts.some((c) => c.id === marker.l.id)) {
+          marker.b.remove();
+          markers.delete(key);
+          if (selected === marker.l) selected = null;
+        }
+      for (const c of contacts) {
+        const old = markers.get('contact:' + c.id);
+        if (old) Object.assign(old.l, c);
+        else addMarker({ ...c, kind: 'contact' });
+      }
+      for (const site of f.sector?.services?.outposts || []) {
+        const marker = markers.get(site.id);
+        if (marker) {
+          marker.l.name = site.active ? site.name + ' · Active outpost' : site.name;
+          marker.b.setAttribute('aria-label', marker.l.name);
+        }
       }
       const distress = f.sector?.rescue;
       for (const [key, marker] of markers)

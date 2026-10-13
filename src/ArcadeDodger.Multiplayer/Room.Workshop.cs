@@ -44,7 +44,7 @@ public sealed partial class Room
         p.WorkshopSequence = request.Sequence;
         p.WorkshopResult =
             p.Hull <= 0 || !(p.Pending?.Editing ?? p.Editing) ? "open_workshop"
-            : Sector is not null && p.Docked == 0 ? "not_docked"
+            : Sector is not null && p.Docked == 0 && !TraderAvailable(p) ? "not_docked"
             : "pending";
         if (p.WorkshopResult != "pending")
             return false;

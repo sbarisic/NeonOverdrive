@@ -156,6 +156,10 @@ public sealed partial class ProfileStore
         return EquipmentState.Migrate(profile).Project(profile);
     }
 
+    // Snapshot metadata must not copy and migrate an unbounded equipment inventory.
+    public long ReplayCountFor(string name) =>
+        profiles.GetValueOrDefault(FriendBook.Key(name))?.ReplayCount ?? 0;
+
     public PilotProfile Get(string name) =>
         MigrateLoadout(
             (profiles.GetValueOrDefault(FriendBook.Key(name)) ?? PilotProfile.Starter()).Copy()
@@ -219,6 +223,9 @@ public sealed partial class ProfileStore
             && r.ShieldFraction is >= 0 and < 1
             && float.IsFinite(r.VelocityX)
             && float.IsFinite(r.VelocityY)
+            && float.IsFinite(r.Heading)
+            && float.IsFinite(r.Throttle)
+            && r.Throttle is >= 0 and <= 1
             && r.ShieldDelay >= 0
             && r.HullDelay >= 0
             && r.WeaponCooldown is { Length: 4 }

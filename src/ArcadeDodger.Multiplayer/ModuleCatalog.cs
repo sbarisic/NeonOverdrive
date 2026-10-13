@@ -326,7 +326,9 @@ public sealed record RunCheckpoint(
     long ShieldDelay,
     long HullDelay,
     float VelocityX = 0,
-    float VelocityY = 0
+    float VelocityY = 0,
+    float Heading = 0,
+    float Throttle = 0
 );
 
 public sealed record PilotProfile(

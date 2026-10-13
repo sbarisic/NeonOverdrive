@@ -81,7 +81,7 @@ public sealed record SectorDefinition(
             Add(
                 20 + i,
                 "base",
-                names[i] + " Hostile Array",
+                i == 3 ? "The Sundering Raid Factory" : names[i] + " Hostile Array",
                 planets[i] + Vector2.Normalize(new Vector2(650, 350)) * (i == 2 ? 1050 : 1247),
                 85,
                 "",
@@ -177,6 +177,47 @@ public sealed record SectorDefinition(
                 obstacles.Add(new(obstacles.Count + 1, p.X, p.Y, radius));
                 accepted++;
             }
+        }
+        var geometryDefinition = new SectorDefinition(
+            seed,
+            DefaultWidth,
+            DefaultHeight,
+            locations.ToArray(),
+            obstacles.ToArray()
+        );
+        var collision = new SectorCollision(geometryDefinition);
+        var routes = new SectorNavigation(geometryDefinition, collision);
+        var arrival = locations.Single(l => l.Id == 10).Position;
+        for (var c = 0; c < clusters.Length; c++)
+        {
+            var chosen = new List<Vector2>();
+            for (var n = 0; chosen.Count < 3 && n < 300; n++)
+            {
+                var angle = n * 2.399963f;
+                var at =
+                    clusters[c] + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (90 + n * 3);
+                if (
+                    collision.TraceShips(at, at, 35) is not null
+                    || chosen.Any(p => Vector2.Distance(p, at) < 100)
+                    || routes.Route(arrival, at, Room.Radius).Length == 0
+                )
+                    continue;
+                chosen.Add(at);
+                var level = locations
+                    .Where(l => l.Kind == "planet")
+                    .MinBy(l => Vector2.DistanceSquared(l.Position, at))!
+                    .Id;
+                Add(
+                    100 + c * 3 + chosen.Count - 1,
+                    "cache",
+                    $"Field {c + 1} Cache {chosen.Count}",
+                    at,
+                    16,
+                    parent: level
+                );
+            }
+            if (chosen.Count != 3)
+                throw new InvalidOperationException("Unable to place asteroid caches");
         }
         return new(seed, DefaultWidth, DefaultHeight, locations.ToArray(), obstacles.ToArray());
     }

@@ -58,7 +58,9 @@ public sealed partial class Room
             Math.Max(0, p.ShieldAt - Tick),
             Math.Max(0, p.HullAt - Tick),
             p.Velocity.X,
-            p.Velocity.Y
+            p.Velocity.Y,
+            p.Heading,
+            p.Throttle
         );
 
     private void SaveCheckpoint(Player p)
@@ -97,6 +99,8 @@ public sealed partial class Room
 
     private void RetireRun(Player p)
     {
+        p.Throttle = 0;
+        p.Heading = 0;
         p.Velocity = System.Numerics.Vector2.Zero;
         foreach (var shot in shots)
             if (shot.Owner == p.Id)

@@ -10,6 +10,8 @@ public sealed partial class Room
         p.Previous = p.Position;
         if (p.Pending is { } pending)
         {
+            if (!pending.Menu && Sector is not null && ExplorationFor(p).Hailing != 0)
+                EndHail(p, ExplorationFor(p));
             p.Held = pending;
             p.Editing = pending.Editing && p.Hull > 0;
             p.Menu = pending.Menu;
@@ -44,19 +46,24 @@ public sealed partial class Room
             p.HullAt = Tick + (int)(Value(p, "repair", 10) * TickRate);
         }
         var input = p.Held;
+        if (Sector is not null && ExplorationFor(p).Hailing != 0)
+            p.Editing = true;
         if (input is not null)
             p.Aim = input.Aim;
         var frozen = p.Hull <= 0 || p.Editing || p.Menu || p.Docked != 0;
-        Movement.Step(
+        Movement.Steer(
             ref p.Position,
             ref p.Velocity,
+            ref p.Heading,
+            ref p.Throttle,
             input is null ? Vector2.Zero : new(input.X, input.Y),
             1f / TickRate,
             MoveSpeedFor(p),
             AccelerationFor(p),
             SteeringFor(p),
             geometry,
-            frozen
+            frozen,
+            input is not null && p.Connected
         );
         if (frozen || input is null)
             return;

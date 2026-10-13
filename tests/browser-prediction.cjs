@@ -61,11 +61,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       });
     const before = await read();
     assert(before.hull > 0 && Number.isFinite(before.x), 'live rendered pilot required');
-    await page.keyboard.down('a');
+    await page.keyboard.down('w');
     await page.waitForTimeout(120);
     const immediate = await read();
     assert(
-      immediate.x < before.x - 3,
+      immediate.x > before.x + 0.2,
       `local movement must precede delayed server snapshot: ${JSON.stringify({ before, immediate })}`,
     );
     assert(
@@ -73,8 +73,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       'authoritative snapshot should still precede input during inbound delay',
     );
     await page.waitForTimeout(450);
-    await page.keyboard.up('a');
-    await page.waitForTimeout(1500);
+    await page.keyboard.up('w');
+    await page.keyboard.down('s');
+    await page.waitForTimeout(650);
+    await page.keyboard.up('s');
+    await page.waitForTimeout(1200);
     const settled = await read();
     assert(
       Math.abs(settled.x - settled.serverX) < 12,

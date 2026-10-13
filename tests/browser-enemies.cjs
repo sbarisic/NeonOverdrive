@@ -48,8 +48,13 @@ const assert = require('node:assert/strict');
             const dx = next.x - p.x,
               dy = next.y - p.y,
               length = Math.max(1, Math.hypot(dx, dy));
-            input.x = dx / length;
-            input.y = dy / length;
+            const error = Math.atan2(
+              Math.sin(Math.atan2(dy, dx) - p.heading),
+              Math.cos(Math.atan2(dy, dx) - p.heading),
+            );
+            input.x = Math.max(-1, Math.min(1, error * 3));
+            const throttle = Math.abs(error) > 0.6 ? 0.12 : Math.min(1, length / 300);
+            input.y = Math.max(-1, Math.min(1, (p.throttle - throttle) * 8));
           }
           super.send(JSON.stringify(input));
         }

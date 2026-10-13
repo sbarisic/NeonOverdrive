@@ -37,7 +37,7 @@ public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 9;
+    public const int Version = 10;
     public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -204,6 +204,14 @@ public static class ClientProtocol
                                 or "ping"
                                 or "broadcast"
                                 or "defend"
+                                or "hail"
+                                or "goodbye"
+                                or "job_accept"
+                                or "job_claim"
+                                or "activate"
+                                or "turret_one"
+                                or "turret_two"
+                                or "repair_bot"
                             )
                         || !Integer(root, "target", out var target)
                         || target < 0

@@ -28,6 +28,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const room = await victim.locator('#network-info').getAttribute('data-room');
     await victim.locator('#canvas').focus();
     await victim.keyboard.press('e');
+    if (await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await victim
       .locator('#sector-console')
       .getByRole('button', { name: 'Module shop', exact: true })
@@ -47,6 +49,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(before.snapshot.workshop.credits, 40);
     await victim.keyboard.press('Escape');
     await victim.keyboard.press('e');
+    if (await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await victim.waitForFunction(
       () =>
         JSON.parse(document.querySelector('#network-info').dataset.snapshot).sector.pilot.docked ===
@@ -54,13 +58,25 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     );
     await victim.locator('#canvas').focus();
     await victim.keyboard.down('d');
-    await victim.waitForTimeout(1300);
+    await victim.waitForTimeout(1500);
     await victim.keyboard.up('d');
+    await victim.keyboard.down('w');
+    await victim.waitForTimeout(1700);
+    await victim.keyboard.up('w');
+    await victim.keyboard.down('s');
+    await victim.waitForTimeout(2100);
+    await victim.keyboard.up('s');
     await join(attacker, 'Attack' + suffix, room);
     await attacker.locator('#canvas').focus();
     await attacker.keyboard.down('d');
-    await attacker.waitForTimeout(2800);
+    await attacker.waitForTimeout(1500);
     await attacker.keyboard.up('d');
+    await attacker.keyboard.down('w');
+    await attacker.waitForTimeout(2800);
+    await attacker.keyboard.up('w');
+    await attacker.keyboard.down('s');
+    await attacker.waitForTimeout(2100);
+    await attacker.keyboard.up('s');
     await attacker.waitForTimeout(200);
     const now = await read(attacker),
       self = now.self,
@@ -74,6 +90,15 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await attacker.mouse.move(
       box.x + ((self.x - ox + dx * scale) / 1280) * box.width,
       box.y + ((self.y - oy + dy * scale) / 720) * box.height,
+    );
+    assert(!target.protected, JSON.stringify({ self, target }));
+    console.log(
+      'PvP positions',
+      JSON.stringify({
+        self: [self.x, self.y, self.heading],
+        target: [target.x, target.y, target.heading],
+        aim: Math.atan2(dy, dx),
+      }),
     );
     await attacker.keyboard.down('Space');
     await victim.locator('#arena-respawn').waitFor({ state: 'visible', timeout: 15000 });

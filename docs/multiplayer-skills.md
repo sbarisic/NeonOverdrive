@@ -1,6 +1,6 @@
 # Multiplayer skill tree and modular arsenal
 
-Current protocol: **v9**. See [cooperative combat](cooperative-combat.md) for fresh runs, replay bonuses, and recovery.
+Current protocol: **v10**. See [cooperative combat](cooperative-combat.md) for fresh runs, replay bonuses, and recovery.
 
 ## Pilot Ascension (Tab)
 

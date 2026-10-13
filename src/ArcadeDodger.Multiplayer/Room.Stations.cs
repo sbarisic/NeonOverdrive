@@ -16,6 +16,7 @@ public sealed partial class Room
             state.LastStation = station.Id;
             p.Held = null;
             p.Velocity = Vector2.Zero;
+            p.Throttle = 0;
             state.InteractionTarget = 0;
             result = "ok";
         }

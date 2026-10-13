@@ -32,7 +32,7 @@ internal sealed partial class BrowserArenaWorld
             effects.Add(
                 new(
                     position,
-                    Vector2.Zero,
+                    new(e.Dx, e.Dy),
                     death ? new Color(255, 145, 60, 255) : Gold,
                     time,
                     death ? .85f : .24f,
@@ -110,6 +110,26 @@ internal sealed partial class BrowserArenaWorld
                 continue;
             }
             var death = e.Kind == EffectKind.Death;
+            if (e.Kind == EffectKind.Hit && e.Direction.LengthSquared() > .1f)
+            {
+                Raylib.DrawLineEx(
+                    e.Position,
+                    e.Position + e.Direction * (12 + 40 * progress),
+                    low ? 1 : 2,
+                    color
+                );
+                if (!low)
+                {
+                    var side = new Vector2(-e.Direction.Y, e.Direction.X);
+                    for (var i = -1; i <= 1; i += 2)
+                        Raylib.DrawLineEx(
+                            e.Position + e.Direction * 4,
+                            e.Position + e.Direction * (14 + age * 80) + side * i * 14 * progress,
+                            1,
+                            color
+                        );
+                }
+            }
             var radius = (death ? 8 + 70 * progress : 3 + 24 * progress) * size;
             Raylib.DrawCircleLines((int)e.Position.X, (int)e.Position.Y, radius, color);
             if (!low)

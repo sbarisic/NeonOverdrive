@@ -59,12 +59,17 @@ public class ProgressionTests
         var drop = Assert.Single(room.Snapshot().Energy!);
         Assert.Equal(10, drop.Value);
         Assert.Empty(room.Snapshot().Enemies!);
-        for (var i = 3; i < 24 && room.Snapshot().Energy!.Length > 0; i++)
+        for (var i = 3; i < 180 && room.Snapshot().Energy!.Length > 0; i++)
         {
             var target = room.Snapshot().Energy![0];
             var pilot = room.Snapshot().Players[0];
             var delta = Vector2.Normalize(new Vector2(target.X - pilot.X, target.Y - pilot.Y));
-            room.Input(id, new(i, delta.X, delta.Y, 0, false, false));
+            var heading = MathF.Atan2(delta.Y, delta.X);
+            var turn = MathF.IEEERemainder(heading - pilot.Heading, MathF.Tau);
+            room.Input(
+                id,
+                new(i, Math.Clamp(turn * 5, -1, 1), pilot.Throttle < .3f ? -1 : 0, 0, false, false)
+            );
             room.Step();
         }
         Assert.Empty(room.Snapshot().Energy!);

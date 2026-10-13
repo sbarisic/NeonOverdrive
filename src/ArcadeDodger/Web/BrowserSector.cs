@@ -117,6 +117,18 @@ internal sealed partial class BrowserArenaWorld
             var state = snapshot.Sector?.Locations.FirstOrDefault(s => s.Id == l.Id);
             switch (l.Kind)
             {
+                case "cache":
+                    var searched = snapshot.Sector?.Services?.ClaimedCaches.Contains(l.Id) == true;
+                    Raylib.DrawPolyLinesEx(p, 4, 16, 45, 2, searched ? MutedMine : Gold);
+                    Raylib.DrawText(
+                        searched ? "SEARCHED" : "E / SEARCH CACHE",
+                        (int)p.X - 60,
+                        (int)p.Y - 35,
+                        12,
+                        searched ? MutedMine : Gold
+                    );
+                    DrawScanProgress(snapshot, l, p - new Vector2(0, 70));
+                    break;
                 case "planet":
                     var tint = l.Biome switch
                     {
@@ -298,6 +310,21 @@ internal sealed partial class BrowserArenaWorld
                 rock.Radius * .38f,
                 rock.Id * 15,
                 new Color(53, 62, 77, 255)
+            );
+        }
+        foreach (var site in snapshot.Sector?.Services?.Outposts ?? [])
+        foreach (var socket in site.Sockets)
+        {
+            Vector2 at = new(socket.X, socket.Y);
+            if (socket.Hull > 0 || !Visible(at, origin, 45))
+                continue;
+            Raylib.DrawCircleLines((int)at.X, (int)at.Y, 26, Raylib.Fade(Cyan, .3f));
+            Raylib.DrawText(
+                new[] { "CORE", "TURRET 1", "TURRET 2", "REPAIR" }[socket.Slot],
+                (int)at.X - 24,
+                (int)at.Y - 5,
+                10,
+                MutedMine
             );
         }
     }

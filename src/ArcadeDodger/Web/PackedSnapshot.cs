@@ -78,7 +78,10 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     Editing: Bool(),
                     Docked: Int(),
                     DetectionRadius: Float(),
-                    SurveyRadius: Float()
+                    SurveyRadius: Float(),
+                    Heading: Float(),
+                    Throttle: Float(),
+                    Playthrough: Long()
                 )
         );
         var shots = List(
@@ -133,6 +136,10 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             "turret",
             "rover",
             "relief",
+            "contact",
+            "salvage-core",
+            "salvage-turret",
+            "repair-bot",
         ];
         var enemies = List(
             256,
@@ -199,7 +206,18 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             cursor < data.Length
                 ? List(
                     512,
-                    () => new CombatEvent(Int(), Int(), Int(), Float(), Float(), Long(), Float())
+                    () =>
+                        new CombatEvent(
+                            Int(),
+                            Int(),
+                            Int(),
+                            Float(),
+                            Float(),
+                            Long(),
+                            Float(),
+                            Float(),
+                            Float()
+                        )
                 )
                 : [];
         SectorSessionSnapshot? pilot = null;
@@ -224,6 +242,51 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                 Int(),
                 Int()
             );
+        ServiceSnapshot? services = null;
+        if (cursor < data.Length && Bool())
+        {
+            var contacts = List(
+                3,
+                () => new ContactSnapshot(Int(), Text(), Text(), Float(), Float(), Int())
+            );
+            var outposts = List(
+                6,
+                () =>
+                    new OutpostSnapshot(
+                        Int(),
+                        Text(),
+                        Float(),
+                        Float(),
+                        Bool(),
+                        List(
+                            4,
+                            () =>
+                                new StructureSnapshot(
+                                    Int(),
+                                    Float(),
+                                    Float(),
+                                    Int(),
+                                    Int(),
+                                    Int(),
+                                    Bool()
+                                )
+                        )
+                    )
+            );
+            var raid = Bool() ? new RaidSnapshot(Int(), Text(), Int()) : null;
+            var hailing = Int();
+            var claims = List(24, Int);
+            var assignment = new AssignmentSnapshot(
+                Text(),
+                Int(),
+                List(3, Int),
+                Bool(),
+                Int(),
+                Int(),
+                Int()
+            );
+            services = new(contacts, outposts, raid, hailing, claims, assignment, List(24, Int));
+        }
         if (cursor != data.Length)
             throw new FormatException();
         return new(
@@ -240,7 +303,7 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             Workshop: new(wallet, [], []),
             Credits: credits,
             Mines: mines,
-            Sector: new(locations, pilot, rescue),
+            Sector: new(locations, pilot, rescue, services),
             ModuleDrops: modules,
             CombatEvents: combat
         );

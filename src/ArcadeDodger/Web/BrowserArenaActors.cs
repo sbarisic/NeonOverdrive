@@ -21,15 +21,37 @@ internal sealed partial class BrowserArenaWorld
         Color color = PlayerColor(p);
         if (p.Editing)
             color = Raylib.Fade(color, .35f);
-        Rectangle box = new(p.X - 14, p.Y - 14, 28, 28);
-        if (!low)
-            NeonRendering.GlowBox(box, color);
-        else
+        Vector2 bow = new(MathF.Cos(p.Heading), MathF.Sin(p.Heading));
+        Vector2 side = new(-bow.Y, bow.X);
+        Raylib.DrawRectanglePro(
+            new(p.X, p.Y, 28, 14),
+            new(14, 7),
+            p.Heading * 180 / MathF.PI,
+            Raylib.Fade(color, .6f)
+        );
+        var corners = new[]
         {
-            Raylib.DrawRectangleRec(new Rectangle(box.X, box.Y, 28, 28), Raylib.Fade(color, .65f));
-            Raylib.DrawRectangleLinesEx(new Rectangle(box.X, box.Y, 28, 28), 2, color);
+            position - bow * 14 - side * 7,
+            position + bow * 14 - side * 7,
+            position + bow * 14 + side * 7,
+            position - bow * 14 + side * 7,
+        };
+        for (var i = 0; i < 4; i++)
+            Raylib.DrawLineEx(corners[i], corners[(i + 1) % 4], 2, color);
+        Raylib.DrawLineEx(position - side * 7, position + side * 7, 1, color);
+        Raylib.DrawTriangle(
+            position + bow * 14,
+            position + bow * 8 - side * 5,
+            position + bow * 8 + side * 5,
+            NeonRendering.Ink
+        );
+        if (p.Throttle > 0)
+        {
+            var aft = position - bow * 14;
+            Raylib.DrawLineEx(aft, aft - bow * (5 + 17 * p.Throttle), 5, color);
+            if (!low)
+                Raylib.DrawCircleV(aft, 8 + p.Throttle * 6, Raylib.Fade(color, .15f));
         }
-        NeonRendering.DrawPlayerCore(position, low ? 0 : time, color);
         Vector2 forward = new(MathF.Cos(p.Aim), MathF.Sin(p.Aim));
         Raylib.DrawLineEx(position, position + forward * 23, 5, NeonRendering.Ink);
         if (p.Shield > 0)
@@ -178,6 +200,16 @@ internal sealed partial class BrowserArenaWorld
         }
         if (e.Effects != 0)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 4, Gold);
+        if (e.Kind == "contact")
+            Raylib.DrawText("E / HAIL", (int)p.X - 30, (int)p.Y + 40, 12, Cyan);
+        if (e.Kind == "repair-bot")
+        {
+            var drone = p + new Vector2(MathF.Cos(time), MathF.Sin(time)) * 45;
+            Raylib.DrawRectangle((int)drone.X - 3, (int)drone.Y - 3, 6, 6, Cyan);
+            if (!low)
+                Raylib.DrawLineEx(p, drone, 1, Raylib.Fade(Cyan, .35f));
+            Raylib.DrawText("REPAIR BAY", (int)p.X - 35, (int)p.Y + 40, 12, Cyan);
+        }
         Raylib.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
         if (e.Telegraph)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 8, Hostile);

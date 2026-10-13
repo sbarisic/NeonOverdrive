@@ -17,17 +17,26 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
           JSON.parse(e.dataset.snapshot).players.find((p) => p.id === +e.dataset.player),
         );
     await page.locator('#canvas').focus();
-    await page.keyboard.down('a');
-    await page.waitForTimeout(500);
-    await page.keyboard.up('a');
+    await page.keyboard.down('d');
+    await page.waitForTimeout(300);
+    await page.keyboard.up('d');
+    assert.equal((await read()).throttle, 0);
+    await page.keyboard.down('w');
+    await page.waitForTimeout(1000);
+    await page.keyboard.up('w');
+    await page.waitForTimeout(150);
     const released = await read();
-    assert(released.velocityX < -290);
-    await page.waitForTimeout(220);
-    const coast = await read();
-    assert(coast.x < released.x - 30);
-    assert(coast.velocityX > released.velocityX && coast.velocityX < -100);
-    await page.waitForTimeout(1200);
+    assert(released.throttle > 0.4 && released.throttle < 0.65);
+    await page.waitForTimeout(300);
+    const held = await read();
+    assert(Math.abs(held.throttle - released.throttle) < 0.02);
+    assert(Math.hypot(held.x - released.x, held.y - released.y) > 25);
+    await page.keyboard.down('s');
+    await page.waitForTimeout(1300);
+    await page.keyboard.up('s');
+    await page.waitForTimeout(1100);
     const stopped = await read();
+    assert.equal(stopped.throttle, 0);
     assert.equal(stopped.velocityX, 0);
     await page.keyboard.down('Shift');
     await page.waitForTimeout(300);
@@ -55,7 +64,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.locator('#arena-skills').waitFor({ state: 'visible' });
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: acceleration, release coasting, full stop, Shift has no action, Escape immobilizes without equipment cloak, icon activation.',
+      'PASS: rotation, persistent throttle, braking, full stop, Shift has no action, Escape immobilizes without equipment cloak, icon activation.',
     );
   } finally {
     await browser.close();

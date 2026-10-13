@@ -36,7 +36,10 @@ public sealed record PlayerSnapshot(
     int Docked = 0,
     string RunId = "",
     float DetectionRadius = 1200,
-    float SurveyRadius = 1200
+    float SurveyRadius = 1200,
+    float Heading = 0,
+    float Throttle = 0,
+    long Playthrough = 1
 );
 
 public sealed record ShotSnapshot(

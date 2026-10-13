@@ -173,7 +173,15 @@ public sealed partial class Room
     private void Contact(Shot s, Player? p, Enemy? e, Vector2 at)
     {
         var amount = s.IsBeam ? s.Damage / TickRate : s.Damage;
-        Hit(s, p, e, amount);
+        var dealt = Hit(s, p, e, amount);
+        if (dealt > 0 && !s.IsBeam && s.Pierce > 0 && !s.Proximity)
+            CombatFx(
+                s.Id,
+                3,
+                at,
+                s.VisualPower,
+                s.Velocity.LengthSquared() > 0 ? Vector2.Normalize(s.Velocity) : Vector2.UnitX
+            );
         if (s.Secondary)
             return;
         if (!s.IsBeam || Tick % 15 == s.Weapon % 15)

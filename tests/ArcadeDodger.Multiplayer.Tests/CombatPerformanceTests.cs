@@ -55,6 +55,17 @@ public class CombatPerformanceTests(ITestOutputHelper output)
                 }.ToImmutableArray()
             );
         }
+        // Include shared structures and the three roaming contacts in the same NPC budget.
+        var builder = Player(r, 1);
+        var originalPosition = (Vector2)Get(builder, "Position");
+        Set(builder, "Position", r.Sector!.Locations.Single(l => l.Id == 40).Position);
+        store.Credit("Perf0", 1000);
+        var buildSequence = 0;
+        foreach (var action in new[] { "activate", "turret_one", "turret_two", "repair_bot" })
+            r.SectorAction(1, new(++buildSequence, action, 40));
+        Assert.True(r.SectorSnapshot(1)!.Services!.Outposts.Single(s => s.Id == 40).Active);
+        Set(builder, "Position", originalPosition);
+        Set(builder, "Previous", originalPosition);
         for (var i = r.Snapshot().Enemies!.Length; i < enemyLimit; i++)
             Enemy(r, 2200 + i % 16 * 700, 14000 + i / 16 * 100, 1000 + i, 10000);
         store.BackgroundWrites = true;
@@ -74,7 +85,7 @@ public class CombatPerformanceTests(ITestOutputHelper output)
         {
             var wholeTick = Stopwatch.StartNew();
             for (var id = 1; id <= 24; id++)
-                r.Input(id, new(tick, 0, 0, -.4f, true, false));
+                r.Input(id, new(tick + 4, 0, 0, -.4f, true, false));
             var timer = Stopwatch.StartNew();
             r.Step();
             if (tick > 300)

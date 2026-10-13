@@ -101,6 +101,12 @@ public sealed partial class Room
             result = "out_of_range";
             return result;
         }
+        if (target.Kind == "cache" && !state.Caches.Contains(target.Id))
+        {
+            state.InteractionTarget = target.Id;
+            state.InteractionStart = Tick;
+            return "ok";
+        }
         if (
             active is null
             || !(

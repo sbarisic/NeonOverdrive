@@ -71,7 +71,7 @@ public sealed class SnapshotPlayback
             endpoints.Clear();
             foreach (var frame in frames)
             foreach (var e in frame.Value.CombatEvents ?? [])
-                if (e.Shot > 0)
+                if (e.Shot > 0 && e.Kind is 0 or 1)
                     endpoints[e.Shot] = e;
             ancestryDirty = false;
         }
@@ -90,7 +90,10 @@ public sealed class SnapshotPlayback
                     || to is null
                     || from.Hull <= 0
                     || to.Hull <= 0
-                    || from.X == to.X && from.Y == to.Y && from.Aim == to.Aim
+                    || from.X == to.X
+                        && from.Y == to.Y
+                        && from.Aim == to.Aim
+                        && from.Heading == to.Heading
                 )
                     return current;
                 var angle = MathF.IEEERemainder(to.Aim - from.Aim, MathF.Tau);
@@ -99,6 +102,9 @@ public sealed class SnapshotPlayback
                     X = Lerp(from.X, to.X, t),
                     Y = Lerp(from.Y, to.Y, t),
                     Aim = from.Aim + angle * t,
+                    Heading =
+                        from.Heading
+                        + MathF.IEEERemainder(to.Heading - from.Heading, MathF.Tau) * t,
                 };
             })
             .ToArray();

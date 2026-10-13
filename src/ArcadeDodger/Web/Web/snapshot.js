@@ -79,6 +79,9 @@ export function presentSnapshot(host, f) {
       p.docked,
       p.detectionRadius ?? 1200,
       p.surveyRadius ?? 1200,
+      p.heading ?? 0,
+      p.throttle ?? 0,
+      p.playthrough ?? 1,
     ),
   );
   list(f.shots, (s) => {
@@ -112,6 +115,10 @@ export function presentSnapshot(host, f) {
     'turret',
     'rover',
     'relief',
+    'contact',
+    'salvage-core',
+    'salvage-turret',
+    'repair-bot',
   ];
   list(f.enemies, (e) =>
     a.push(
@@ -158,7 +165,9 @@ export function presentSnapshot(host, f) {
   list(f.sector?.locations, (l) => a.push(l.id, l.hull, label(l.state), l.launchTicks));
   list(f.social?.friends, (n) => a.push(label(n)));
   a.push(f.workshop?.credits ?? 0);
-  list(f.combatEvents, (e) => a.push(e.id, e.shot, e.kind, e.x, e.y, e.born, e.size));
+  list(f.combatEvents, (e) =>
+    a.push(e.id, e.shot, e.kind, e.x, e.y, e.born, e.size, e.dx || 0, e.dy || 0),
+  );
   a.push(f.sector?.pilot?.interactionTarget || 0, f.sector?.pilot?.interaction || 0);
   const rescue = f.sector?.rescue;
   a.push(+!!rescue);
@@ -176,5 +185,24 @@ export function presentSnapshot(host, f) {
       rescue.remaining,
       rescue.level,
     );
+  const services = f.sector?.services;
+  a.push(+!!services);
+  if (services) {
+    list(services.contacts, (c) => a.push(c.id, label(c.name), label(c.role), c.x, c.y, c.hull));
+    list(services.outposts, (o) => {
+      a.push(o.id, label(o.name), o.x, o.y, +o.active);
+      list(o.sockets, (s) => a.push(s.slot, s.x, s.y, s.hull, s.maxHull, s.cost, +s.pending));
+    });
+    a.push(+!!services.raid);
+    if (services.raid)
+      a.push(services.raid.site, label(services.raid.state), services.raid.remaining);
+    a.push(services.hailing);
+    list(services.claimedCaches, (id) => a.push(id));
+    const job = services.assignment;
+    a.push(label(job.kind), job.progress);
+    list(job.targets, (id) => a.push(id));
+    a.push(+job.ready, job.credits, job.experience, job.cooldown);
+    list(services.knownCaches, (id) => a.push(id));
+  }
   host.ArenaSnapshotPacked(a, text);
 }

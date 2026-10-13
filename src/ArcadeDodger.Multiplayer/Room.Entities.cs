@@ -42,7 +42,9 @@ public sealed partial class Room
         public Vector2 Position,
             Previous,
             Velocity;
-        public float Aim;
+        public float Aim,
+            Heading,
+            Throttle;
         public bool Connected = true,
             Editing,
             EquipAccepted;

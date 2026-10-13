@@ -62,7 +62,7 @@ internal static partial class BrowserArenaHud
         groups.Clear();
         float x = 20,
             y = 18;
-        foreach (var size in new float[] { 90, 188, 60, 210, 140 })
+        foreach (var size in new float[] { 90, 188, 60, 210, 140, 150, 130 })
         {
             if (x + size > width - 16 && x > 20)
             {
@@ -145,6 +145,11 @@ internal static partial class BrowserArenaHud
         }
         p = groups[4];
         Text($"{snapshot?.Workshop?.Credits ?? 0} CREDITS", (int)p.X, (int)p.Y + 10, 12, Amber);
+        p = groups[5];
+        Text($"PLAYTHROUGH {self?.Playthrough ?? 1}", (int)p.X, (int)p.Y + 10, 12, Ink);
+        p = groups[6];
+        Text($"THROTTLE {(self?.Throttle ?? 0):P0}", (int)p.X, (int)p.Y, 12, Cyan);
+        Meter((int)p.X, (int)p.Y + 24, 110, 5, self?.Throttle ?? 0, Cyan);
         Panel((int)footer.X, (int)footer.Y, (int)footer.Width, (int)footer.Height, Cyan);
         DrawRadar(snapshot, ownId, origin, worldView, time, reducedEffects);
         if (menuOpen || self is null || self.Hull <= 0)

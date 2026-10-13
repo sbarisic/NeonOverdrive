@@ -64,16 +64,20 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
               target = drop || enemy || this.destination;
             if (target) {
               const route = window.__routeHost?.ArenaRoute(p.x, p.y, target.x, target.y);
-              const next = route ? JSON.parse(route)[0] || target : target;
+              const next = route
+                ? JSON.parse(route).find((q) => Math.hypot(q.x - p.x, q.y - p.y) > 45) || target
+                : target;
               const dx = next.x - p.x,
                 dy = next.y - p.y,
                 d = Math.hypot(dx, dy);
-              m.x = dx / Math.max(1, d);
-              m.y = dy / Math.max(1, d);
-              if (!drop && d < 170) {
-                m.x *= -1;
-                m.y *= -1;
-              }
+              const desired = Math.atan2(dy, dx) + (!drop && d < 240 ? Math.PI / 2 : 0);
+              const error = Math.atan2(
+                Math.sin(desired - p.heading),
+                Math.cos(desired - p.heading),
+              );
+              m.x = Math.max(-1, Math.min(1, error * 3));
+              const throttle = Math.abs(error) > 0.7 ? 0.15 : Math.min(1, d / 250);
+              m.y = Math.max(-1, Math.min(1, (p.throttle - throttle) * 8));
             }
             if (enemy) {
               m.aim = Math.atan2(enemy.y - p.y, enemy.x - p.x);

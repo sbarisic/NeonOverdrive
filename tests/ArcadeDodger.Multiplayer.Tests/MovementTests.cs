@@ -7,24 +7,26 @@ namespace ArcadeDodger.Multiplayer.Tests;
 public class MovementTests
 {
     [Fact]
-    public void AcceleratesThenCoastsOneSecondAndStops()
+    public void PersistentThrottleHoldsThenBrakesAndCoastsWhenInputExpires()
     {
         var r = Start();
-        for (int i = 1; i <= 30; i++)
+        for (int i = 1; i <= 60; i++)
         {
-            r.Input(1, new(i, 1, 0, 0, false, false));
+            r.Input(1, new(i, 0, -1, 0, false, false));
             r.Step();
         }
-        var a = r.Snapshot().Players[0];
-        Assert.Equal(300, a.VelocityX);
-        Assert.InRange(a.X, 1262, 1263);
-        r.Input(1, new(31, 0, 0, 0, false, false));
-        Step(r, 30);
-        var b = r.Snapshot().Players[0];
-        Assert.Equal(0, b.VelocityX);
-        Assert.Equal(150, b.X - a.X, 2);
-        Step(r, 30);
-        Assert.Equal(b.X, r.Snapshot().Players[0].X);
+        var full = r.Snapshot().Players[0];
+        Assert.InRange(full.Throttle, .999f, 1);
+        Assert.InRange(full.VelocityX, 299.9f, 300);
+        for (int i = 61; i <= 90; i++)
+        {
+            r.Input(1, new(i, 0, 0, 0, false, false));
+            r.Step();
+        }
+        Assert.Equal(full.Throttle, r.Snapshot().Players[0].Throttle);
+        Step(r, 38);
+        Assert.Equal(0, r.Snapshot().Players[0].Throttle);
+        Assert.Equal(0, r.Snapshot().Players[0].VelocityX);
     }
 
     [Fact]
@@ -32,12 +34,15 @@ public class MovementTests
     {
         var r = Start();
         for (int i = 1; i <= 100; i++)
-            r.Input(1, new(i, 1, 0, 0, false, false));
+            r.Input(1, new(i, 1, -1, 0, false, false));
         r.Step();
-        Assert.Equal(40, r.Snapshot().Players[0].VelocityX, 3);
-        r.Input(1, new(101, 1, 0, 0, true, true));
+        var p = r.Snapshot().Players[0];
+        Assert.Equal(1f / 60, p.Throttle, 5);
+        Assert.Equal(MathF.Tau / 90, p.Heading, 5);
+        r.Input(1, new(101, 1, -1, 0, true, true));
         r.Step();
         Assert.Equal(0, r.Snapshot().Players[0].VelocityX);
+        Assert.Equal(0, r.Snapshot().Players[0].Throttle);
         Assert.Empty(r.Snapshot().Shots);
         Assert.False(r.Snapshot().Players[0].Editing);
     }

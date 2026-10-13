@@ -1,4 +1,4 @@
-# Inhabited sector — protocol v9
+# Inhabited sector — protocol v10
 
 Desktop browser multiplayer runs in a seeded **24,000 × 16,000** sector. New rooms use the expanded generator. Active rooms retain their geometry until restart or expiration; no live terrain migration occurs.
 

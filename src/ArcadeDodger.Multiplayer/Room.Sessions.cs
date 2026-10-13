@@ -154,6 +154,7 @@ public sealed partial class Room
         {
             var state = ExplorationFor(p);
             state.Receipt = null;
+            state.Hailing = 0;
             state.SessionPlayer = p.Id;
         }
     }
@@ -268,6 +269,7 @@ public sealed partial class Room
         if (!players.TryGetValue(id, out var p) || !p.Connected)
             return;
         p.Connected = false;
+        p.Throttle = 0;
         p.DisconnectedAt = clock.GetTimestamp();
         p.RemoveAt = Tick + 150;
         p.Pending = null;

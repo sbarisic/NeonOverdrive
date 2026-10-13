@@ -21,9 +21,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const bench = page.locator('#weapon-bench');
     await bench.getByRole('tab', { name: 'Shop', exact: true }).click();
     assert(await bench.getByRole('button', { name: 'Buy Accelerator', exact: true }).isDisabled());
-    assert.match(await bench.innerText(), /Dock at a station/);
+    assert.match(await bench.innerText(), /Dock or hail a trader/);
     await page.keyboard.press('Escape');
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     const panel = page.locator('#sector-console');
     await panel.waitFor({ state: 'visible' });
     await page.waitForFunction(
@@ -51,7 +53,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await panel.waitFor({ state: 'visible' });
     assert.equal(
       await panel.locator('.map-location:visible').count(),
-      await panel.locator('.map-location').count(),
+      await panel.locator('.map-location:not([data-kind=cache])').count(),
     );
     await panel.getByRole('button', { name: 'Arrival Port', exact: true }).click();
     await panel.getByRole('button', { name: 'Set waypoint', exact: true }).click();
@@ -63,15 +65,17 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page.waitForFunction(
       () =>
         JSON.parse(document.querySelector('#network-info').dataset.snapshot).sector.pilot.docked ===
         0,
     );
     await page.locator('#canvas').focus();
-    await page.keyboard.down('d');
+    await page.keyboard.down('w');
     await page.waitForTimeout(2900);
-    await page.keyboard.up('d');
+    await page.keyboard.up('w');
     const outside = await read();
     assert(outside.p.x > 1900);
     assert(!outside.p.protected);
@@ -86,10 +90,10 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       return pilot.editing && pilot.velocityX === 0 && pilot.velocityY === 0;
     });
     const before = await read();
-    await page.keyboard.down('d');
+    await page.keyboard.down('w');
     await page.keyboard.down('Space');
     await page.waitForTimeout(300);
-    await page.keyboard.up('d');
+    await page.keyboard.up('w');
     await page.keyboard.up('Space');
     const cloaked = await read();
     assert(cloaked.p.editing && cloaked.p.protected);

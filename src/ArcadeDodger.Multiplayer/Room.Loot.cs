@@ -194,6 +194,8 @@ public sealed partial class Room
             if (p is null || p.Hull <= 0 || p.RunId != contribution.Run || contribution.Damage < 1)
                 continue;
             var state = ExplorationFor(p);
+            if (state.Job == "bounty" && !enemy.Installation && enemy.SurfacePlanet == 0)
+                state.JobProgress.Add(enemy.Id);
             if (
                 Contracts.FirstOrDefault(c => c.Id == state.Contract)
                     is { Kind: "interdict" } contract

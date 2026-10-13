@@ -5,6 +5,66 @@ namespace ArcadeDodger.Multiplayer;
 /// <summary>Shared thrust, coasting and swept sliding for simulation and prediction.</summary>
 public static class Movement
 {
+    public static void Steer(
+        ref Vector2 position,
+        ref Vector2 velocity,
+        ref float heading,
+        ref float throttle,
+        Vector2 controls,
+        float dt,
+        float speed = 300,
+        float acceleration = 1200,
+        float steering = 1800,
+        SectorCollision? geometry = null,
+        bool immobilized = false,
+        bool inputAvailable = true
+    )
+    {
+        if (immobilized || !inputAvailable)
+            throttle = 0;
+        if (immobilized)
+        {
+            velocity = Vector2.Zero;
+            return;
+        }
+        // Stationary pilots still turn, but need no repeated obstacle sweeps.
+        if (throttle == 0 && velocity == Vector2.Zero && (!inputAvailable || controls.Y >= 0))
+        {
+            if (inputAvailable)
+                heading = MathF.IEEERemainder(
+                    heading + controls.X * (MathF.Tau / 3) * dt,
+                    MathF.Tau
+                );
+            return;
+        }
+        // Fixed substeps bound turn integration error independently of packet/render cadence.
+        var remaining = dt;
+        while (remaining > .000001f)
+        {
+            var slice = MathF.Min(remaining, 1f / 120);
+            if (!immobilized && inputAvailable)
+            {
+                heading = MathF.IEEERemainder(
+                    heading + controls.X * (MathF.Tau / 3) * slice,
+                    MathF.Tau
+                );
+                throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
+            }
+            Step(
+                ref position,
+                ref velocity,
+                new Vector2(MathF.Cos(heading), MathF.Sin(heading)) * throttle,
+                slice,
+                speed,
+                acceleration,
+                steering,
+                geometry,
+                immobilized
+            );
+            remaining -= slice;
+        }
+    }
+
     public static void Step(
         ref Vector2 position,
         ref Vector2 velocity,

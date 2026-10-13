@@ -14,6 +14,18 @@ public static class EnemyCatalog
 {
     public static readonly EnemyDefinition[] Items =
     [
+        new(
+            "contact",
+            "Independent Trader",
+            1,
+            24,
+            120,
+            100,
+            "Hail for conversation, trade or work."
+        ),
+        new("salvage-core", "Salvage Hub", 1, 32, 120, 0, "Shared service outpost."),
+        new("salvage-turret", "Defense Turret", 1, 24, 60, 0, "Defends a salvage outpost."),
+        new("repair-bot", "Repair Drone Bay", 1, 24, 60, 0, "Repairs nearby allies."),
         new("turret", "Surface Turret", 1, 24, 6, 0, "Fixed outward surface defense."),
         new("rover", "Surface Rover", 1, 20, 3, 100, "Patrols the planetary rim."),
         new("relief", "Relief Cruiser", 1, 32, 240, 100, "Friendly relief vessel."),

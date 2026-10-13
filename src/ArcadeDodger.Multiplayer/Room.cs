@@ -49,12 +49,15 @@ public sealed partial class Room
         navigation = Sector is null ? null : new(Sector, geometry!);
         InitializeSector();
         InitializeAllies();
+        InitializeOutposts();
+        InitializeContacts();
     }
 
     public void Step()
     {
         Tick++;
         CompleteTransactions();
+        StepContacts();
         foreach (
             var p in players
                 .Values.Skip((int)(Tick % Math.Max(1, players.Count)))
@@ -73,6 +76,7 @@ public sealed partial class Room
         StepMines();
         beams.RemoveAll(b => players.TryGetValue(b.Owner, out var owner) && owner.Hull <= 0);
         StepRescue();
+        StepOutposts();
         foreach (var enemy in enemies.Where(e => e.Hull <= 0))
         {
             CombatFx(0, 2, enemy.Position, EnemyRadius(enemy));

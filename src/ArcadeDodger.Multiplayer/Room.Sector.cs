@@ -44,6 +44,12 @@ public sealed partial class Room
 
     private sealed class Exploration
     {
+        public int Hailing;
+        public string Job = "";
+        public long JobCooldown;
+        public int[] JobTargets = [];
+        public readonly HashSet<int> JobProgress = [],
+            Caches = [];
         public int LastStation = 10,
             Contract,
             InteractionTarget,
@@ -189,6 +195,7 @@ public sealed partial class Room
                 var target = Location(s.InteractionTarget)!;
                 if (
                     p.Editing
+                    || p.Menu
                     || p.Docked != 0
                     || p.Position != p.Previous
                     || p.Held is { X: not 0 } or { Y: not 0 }
@@ -199,7 +206,9 @@ public sealed partial class Room
                     s.InteractionTarget = 0;
                 else if (Tick - s.InteractionStart >= 90)
                 {
-                    if (target.Kind == "beacon")
+                    if (target.Kind == "cache")
+                        SearchCache(p, s, target);
+                    else if (target.Kind == "beacon")
                     {
                         s.Progress.Add(target.Id);
                         s.Ready = s.Progress.Count >= 3;

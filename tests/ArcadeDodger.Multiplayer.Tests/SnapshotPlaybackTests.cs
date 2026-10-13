@@ -65,6 +65,22 @@ public class SnapshotPlaybackTests
     }
 
     [Fact]
+    public void PiercingContactDoesNotBecomeAProjectileEndpoint()
+    {
+        var playback = new SnapshotPlayback();
+        playback.Receive(Frame(0, 0), 0);
+        playback.Receive(
+            Frame(2, 86) with
+            {
+                CombatEvents = [new(1, 1, 3, 50, 0, 1, 1, 1, 0)],
+            },
+            2d / 30
+        );
+        playback.Receive(Frame(4, 0) with { Shots = [] }, 4d / 30);
+        Assert.Equal(86, Assert.Single(playback.Sample(5.5 / 30)!.Shots).X);
+    }
+
+    [Fact]
     public void ServerRecordsActualCollisionAndDestructionWithoutAddingDamage()
     {
         var room = WorkshopRig.Start();

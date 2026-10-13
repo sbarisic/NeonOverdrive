@@ -167,6 +167,8 @@ public sealed partial class Room
                 && e.Type != "tender"
                 && e.SurfacePlanet == 0
                 && e.Hull > 0
+                && !raiders.Contains(e.Id)
+                && !returningRaiders.Contains(e.Id)
                 && e.NpcTarget == ship.Id
             )
             .OrderBy(e => e.Id)

@@ -20,7 +20,7 @@ public class RoomTests
         var end = room.Snapshot().Players.Single();
         Assert.Equal(100, end.Ack);
         Assert.Equal(
-            2f / 3,
+            .1f,
             MathF.Sqrt(MathF.Pow(end.X - start.X, 2) + MathF.Pow(end.Y - start.Y, 2)),
             2
         );
@@ -33,7 +33,7 @@ public class RoomTests
     {
         var room = new Room(sectorEnabled: false);
         var id = room.Join("A")!.Value;
-        room.Input(id, new(1, -1, 0, 0, false, false));
+        room.Input(id, new(1, 0, -1, 0, false, false));
         for (var i = 0; i < 40; i++)
             room.Step();
         var stopped = room.Snapshot().Players.Single();
@@ -42,12 +42,12 @@ public class RoomTests
         Assert.Equal(stopped.X, room.Snapshot().Players.Single().X);
         for (var i = 2; i < 2400; i++)
         {
-            room.Input(id, new(i, 1, 1, 0, false, false));
+            room.Input(id, new(i, 0, -1, 0, false, false));
             room.Step();
         }
         var end = room.Snapshot().Players.Single();
         Assert.Equal(Room.Width - Room.Radius, end.X);
-        Assert.Equal(Room.Height - Room.Radius, end.Y);
+        Assert.InRange(end.Y, Room.Radius, Room.Height - Room.Radius);
     }
 
     [Fact]

@@ -29,6 +29,16 @@ public sealed partial class Room
                     "claim" => ClaimContract(p, state, request),
                     "interact" => BeginInteraction(p, state, request),
                     "cancel" => CancelInteraction(p, state, request),
+                    "hail" or "goodbye" or "job_accept" or "job_claim" => ContactAction(
+                        p,
+                        state,
+                        request
+                    ),
+                    "activate" or "turret_one" or "turret_two" or "repair_bot" => BuildOutpost(
+                        p,
+                        state,
+                        request
+                    ),
                     _ => "invalid_action",
                 };
         state.Receipt = new(request.Sequence, result);

@@ -21,6 +21,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       });
     await page.locator('#canvas').focus();
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page
       .locator('#sector-console')
       .getByRole('button', { name: 'Module shop', exact: true })

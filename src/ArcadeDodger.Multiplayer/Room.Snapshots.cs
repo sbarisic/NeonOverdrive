@@ -45,7 +45,10 @@ public sealed partial class Room
                     p.Docked,
                     p.RunId,
                     Detection(p),
-                    Survey(p)
+                    Survey(p),
+                    p.Heading,
+                    p.Throttle,
+                    profiles.ReplayCountFor(p.Name) + 1
                 ))
                 .ToArray(),
             shots

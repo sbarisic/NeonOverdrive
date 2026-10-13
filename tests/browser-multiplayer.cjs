@@ -15,17 +15,17 @@ const assert = require('node:assert/strict');
     await a.goto(base + '/');
     await a.locator('#nickname').waitFor();
     assert.equal(await a.getByRole('link', { name: 'Single-player', exact: true }).count(), 0);
-    await a.locator('#nickname').fill('Alpha');
+    await a.locator('#nickname').fill('Alpha' + Date.now().toString(36));
     await a.locator('#join-form button').click();
     await a.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     const room = await a.locator('#network-info').getAttribute('data-room');
     await b.goto(base + '/?room=' + room);
-    await b.locator('#nickname').fill('Beta');
+    await b.locator('#nickname').fill('Beta' + Date.now().toString(36));
     await b.locator('#join-form button').click();
     await b.waitForFunction(
       () =>
         JSON.parse(document.querySelector('#network-info')?.dataset.snapshot || '{}').players
-          ?.length === 2,
+          ?.length >= 2,
     );
     const read = (p) =>
       p.locator('#network-info').evaluate((e) => ({
@@ -39,18 +39,30 @@ const assert = require('node:assert/strict');
     await b.bringToFront();
     await b.locator('#canvas').focus();
     await b.keyboard.down('d');
-    await b.waitForTimeout(1300);
+    await b.waitForTimeout(1500);
     await b.keyboard.up('d');
+    await b.keyboard.down('w');
+    await b.waitForTimeout(1700);
+    await b.keyboard.up('w');
+    await b.keyboard.down('s');
+    await b.waitForTimeout(2100);
+    await b.keyboard.up('s');
     await a.bringToFront();
     await a.locator('#canvas').focus();
     await a.keyboard.down('d');
-    await a.waitForTimeout(2800);
+    await a.waitForTimeout(1500);
     await a.keyboard.up('d');
+    await a.keyboard.down('w');
+    await a.waitForTimeout(2800);
+    await a.keyboard.up('w');
+    await a.keyboard.down('s');
+    await a.waitForTimeout(2100);
+    await a.keyboard.up('s');
     await a.waitForTimeout(200);
     const moved = await read(b);
     assert(
-      moved.snapshot.players.find((p) => p.id === initial.id).x >
-        initial.snapshot.players.find((p) => p.id === initial.id).x + 700,
+      moved.snapshot.players.find((p) => p.id === initial.id).x <
+        initial.snapshot.players.find((p) => p.id === initial.id).x - 700,
     );
     const now = await read(a),
       self = now.snapshot.players.find((p) => p.id === initial.id),

@@ -40,6 +40,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const first = await read();
     await page.locator('#canvas').focus();
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page
       .locator('#sector-console')
       .getByRole('button', { name: 'Module shop', exact: true })
@@ -60,6 +62,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     if (recovered.pilot.docked) {
       await page.locator('#canvas').focus();
       await page.keyboard.press('e');
+      if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+        await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
       await page.locator('#sector-console').waitFor({ state: 'hidden' });
     }
     for (let n = 0; n < 2; n++) {

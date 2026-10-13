@@ -1,3 +1,4 @@
+import { createServicePanel } from './sector-services.js';
 import { stationStyles } from './sector.styles.js';
 import { control } from './interface.js';
 import { createSectorChart } from './sector-chart.js';
@@ -76,13 +77,44 @@ export function createSectorConsole(
     ping: (kind, l) => action(kind, l.id),
     defend: (id) => action('defend', id),
   });
+  let serviceTarget = 0,
+    serviceChoices = [],
+    lastHail = 0;
+  const services = createServicePanel(
+    el,
+    panel,
+    (kind, id) => {
+      if (kind === 'manage') {
+        serviceTarget = id;
+        setOpen('outpost');
+        return;
+      }
+      if (kind === 'dock' || kind === 'interact') setOpen('');
+      action(kind, id);
+      if (kind === 'hail') setOpen('contact');
+      if (kind === 'goodbye') setOpen('');
+    },
+    () => {
+      setOpen('', true);
+      openShop();
+    },
+    (id) => {
+      waypoint = definition.locations.find((l) => l.id === id);
+      setOpen('map');
+    },
+  );
+  const claimJob = el('button', 'Claim contact assignment');
+  control(claimJob, 'apply');
+  claimJob.onclick = () => action('job_claim');
+  toolbar.append(claimJob);
   const pingButtons = new Map();
-  function setOpen(next) {
+  function setOpen(next, keepHail = false) {
+    if (frame?.sector?.services?.hailing && next !== 'contact' && !keepHail) send('goodbye', 0);
     if (!self || self.hull <= 0) next = '';
     mode = next;
     panel.hidden = !mode;
     render();
-    changed(!!mode);
+    if (!keepHail) changed(!!mode);
     if (mode) close.focus({ preventScroll: true });
   }
   function action(action, target = 0) {
@@ -106,7 +138,8 @@ export function createSectorConsole(
     return definition.locations
       .filter(
         (l) =>
-          ['station', 'wreck', 'beacon'].includes(l.kind) &&
+          ['station', 'wreck', 'beacon', 'cache'].includes(l.kind) &&
+          !(l.kind === 'cache' && frame?.sector?.services?.claimedCaches.includes(l.id)) &&
           !(l.kind === 'beacon' && state?.progress?.includes(l.id)) &&
           !(l.kind === 'wreck' && state?.carrying) &&
           Math.hypot(l.x - self.x, l.y - self.y) < (l.kind === 'station' ? 180 : 100),
@@ -120,8 +153,27 @@ export function createSectorConsole(
       action('undock');
       return;
     }
+    const choices = [];
+    for (const c of frame?.sector?.services?.contacts || [])
+      if (Math.hypot(c.x - self.x, c.y - self.y) <= 180)
+        choices.push({ id: c.id, name: `Hail ${c.name}`, action: 'hail' });
+    for (const site of frame?.sector?.services?.outposts || [])
+      if (Math.hypot(site.x - self.x, site.y - self.y) <= 180)
+        choices.push({ id: site.id, name: `Manage ${site.name}`, action: 'manage' });
     const l = nearby();
-    if (l) action(l.kind === 'station' ? 'dock' : 'interact', l.id);
+    if (l)
+      choices.push({
+        id: l.id,
+        name: `${l.kind === 'station' ? 'Dock at' : 'Search / interact with'} ${l.name}`,
+        action: l.kind === 'station' ? 'dock' : 'interact',
+      });
+    if (choices.length > 1 || choices[0]?.action === 'manage') {
+      serviceChoices = choices;
+      setOpen('chooser');
+    } else if (choices.length) {
+      action(choices[0].action, choices[0].id);
+      if (choices[0].action === 'hail') setOpen('contact');
+    }
   }
   opener.onclick = () => setOpen(mode === 'map' ? '' : 'map');
   dockButton.onclick = () => (state?.docked ? setOpen('station') : interact());
@@ -161,6 +213,15 @@ export function createSectorConsole(
     claim.hidden = !active;
     claim.disabled = !!pending || !state?.ready || active?.station !== docked;
     shop.disabled = !docked;
+    claimJob.hidden = !frame.sector?.services?.assignment?.ready;
+    services.render(mode, serviceTarget, serviceChoices, frame, pending);
+    if (['contact', 'chooser', 'outpost'].includes(mode)) {
+      heading.textContent = mode === 'outpost' ? 'SALVAGE OUTPOST' : 'COMMUNICATIONS';
+      summary.textContent =
+        mode === 'outpost'
+          ? 'Shared defenses and repairs · The sector stays live'
+          : 'Nearby contacts and services';
+    }
     for (const [id, { card, button, text, description, badge }] of cards) {
       const c = contracts.find((c) => c.id === id),
         destroyed = frame?.sector?.locations?.find((l) => l.id === c.target)?.state === 'destroyed';
@@ -210,12 +271,28 @@ export function createSectorConsole(
       : near
         ? `${near.kind === 'station' ? 'Dock' : 'Interact'} [E]`
         : 'Dock [E]';
-    dockButton.disabled = !docked && !near;
+    const nearServices = [
+      ...(frame.sector?.services?.contacts || []),
+      ...(frame.sector?.services?.outposts || []),
+    ].some((l) => Math.hypot(l.x - self.x, l.y - self.y) <= 180);
+    dockButton.disabled = !docked && !near && !nearServices;
+    if (nearServices && !docked) dockButton.textContent = 'Hail / Services [E]';
     let text = docked
       ? 'DOCKED · E to undock'
       : near
         ? `E · ${near.kind === 'station' ? 'Dock at' : 'Interact with'} ${near.name}`
         : '';
+    if (waypoint?.kind === 'contact') {
+      const contact = frame.sector?.services?.contacts.find((c) => c.id === waypoint.id);
+      if (contact) Object.assign(waypoint, contact);
+      else waypoint = null;
+    }
+    if (waypoint?.kind === 'cache' && frame.sector?.services?.claimedCaches.includes(waypoint.id)) {
+      const nextCache = frame.sector.services.assignment.targets.find(
+        (id) => !frame.sector.services.claimedCaches.includes(id),
+      );
+      waypoint = definition.locations.find((l) => l.id === nextCache) || null;
+    }
     const distress = frame.sector?.rescue;
     if (waypoint?.kind === 'rescue') {
       if (distress?.state === 'active' && waypoint.id === distress.id)
@@ -249,6 +326,13 @@ export function createSectorConsole(
       text += `\nScanning ${Math.round(state.interaction * 100)}% · Stay still`;
     if (state?.pings?.length)
       text += '\nShared signal from ' + state.pings.at(-1).name + ' · M to locate';
+    if (nearServices && !docked) text += '\nE · Hail nearby ships / open services';
+    const job = frame.sector?.services?.assignment;
+    if (job?.kind)
+      text += `\nCONTACT ${job.kind.toUpperCase()} · ${Math.min(3, job.progress)}/3 · ${job.ready ? 'Claim at any contact or station' : 'In progress'}`;
+    const raid = frame.sector?.services?.raid;
+    if (raid)
+      text += `\nRAID · ${definition.locations.find((l) => l.id === raid.site)?.name} · ${raid.remaining} ships incoming`;
     if (state?.lootNotice) text += '\n' + state.lootNotice;
     if (state?.contributions?.length) text += '\nInstallation participation secured';
     for (const [id, b] of pingButtons)
@@ -291,6 +375,9 @@ export function createSectorConsole(
     },
     get open() {
       return !!mode;
+    },
+    get cloaked() {
+      return !!mode && !['outpost', 'chooser'].includes(mode);
     },
     get mode() {
       return mode;
@@ -359,7 +446,7 @@ export function createSectorConsole(
       if (
         state?.receipt &&
         state.receipt.sequence > lastReceipt &&
-        state.receipt.result !== 'pending'
+        !['pending', 'refund_pending'].includes(state.receipt.result)
       ) {
         lastReceipt = state.receipt.sequence;
         pending = 0;
@@ -370,6 +457,9 @@ export function createSectorConsole(
         lastDock = state?.docked || 0;
         setOpen(lastDock ? 'station' : '');
       }
+      const hail = snapshot?.sector?.services?.hailing || 0;
+      if (lastHail && !hail && mode === 'contact') setOpen('');
+      lastHail = hail;
       if (p?.hull <= 0 && mode) setOpen('');
       render();
     },

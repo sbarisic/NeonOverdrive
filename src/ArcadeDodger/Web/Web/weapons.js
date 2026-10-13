@@ -92,6 +92,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     const b = button('', null, () => placeGear(i));
     b.className = 'ship-socket';
     b.dataset.shipSlot = i;
+    b.dataset.gearCategory = i;
     bindDrag(
       b,
       () => ({ type: 'gear', id: model.ship[i] }),
@@ -162,6 +163,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
   let opened = false,
     available = false,
     docked = false,
+    trader = false,
     level = 1,
     stats = [],
     credits = 0,
@@ -212,6 +214,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     w ? `${moduleName(w.emitter)}${w.tier ? ' · T' + w.tier : ''}` : 'Empty weapon bay';
   function describe(item) {
     if (!item) return;
+    delete detailName.parentElement.dataset.gearCategory;
     if (item.type === 'weapon') {
       const w = model.weapon(item.id);
       detailName.textContent = weaponName(w);
@@ -221,6 +224,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     } else if (item.type === 'gear') {
       const g = model.gear.get(item.id);
       detailName.textContent = gearName(g);
+      detailName.parentElement.dataset.gearCategory = g.kind >> 1;
       const d = gearCatalog[g?.kind];
       const old = d ? model.gear.get(model.ship[d.slot]) : null;
       detailText.textContent =
@@ -243,9 +247,17 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     });
     b.addEventListener('dragend', () => {
       drag = null;
+      panel
+        .querySelectorAll('.equipment-drop-target')
+        .forEach((n) => n.classList.remove('equipment-drop-target'));
     });
-    b.addEventListener('dragover', (e) => e.preventDefault());
+    b.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      b.classList.add('equipment-drop-target');
+    });
+    b.addEventListener('dragleave', () => b.classList.remove('equipment-drop-target'));
     b.addEventListener('drop', (e) => {
+      b.classList.remove('equipment-drop-target');
       e.preventDefault();
       selected = drag;
       drop();
@@ -419,6 +431,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
         render();
       });
       b.className = 'inventory-cell module-item';
+      if (g) b.dataset.gearCategory = g.kind >> 1;
       b.dataset.itemKey = item.id || `mod-${item.module}`;
       b.dataset.index = start * cols + offset;
       if (item.module) b.dataset.moduleId = item.module;
@@ -465,7 +478,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
     renderInventory();
   }).observe(grid);
   function render() {
-    wallet.textContent = `${credits} CREDITS${docked ? ' · STATION MARKET' : ' · Dock at a station to buy or sell'}`;
+    wallet.textContent = `${credits} CREDITS${docked ? ' · STATION MARKET' : trader ? ' · ROAMING TRADER · Purchases only' : ' · Dock or hail a trader to buy'}`;
     levelLabel.textContent = `LEVEL ${level} · ${unlock.filter((l) => level >= l).length}/4 WEAPON BAYS`;
     chain.id = `weapon-chain-${bay}`;
     const w = current(),
@@ -567,7 +580,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
           render();
         },
       );
-      purchase.disabled = !docked || !!pending || d.id === 1 || credits < d.price;
+      purchase.disabled = (!docked && !trader) || !!pending || d.id === 1 || credits < d.price;
       purchase.setAttribute('aria-label', `Buy ${d.name}`);
       card.append(element('strong', d.name), canvas, element('p', d.description), purchase);
       shopGrid.append(card);
@@ -620,9 +633,10 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
       setOpen(true);
       switchTab('shop');
     },
-    update(self, connected, profile) {
+    update(self, connected, profile, services) {
       available = connected && !!self && self.hull > 0;
       docked = !!self?.docked;
+      trader = !!services?.contacts?.some((c) => c.id === services.hailing && c.role === 'trader');
       level = self?.level || 1;
       stats = self?.weaponStats || [];
       credits = profile?.credits ?? credits;

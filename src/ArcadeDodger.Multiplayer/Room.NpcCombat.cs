@@ -107,6 +107,8 @@ public sealed partial class Room
 
     private bool StepNpcCombat(Enemy npc)
     {
+        if (MoveContact(npc) || ReturnFromRaid(npc))
+            return true;
         // Tenders support their own faction; seeing a relief ship is not attacking it.
         if (npc.Type == "tender")
         {
@@ -131,7 +133,7 @@ public sealed partial class Room
             && mission.Attackers.Contains(npc.Id)
             && mission.Ship.Hull > 0
                 ? mission.Ship
-                : null;
+                : RaidTarget(npc);
         var opponent =
             assignedShip
             ?? enemyGrid
@@ -195,7 +197,7 @@ public sealed partial class Room
             }
             npc.Aim = MathF.Atan2(npc.Position.Y - planet.Y, npc.Position.X - planet.X);
         }
-        else
+        else if (npc.Type is not ("salvage-core" or "salvage-turret" or "repair-bot"))
         {
             Vector2 goal;
             if (target.HasValue)
@@ -274,7 +276,7 @@ public sealed partial class Room
         }
         if (
             target is { } aimAt
-            && npc.Type is not ("rammer" or "tender")
+            && npc.Type is not ("rammer" or "tender" or "salvage-core" or "repair-bot")
             && Vector2.Distance(npc.Position, aimAt) < (npc.Type == "sniper" ? 850 : 650)
             && VisibleLine(npc.Position, aimAt)
             && Tick >= npc.FireAt

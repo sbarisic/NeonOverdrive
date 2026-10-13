@@ -13,8 +13,8 @@ const assert = require('node:assert/strict');
       s = s
         .replace(/return\s*\{\s*get open\(\)/, 'return window.__benchFixture={get open()')
         .replace(
-          /update\(self,\s*connected,\s*profile\)\s*\{/,
-          'update(self,connected,profile){if(window.__holdWorkshop)return;',
+          /update\(self,\s*connected,\s*profile,\s*services\)\s*\{/,
+          'update(self,connected,profile,services){if(window.__holdWorkshop)return;',
         );
       await route.fulfill({ response, body: s });
     });

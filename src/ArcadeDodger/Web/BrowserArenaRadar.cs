@@ -57,6 +57,31 @@ internal static partial class BrowserArenaHud
             }
             else if (location.Kind is "base" or "outpost" or "corridor" or "wreck" or "beacon")
                 Raylib.DrawCircleV(at, 2, location.Kind is "base" or "corridor" ? Amber : Muted);
+            else if (
+                location.Kind == "cache"
+                && snapshot?.Sector?.Services?.KnownCaches.Contains(location.Id) == true
+            )
+                Raylib.DrawCircleV(
+                    at,
+                    2,
+                    snapshot.Sector.Services.ClaimedCaches.Contains(location.Id) ? Muted : Amber
+                );
+        }
+        if (snapshot?.Sector?.Services is { } services)
+        {
+            foreach (var contact in services.Contacts)
+                Raylib.DrawCircleV(Map(new(contact.X, contact.Y), map), 3, Cyan);
+            foreach (var site in services.Outposts.Where(s => s.Active))
+            {
+                var at = Map(new(site.X, site.Y), map);
+                Raylib.DrawRectangleLines(
+                    (int)at.X - 4,
+                    (int)at.Y - 4,
+                    8,
+                    8,
+                    services.Raid?.Site == site.Id ? Amber : Cyan
+                );
+            }
         }
         if (hasWaypoint && pilot is not null)
         {

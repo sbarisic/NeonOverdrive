@@ -1,4 +1,4 @@
-# Cooperative combat and run economy — protocol v9
+# Cooperative combat and run economy — protocol v10
 
 The game is desktop WebAssembly multiplayer only. Protocol v8 adds level-gated weapon sockets, solid planets, surface factions, and relief-ship rescues. The skill catalog has 66 unlocks: the three purchasable Weapon Bay nodes have been removed and refunded. See [sector rules](inhabited-sector.md) and [weapon progression](multiplayer-skills.md).
 
@@ -67,7 +67,7 @@ These measurements are local acceptance results, not a guarantee for every devic
 
 ## Inertial movement and HUD update (v6)
 
-The server and prediction share acceleration (1,200 units/s²), counter-steering (1,800 units/s²), and passive deceleration (300 units/s²). Maximum base speed stays 300 units/s. Releasing WASD coasts for about one second; menus stop the ship, but Escape does not add protection. Collisions remove inward velocity and preserve sliding. Shift has no multiplayer action.
+The server and prediction share acceleration (1,200 units/s²), counter-steering (1,800 units/s²), and passive deceleration (300 units/s²). Maximum base speed stays 300 units/s. Hull steering runs at 120 degrees/s. W/S changes persistent throttle by 50 percentage points/s; at zero throttle the ship coasts for about one second; menus stop the ship, but Escape does not add protection. Collisions remove inward velocity and preserve sliding. Shift has no multiplayer action.
 
 Kinetic rounds travel at 1,300 units/s, fire six times per second before skills, and have a 1.5-unit collision/core radius with a six-unit visual trail. Other emitters and enemy cadence are unchanged. Conversions retain modifier multipliers while using the destination projectile's base speed.
 

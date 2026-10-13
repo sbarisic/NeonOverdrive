@@ -230,7 +230,7 @@ export function createPauseMenu(element, audio, connection, link) {
       'The room stays live. Your ship can still be hit while this menu is open.',
       'arena-notice',
     ),
-    element('p', 'WASD / arrows: move • Mouse / Space: fire • Coast to stop', 'muted'),
+    element('p', 'A/D: turn • W/S: throttle • Mouse / Space: fire • S: throttle down', 'muted'),
     effectsLabel,
     soundLabel,
     menuActions,

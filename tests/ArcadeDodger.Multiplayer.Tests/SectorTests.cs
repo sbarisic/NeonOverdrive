@@ -169,7 +169,7 @@ public class SectorTests
         Assert.Equal(empty.Snapshot().Enemies, occupied.Snapshot().Enemies);
         Assert.All(
             empty.Snapshot().Enemies!,
-            e => Assert.Contains(e.Home, new[] { 20, 21, 22, 23, 30, 31, 80, 81, 83 })
+            e => Assert.Contains(e.Home, new[] { 10, 20, 21, 22, 23, 30, 31, 80, 81, 83 })
         );
     }
 
@@ -432,7 +432,7 @@ public class SectorTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":9,"type":"sector","seq":1,"action":"dock","target":10}"""
+                    """{"v":10,"type":"sector","seq":1,"action":"dock","target":10}"""
                 ),
                 out _
             )
@@ -440,7 +440,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":9,"type":"sector","seq":1,"action":"teleport","target":10}"""
+                    """{"v":10,"type":"sector","seq":1,"action":"teleport","target":10}"""
                 ),
                 out _
             )
@@ -448,7 +448,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":9,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
+                    """{"v":10,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
                 ),
                 out _
             )

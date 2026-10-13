@@ -26,6 +26,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     await page.locator('#canvas').focus();
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page
       .locator('#sector-console')
       .getByRole('button', { name: 'Accept contract', exact: true })
@@ -35,6 +37,8 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       () => document.querySelector('#radar-controls').dataset.waypoint === 'Orbital Survey 1',
     );
     await page.keyboard.press('e');
+    if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
+      await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page.locator('#sector-console').waitFor({ state: 'hidden' });
     assert.equal(
       await page.locator('#sector-guide').evaluate((e) => getComputedStyle(e).fontSize),

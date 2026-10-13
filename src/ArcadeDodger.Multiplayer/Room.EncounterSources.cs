@@ -43,7 +43,17 @@ public sealed partial class Room
         var level = EnemyCatalog.Region(source.Location.Id);
         var available = EnemyCatalog
             .Items.Where(t =>
-                t.MinimumLevel <= level && t.Id is not ("turret" or "rover" or "relief")
+                t.MinimumLevel <= level
+                && t.Id
+                    is not (
+                        "turret"
+                        or "rover"
+                        or "relief"
+                        or "contact"
+                        or "salvage-core"
+                        or "salvage-turret"
+                        or "repair-bot"
+                    )
             )
             .ToArray();
         var type = available[source.LaunchCount++ % available.Length];
@@ -92,7 +102,10 @@ public sealed partial class Room
                 && e.Hull > 0
                 && e.Home == source.Location.Id
             );
-            var quota = corridor ? 9 : 8;
+            var quota =
+                source.Location.Id == 23 ? 16
+                : corridor ? 9
+                : 8;
             var volley = corridor ? 3 : 1;
             if (count + volley > quota)
                 continue;
