@@ -67,7 +67,8 @@ public sealed partial class Room
             input is not null && p.Connected,
             TurnRateFor(p),
             ChassisCatalog.Get(p.Chassis).Radius,
-            input?.Brake == true
+            input?.Brake == true,
+            input?.CursorSteering == true ? input.Aim : null
         );
         if (collided)
         {

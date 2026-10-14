@@ -241,6 +241,16 @@ public sealed partial class Room
             }
             if (boundary <= 1)
             {
+                if (!absorbed && (!s.IsBeam || Tick % 6 == s.Weapon % 6))
+                    CombatFx(
+                        s.Id,
+                        1,
+                        end,
+                        s.VisualPower,
+                        Vector2.Normalize(s.Velocity),
+                        weaponKind: s.Kind,
+                        material: "rock"
+                    );
                 if (absorbed)
                 {
                     s.Expires = Tick;
@@ -260,6 +270,16 @@ public sealed partial class Room
             }
             if (length >= wall - .001f)
             {
+                if (!s.IsBeam || Tick % 6 == s.Weapon % 6)
+                    CombatFx(
+                        s.Id,
+                        1,
+                        end,
+                        s.VisualPower,
+                        Vector2.Normalize(s.Velocity),
+                        weaponKind: s.Kind,
+                        material: "rock"
+                    );
                 if (s.Bounces-- <= 0)
                 {
                     s.Impact = true;

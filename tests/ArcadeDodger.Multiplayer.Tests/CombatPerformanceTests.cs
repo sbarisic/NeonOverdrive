@@ -88,7 +88,16 @@ public class CombatPerformanceTests(ITestOutputHelper output)
         {
             var wholeTick = Stopwatch.StartNew();
             for (var id = 1; id <= 24; id++)
+            {
+                // Keep the synthetic durability above normal chassis capacity; territorial
+                // repair otherwise clamps it and turns this saturation test into a death test.
+                Set(Player(r, id), "LastDamage", r.Tick);
                 r.Input(id, new(tick + 4, 0, 0, -.4f, true, false));
+            }
+            var readyBefore = Enumerable
+                .Range(1, 24)
+                .Select(id => ((double[])Get(Player(r, id), "WeaponReady")).ToArray())
+                .ToArray();
             var timer = Stopwatch.StartNew();
             r.Step();
             if (tick > 300)
@@ -98,14 +107,18 @@ public class CombatPerformanceTests(ITestOutputHelper output)
             {
                 for (var pilot = 0; pilot < 24; pilot++)
                     quietWindow[pilot]++;
-                foreach (
-                    var shot in frame.Shots.Where(s =>
-                        s.Owner is > 0 and <= 24 && s.Parent == 0 && s.Born == r.Tick
-                    )
-                )
+                // A contact-range round can hit and disappear in its birth tick.
+                // Advancing a projectile bay's cooldown records actual admitted fire,
+                // independent of whether that round survives into the snapshot.
+                for (var pilot = 0; pilot < 24; pilot++)
                 {
-                    rootsByPilot[shot.Owner - 1]++;
-                    quietWindow[shot.Owner - 1] = 0;
+                    var ready = (double[])Get(Player(r, pilot + 1), "WeaponReady");
+                    foreach (var bay in new[] { 0, 3 })
+                        if (ready[bay] > readyBefore[pilot][bay])
+                        {
+                            rootsByPilot[pilot]++;
+                            quietWindow[pilot] = 0;
+                        }
                 }
                 maximumQuietTicks = Math.Max(maximumQuietTicks, quietWindow.Max());
             }

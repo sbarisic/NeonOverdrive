@@ -21,6 +21,8 @@ public class LivingWorldTests
         At(room, 2, start + new Vector2(0, 30));
         Assert.Equal("ok", Action(room, 1, "race_join", 0));
         Assert.Equal("ok", Action(room, 2, "race_join", 0));
+        PrepareRaces(room);
+        start = new(room.Snapshot().Players[0].X, room.Snapshot().Players[0].Y);
         Assert.Equal(
             room.SectorSnapshot(1)!.World!.Race!.Countdown,
             room.SectorSnapshot(2)!.World!.Race!.Countdown
@@ -307,6 +309,7 @@ public class LivingWorldTests
         room.Step();
         Assert.NotEmpty(room.Snapshot().Shots);
         Assert.Equal("ok", Action(room, 1, "race_join", 0));
+        PrepareRaces(room);
         Assert.True(room.Snapshot().Players[0].Protected);
         Assert.Equal("finish_race_first", Action(room, 1, "mission_smuggling"));
         Assert.All(

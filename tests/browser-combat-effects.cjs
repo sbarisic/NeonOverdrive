@@ -56,8 +56,36 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       await new Promise((r) => setTimeout(r, 80));
       window.__sendFx(104, [
         { id: 1, shot: 3, kind: 1, x: 3090, y: 2980, born: 103, size: 2 },
-        { id: 2, shot: 0, kind: 2, x: 3190, y: 2940, born: 103, size: 25 },
-        { id: 3, shot: 0, kind: 2, x: 2810, y: 3070, born: 103, size: 50 },
+        {
+          id: 2,
+          shot: 0,
+          kind: 2,
+          x: 3190,
+          y: 2940,
+          born: 103,
+          size: 25,
+          chassis: 2,
+          heading: 0.7,
+          scale: 1,
+          faction: 'hostile',
+          velocityX: 50,
+          velocityY: 10,
+        },
+        {
+          id: 3,
+          shot: 0,
+          kind: 2,
+          x: 2810,
+          y: 3070,
+          born: 103,
+          size: 50,
+          chassis: 6,
+          heading: -1,
+          scale: 1.2,
+          faction: 'friendly',
+          velocityX: -40,
+          velocityY: 20,
+        },
       ]);
     }, recording.frames[0]);
     await page.waitForTimeout(210);

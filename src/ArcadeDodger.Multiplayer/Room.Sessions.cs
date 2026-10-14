@@ -187,10 +187,26 @@ public sealed partial class Room
                     : p.ResetResult
             : "";
 
-    private Vector2 SelectSpawn(int station = 10)
+    private Vector2 SelectSpawn(int station = 10, int ignorePilot = 0, int chassis = 0)
     {
         if (Location(station) is { } port)
-            return port.Position + new Vector2(140, 0);
+        {
+            var radius = ChassisCatalog.Get(chassis).Radius;
+            for (var i = 0; i < 24; i++)
+            {
+                var angle = i * MathF.Tau / 24;
+                var point =
+                    port.Position
+                    + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * Math.Max(140, 92 + radius);
+                if (ClearSpawn(point, radius, ignorePilot: ignorePilot) == point)
+                    return point;
+            }
+            return ClearSpawn(
+                port.Position + new Vector2(140, 0),
+                radius,
+                ignorePilot: ignorePilot
+            );
+        }
         var candidates = Enumerable
             .Range(0, 16)
             .Select(i => new Vector2(

@@ -52,6 +52,9 @@ const assert = require('node:assert/strict');
         const body = el.querySelector('.forge-body');
         return {
           scroll: body.scrollHeight - body.clientHeight,
+          stageOverflow: [...el.querySelectorAll('.chain-stage')].map(
+            (s) => s.scrollHeight - s.clientHeight,
+          ),
           preview: el.querySelector('.chain-preview').getBoundingClientRect().height,
           previewWidth: el.querySelector('.chain-preview').clientWidth,
           pixelWidth: el.querySelector('.chain-preview').width,
@@ -65,6 +68,10 @@ const assert = require('node:assert/strict');
         };
       });
       console.log(width, height, metrics);
+      assert(
+        metrics.stageOverflow.every((h) => h <= 2),
+        'preview text fits inside every checkpoint button',
+      );
       assert(metrics.slots.every((h) => h <= 74));
       assert(metrics.inventory.every((h) => h <= 70));
       assert(metrics.preview >= 132 && metrics.preview <= 210);
@@ -79,7 +86,7 @@ const assert = require('node:assert/strict');
     assert.equal(await p.evaluate(() => document.activeElement.id), 'weapon-slot-5');
     await p.evaluate(() => window.__setPreview(Array(8).fill(13)));
     assert.match(await p.locator('.chain-note').innerText(), /64 representative paths/);
-    assert.match(await p.locator('.chain-summary').innerText(), /1,679,616 branches/);
+    assert.match(await p.locator('.chain-summary').innerText(), /1,296 branches/);
     await p.screenshot({ path: 'artifacts/browser-check/dense-forks-720.png' });
     await p.evaluate(() => window.__setPreview([11, 26, 13, 5, 0, 0, 0, 0]));
     assert.equal(await p.locator('.chain-stage[data-reachable="false"]').count(), 6);

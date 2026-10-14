@@ -42,7 +42,7 @@ public class LivingMissionTests
         Assert.Equal("ok", Act(room, "mission_smuggling"));
         Set(Player(room), "Docked", 0);
         Assert.Equal("race_not_ready", Act(room, "race_join", 0));
-        Set(Player(room), "Docked", 12);
+        Set(Player(room), "Docked", room.SectorSnapshot(1)!.World!.Targets[0]);
         Call(room, "StepWorldJobs");
         Assert.Equal("ready", room.SectorSnapshot(1)!.World!.JobState);
         Assert.Equal("ok", Act(room, "mission_claim"));
@@ -57,6 +57,7 @@ public class LivingMissionTests
         var start = room.Sector!.Locations.Single(l => l.Id == 10).Position + new Vector2(400, 0);
         Set(Player(room), "Position", start);
         Assert.Equal("ok", Act(room, "race_join", 0));
+        PrepareRaces(room);
         Set(room, "<Tick>k__BackingField", 301L);
         Set(Player(room), "Position", new Vector2(22000, 15000));
         Call(room, "StepRaces");
@@ -176,6 +177,7 @@ public class LivingMissionTests
         Set(Player(room), "Position", start);
         Set(Player(room), "Previous", start);
         Assert.Equal("ok", Act(room, "race_join", category));
+        PrepareRaces(room);
         var race = ((IDictionary)Get(room, "races"))[1]!;
         var course = (Vector2[])Get(race, "Course");
         Set(room, "<Tick>k__BackingField", 315L);

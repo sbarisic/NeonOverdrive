@@ -6,7 +6,7 @@ export function createFriendsMenu(element, info, send, onToggle) {
   opener.type = 'button';
   opener.hidden = true;
   info.append(opener);
-  const panel = element('section', '', 'arena-shell');
+  const panel = element('section', '', 'arena-shell arena-surface');
   panel.id = 'arena-friends';
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');

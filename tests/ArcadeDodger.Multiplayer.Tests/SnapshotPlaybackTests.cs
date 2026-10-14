@@ -89,7 +89,11 @@ public class SnapshotPlaybackTests
         var frame = room.Snapshot();
         var hit = Assert.Single(frame.CombatEvents!, e => e.Kind == 1);
         Assert.InRange(hit.X, 1070, 1100);
-        Assert.Single(frame.CombatEvents!, e => e.Kind == 2);
+        var destroyed = Assert.Single(frame.CombatEvents!, e => e.Kind == 2);
+        Assert.Equal(0, destroyed.Chassis);
+        Assert.Equal("hostile", destroyed.Faction);
+        Assert.Equal("hull", hit.Material);
+        Assert.Equal(1, hit.WeaponKind);
         Assert.Empty(frame.Enemies!);
         WorkshopRig.Step(room, 12);
         Assert.DoesNotContain(room.Snapshot().CombatEvents!, e => e.Id == hit.Id);

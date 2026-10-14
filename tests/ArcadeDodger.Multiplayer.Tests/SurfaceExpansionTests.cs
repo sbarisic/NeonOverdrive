@@ -334,6 +334,11 @@ public class SurfaceExpansionTests
             var before = (Vector2)Get(attacker, "Position");
             Assert.Equal(true, Call(room, "StepNpcCombat", attacker));
             Assert.Equal(900, Get(attacker, "NpcTarget"));
+            for (var i = 0; i < 90; i++)
+            {
+                Call(room, "StepNpcCombat", attacker);
+                Call(room, "StepNpcFlight");
+            }
             Assert.True(
                 Vector2.Distance((Vector2)Get(attacker, "Position"), (Vector2)Get(ship, "Position"))
                     < Vector2.Distance(before, (Vector2)Get(ship, "Position"))

@@ -40,7 +40,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(await panel.locator('.weapon-slot').count(), 9);
     assert.equal(await panel.locator('.ship-socket').count(), 6);
     assert(await panel.locator('#weapon-slot-1').isEnabled());
-    assert.match(await panel.locator('#weapon-slot-1').innerText(), /L2/);
+    assert.match(await panel.locator('#weapon-slot-1').innerText(), /Level 2/);
     await panel.locator('.inventory-cell[data-module-id="6"]').click();
     await panel.locator('#weapon-slot-1').click();
     await panel.getByRole('button', { name: 'Apply loadout', exact: true }).click();

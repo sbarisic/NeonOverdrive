@@ -61,7 +61,18 @@ internal static partial class BrowserArenaHud
             }
             else if (location.Kind == "station")
             {
-                Raylib.DrawRectangle((int)at.X - 3, (int)at.Y - 3, 6, 6, Cyan);
+                var owner = snapshot?.Sector?.World?.Territory.FirstOrDefault(t =>
+                    t.Id == location.Id
+                );
+                Raylib.DrawRectangle(
+                    (int)at.X - 3,
+                    (int)at.Y - 3,
+                    6,
+                    6,
+                    owner?.Contested == true ? Amber
+                        : owner?.Owner == "hostile" ? Enemy
+                        : Cyan
+                );
                 Raylib.DrawRectangleLines((int)at.X - 5, (int)at.Y - 5, 10, 10, Ink);
             }
             else if (location.Kind is "base" or "outpost" or "corridor" or "wreck" or "beacon")
@@ -150,6 +161,15 @@ internal static partial class BrowserArenaHud
             {
                 if (player.Hull <= 0)
                     continue;
+                if (
+                    player.Id != ownId
+                    && (
+                        self is null
+                        || Vector2.DistanceSquared(new(self.X, self.Y), new(player.X, player.Y))
+                            > self.DetectionRadius * self.DetectionRadius
+                    )
+                )
+                    continue;
                 var at = Map(new(player.X, player.Y), map);
                 if (player.Id == ownId)
                 {
@@ -174,6 +194,23 @@ internal static partial class BrowserArenaHud
         DotLabel(x + 48, y, Pink, "PILOT");
         DotLabel(x + 104, y, Enemy, "NPC");
         DotLabel(x + 150, y, Cyan, "XP");
+    }
+
+    public static string RadarPoint(double u, double v)
+    {
+        var point =
+            radarCenter
+            + new Vector2(
+                (float)(u - .5) * radarWidth,
+                (float)(v - .5) * map.Height / map.Width * radarWidth
+            );
+        return System.FormattableString.Invariant($"{point.X},{point.Y}");
+    }
+
+    public static Vector2 ContactMap(Vector2 world)
+    {
+        var p = Map(world, map);
+        return new((p.X - map.X) / map.Width, (p.Y - map.Y) / map.Height);
     }
 
     private static Vector2 Map(Vector2 world, Rectangle map)

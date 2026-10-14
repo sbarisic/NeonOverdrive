@@ -31,13 +31,6 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawPolyLinesEx(point, cargo.Kind == "anomaly" ? 6 : 4, 20, 45, 2, Gold);
                 Raylib.DrawCircleV(point, 4, Cyan);
             }
-            BrowserText.DrawText(
-                cargo.Kind.ToUpperInvariant(),
-                (int)point.X - 35,
-                (int)point.Y - 40,
-                10,
-                Gold
-            );
             if (snapshot.Players.FirstOrDefault(p => p.Id == cargo.TowOwner) is { } owner)
                 Raylib.DrawLineEx(new(owner.X, owner.Y), point, 2, Cyan);
         }
@@ -54,7 +47,6 @@ internal sealed partial class BrowserArenaWorld
                 100,
                 i == race.Checkpoint ? Gold : Raylib.Fade(Cyan, .3f)
             );
-            BrowserText.DrawText((i + 1).ToString(), (int)point.X, (int)point.Y, 16, Gold);
         }
         for (var i = 0; i + 2 < race.Ghost.Length; i += 3)
             if (MathF.Abs(race.Ghost[i] - race.Seconds) < .25f)

@@ -155,7 +155,10 @@ public sealed partial class Room
         if (npc.Role == NpcRole.Courier)
         {
             goal = Location(npc.CourierDestination)!.Position;
-            if (Vector2.Distance(npc.Position, goal.Value) < 220)
+            if (
+                Vector2.Distance(npc.Position, goal.Value) < 220
+                && npc.Velocity.LengthSquared() < 100
+            )
             {
                 npc.State = "arrived";
                 if (npc.CourierDepartAt == 0)
@@ -189,17 +192,8 @@ public sealed partial class Room
             )
         )
             return false;
-        var delta = Navigate(npc, goal.Value) - npc.Position;
         npc.State = "traveling";
-        if (delta.LengthSquared() > 1)
-        {
-            npc.Aim = MathF.Atan2(delta.Y, delta.X);
-            npc.Position = MoveShip(
-                npc.Position,
-                npc.Position + Vector2.Normalize(delta) * 100 / TickRate,
-                EnemyRadius(npc)
-            );
-        }
+        FlyNpc(npc, goal.Value, 100, 40);
         return true;
     }
 }

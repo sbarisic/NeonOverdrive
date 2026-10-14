@@ -118,7 +118,7 @@ internal static class WebSocketSession
                 }
                 if (message is SectorActionMessage sector)
                 {
-                    peer.Submit(sector);
+                    await peer.SubmitAsync(sector, lifetime.Token);
                     continue;
                 }
                 if (message is BuyMessage buy)

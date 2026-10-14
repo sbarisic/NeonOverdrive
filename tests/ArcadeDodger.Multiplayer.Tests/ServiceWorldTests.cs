@@ -98,6 +98,11 @@ public class ServiceWorldTests
         Assert.Equal(before, Get(ship, "Position"));
         Set(r, "<Tick>k__BackingField", 1801L);
         Call(r, "MoveContact", ship);
+        for (var i = 0; i < 90; i++)
+        {
+            Call(r, "MoveContact", ship);
+            Call(r, "StepNpcFlight");
+        }
         Assert.NotEqual(before, Get(ship, "Position"));
         At(r, (Vector2)Get(ship, "Position"));
         Act(r, "hail", (int)Get(ship, "Id"));
@@ -115,7 +120,7 @@ public class ServiceWorldTests
         Assert.Equal("ok", Act(r, "interact", cache.Id).Result);
         Step(r, 90);
         Assert.Contains(cache.Id, r.SectorSnapshot(1)!.Services!.ClaimedCaches);
-        Assert.Equal("unavailable", Act(r, "interact", cache.Id).Result);
+        Assert.Equal("cache_already_searched", Act(r, "interact", cache.Id).Result);
         Set(Player(r), "Hull", 0);
         r.Step();
         r.Respawn(1, new(3));
@@ -448,6 +453,11 @@ public class ServiceWorldTests
         Set(npc, "Position", new Vector2(15000, 11000));
         var before = (Vector2)Get(npc, "Position");
         Assert.Equal(true, Call(r, "ReturnFromRaid", npc));
+        for (var i = 0; i < 90; i++)
+        {
+            Call(r, "ReturnFromRaid", npc);
+            Call(r, "StepNpcFlight");
+        }
         Assert.NotEqual(before, Get(npc, "Position"));
         Assert.Equal("return", Get(npc, "State"));
     }

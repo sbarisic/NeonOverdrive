@@ -88,7 +88,8 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     CruiseState: Text(),
                     CruiseTicks: Int(),
                     Braking: Bool(),
-                    CruiseMultiplier: Float()
+                    CruiseMultiplier: Float(),
+                    Inertia: Float()
                 )
         );
         var shots = List(
@@ -173,7 +174,11 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     Int(),
                     Int(),
                     Int(),
-                    Text()
+                    Text(),
+                    Float(),
+                    Float(),
+                    Float(),
+                    Float()
                 );
             }
         );
@@ -225,7 +230,15 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                             Long(),
                             Float(),
                             Float(),
-                            Float()
+                            Float(),
+                            Int(),
+                            Float(),
+                            Float(),
+                            Text(),
+                            Float(),
+                            Float(),
+                            Int(),
+                            Text()
                         )
                 )
                 : [];
@@ -294,7 +307,16 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                 Int(),
                 Int()
             );
-            services = new(contacts, outposts, raid, hailing, claims, assignment, List(24, Int));
+            services = new(
+                contacts,
+                outposts,
+                raid,
+                hailing,
+                claims,
+                assignment,
+                List(24, Int),
+                List(64, () => new ServiceAvailability(Int(), Text(), Text()))
+            );
         }
         var territory = List(8, () => new TerritorySnapshot(Int(), Text(), Float(), Bool()));
         var cargo = List(
@@ -327,7 +349,11 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
             "",
             0,
             0,
-            race
+            race,
+            Contacts: List(
+                32,
+                () => new RadioContact(Int(), Text(), Text(), Text(), Int(), Int(), Bool(), Bool())
+            )
         );
         if (cursor != data.Length)
             throw new FormatException();

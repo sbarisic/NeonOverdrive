@@ -26,7 +26,7 @@ export const controlStyles = `
   border: 0;
 }
 
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls) button.ui-action {
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions) button.ui-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -45,7 +45,7 @@ export const controlStyles = `
   cursor: pointer;
   white-space: nowrap;
 }
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls) button.ui-action::before {
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions) button.ui-action::before {
   content: "";
   width: 17px;
   height: 17px;
@@ -53,23 +53,23 @@ export const controlStyles = `
   background: var(--action-icon) center/contain no-repeat;
   opacity: 0.9;
 }
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls)
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions)
   button.ui-action[data-variant="primary"] {
   border-color: #bba06a;
   border-top-color: #f0dca3;
   background: linear-gradient(#534832, #2a251e);
   color: #ffe7b1;
 }
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls)
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions)
   button.ui-action:hover:not(:disabled) {
   border-color: #efcf83;
   filter: brightness(1.15);
 }
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls) button.ui-action:focus-visible {
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions) button.ui-action:focus-visible {
   outline: 2px solid #ffe2a0;
   outline-offset: 3px;
 }
-:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls) button.ui-action:disabled {
+:is(#sector-console, #weapon-bench, #arena-skills, #arena-menu, #arena-friends, #radio-console, #radio-shell, #flight-controls, #target-details, #target-chooser, #context-actions) button.ui-action:disabled {
   opacity: 0.4;
   cursor: default;
   filter: saturate(0.35);

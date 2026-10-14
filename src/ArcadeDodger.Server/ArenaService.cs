@@ -39,6 +39,9 @@ public sealed class Peer
 
     public void Submit(SectorActionMessage request) => sectorActions.Writer.TryWrite(request);
 
+    public ValueTask SubmitAsync(SectorActionMessage request, CancellationToken token) =>
+        sectorActions.Writer.WriteAsync(request, token);
+
     private readonly Channel<BuyMessage> buys = Channel.CreateBounded<BuyMessage>(16);
 
     public void Submit(BuyMessage request) => buys.Writer.TryWrite(request);

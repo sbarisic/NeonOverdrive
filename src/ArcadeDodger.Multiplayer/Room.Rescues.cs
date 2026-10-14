@@ -156,7 +156,7 @@ public sealed partial class Room
                 Position = at,
                 Previous = at,
             };
-            enemies.Add(ship);
+            AddEnemy(ship);
         }
         if (ship is null || rescue is not null)
             return;

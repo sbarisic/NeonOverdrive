@@ -48,13 +48,15 @@ const assert = require('node:assert/strict');
             const dx = next.x - p.x,
               dy = next.y - p.y,
               length = Math.max(1, Math.hypot(dx, dy));
-            const error = Math.atan2(
-              Math.sin(Math.atan2(dy, dx) - p.heading),
-              Math.cos(Math.atan2(dy, dx) - p.heading),
-            );
+            const desiredSpeed = Math.min(180, Math.sqrt(140 * Math.max(0, length - 45)));
+            const ax = (dx / length) * desiredSpeed - p.velocityX,
+              ay = (dy / length) * desiredSpeed - p.velocityY;
+            const heading = Math.atan2(ay, ax);
+            const error = Math.atan2(Math.sin(heading - p.heading), Math.cos(heading - p.heading));
             input.x = Math.max(-1, Math.min(1, error * 3));
-            const throttle = Math.abs(error) > 0.6 ? 0.12 : Math.min(1, length / 300);
+            const throttle = Math.abs(error) > 0.6 ? 0 : Math.min(1, Math.hypot(ax, ay) / 90);
             input.y = Math.max(-1, Math.min(1, (p.throttle - throttle) * 8));
+            input.brake = length < 50;
           }
           super.send(JSON.stringify(input));
         }

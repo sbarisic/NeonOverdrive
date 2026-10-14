@@ -7,6 +7,36 @@ namespace ArcadeDodger.Multiplayer.Tests;
 
 internal static class WorkshopRig
 {
+    // Gate/record unit tests start after course preparation and physical staging.
+    // Actual flight into the grid is covered by the reliability integration tests.
+    public static void PrepareRaces(Room room)
+    {
+        var method = typeof(Room).GetMethod(
+            "StepRaces",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
+        var all = (IDictionary)Get(room, "races");
+        for (
+            var i = 0;
+            i < 10000 && all.Values.Cast<object>().Any(r => (string)Get(r, "State") == "preparing");
+            i++
+        )
+            method.Invoke(room, null);
+        foreach (DictionaryEntry entry in all)
+        {
+            var race = entry.Value!;
+            if ((string)Get(race, "State") != "staging")
+                continue;
+            var pilot = Player(room, (int)entry.Key);
+            Set(pilot, "Position", Get(race, "Stage"));
+            Set(pilot, "Previous", Get(race, "Stage"));
+            Set(pilot, "Heading", Get(race, "StageHeading"));
+            Set(pilot, "Velocity", Vector2.Zero);
+        }
+        method.Invoke(room, null);
+        Assert.All(all.Values.Cast<object>(), r => Assert.Equal("countdown", Get(r, "State")));
+    }
+
     public static float MuzzleX => 1000 + ChassisCatalog.Get(0).Hardpoints[0].X;
 
     public static object Get(object o, string key) =>

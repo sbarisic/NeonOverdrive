@@ -65,7 +65,38 @@ public sealed partial class Room
             Cells = [],
             Progress = [],
             Completed = [];
-        public SectorReceipt? Receipt;
+        public string ReceiptRun = "";
+        public int ReceiptCursor;
+        public readonly Dictionary<int, SectorReceipt> Receipts = [];
+        public SectorReceipt? Rejected;
+        private SectorReceipt? receipt;
+        public SectorReceipt? Receipt
+        {
+            get =>
+                Rejected is not null && Rejected.Cursor > (receipt?.Cursor ?? 0)
+                    ? Rejected
+                    : receipt;
+            set
+            {
+                if (value is null)
+                {
+                    receipt = null;
+                    Receipts.Clear();
+                    Rejected = null;
+                    return;
+                }
+                if (Receipts.TryGetValue(value.Sequence, out var old))
+                {
+                    if (
+                        old.Result == value.Result
+                        || old.Result is not ("pending" or "refund_pending")
+                    )
+                        return;
+                }
+                receipt = value with { Cursor = ++ReceiptCursor, Run = ReceiptRun };
+                Receipts[value.Sequence] = receipt;
+            }
+        }
     }
 
     public ContractDefinition[] Contracts =>
@@ -89,13 +120,28 @@ public sealed partial class Room
         var key = FriendBook.Key(p.Name);
         if (!explorers.TryGetValue(key, out var state))
             explorers[key] = state = new();
+        if (state.ReceiptRun != p.RunId)
+        {
+            state.Receipt = null;
+            state.ReceiptRun = p.RunId;
+            state.ReceiptCursor = 0;
+        }
         return state;
     }
 
     private void PilotDied(Player p)
     {
         if (!p.ResetPending && !p.ResetComplete)
-            CombatFx(0, 2, p.Position, 20);
+            CombatFx(
+                0,
+                2,
+                p.Position,
+                ChassisCatalog.Get(p.Chassis).Radius,
+                chassis: p.Chassis,
+                heading: p.Heading,
+                faction: "friendly",
+                velocity: p.Velocity
+            );
         ResetAfterDeath(p);
         if (Sector is null)
             return;
@@ -214,7 +260,7 @@ public sealed partial class Room
                     || Racing(p)
                     || p.Menu
                     || p.Docked != 0
-                    || p.Position != p.Previous
+                    || Vector2.DistanceSquared(p.Position, p.Previous) > .0025f
                     || p.Held is { X: not 0 } or { Y: not 0 }
                     || p.Held?.Fire == true
                     || Vector2.Distance(p.Position, target.Position) > 100
@@ -235,6 +281,8 @@ public sealed partial class Room
                         s.Carrying = true;
                         s.Ready = true;
                     }
+                    if (target.Kind != "cache")
+                        CombatFx(0, 5, target.Position, 2);
                     s.InteractionTarget = 0;
                 }
             }

@@ -247,7 +247,7 @@ export function createPauseMenu(element, audio, connection, link) {
     ),
     element(
       'p',
-      'A/D: turn • W/S: engine throttle • X: hold brake • Mouse / Space: fire. Zero throttle coasts; turn against your drift and thrust to slow down.',
+      'Inertia is a handling rating relative to your chassis; lower is more responsive. Vector Thrusters improve acceleration and turning. A/D or hold right mouse: turn • W/S: engine throttle • X: hold brake • Click: select · Hold mouse / Space: fire. Zero throttle coasts; turn against your drift and thrust to slow down.',
       'muted',
     ),
     effectsLabel,

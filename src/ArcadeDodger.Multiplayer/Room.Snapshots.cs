@@ -66,7 +66,8 @@ public sealed partial class Room
                         && p.Docked == 0
                         && !RaceCountdown(p)
                         && p.Held?.Brake == true,
-                    CruiseMultiplier(p)
+                    CruiseMultiplier(p),
+                    1 / (1 + .1f * Gear(p, 3))
                 ))
                 .ToArray(),
             shots
@@ -118,7 +119,11 @@ public sealed partial class Room
                     e.MaxShield,
                     e.SurfacePlanet,
                     e.Chassis,
-                    e.Role.ToString().ToLowerInvariant()
+                    e.Role.ToString().ToLowerInvariant(),
+                    e.SurfacePlanet != 0 ? e.Aim : e.Heading,
+                    e.Velocity.X,
+                    e.Velocity.Y,
+                    e.Throttle
                 ))
                 .ToArray(),
             energy

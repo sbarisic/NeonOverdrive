@@ -117,7 +117,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.locator('#canvas').focus();
     await page.keyboard.press('i');
     assert(await page.locator('#weapon-slot-1').isEnabled());
-    assert.match(await page.locator('#weapon-slot-1').innerText(), /L2/);
+    assert.match(await page.locator('#weapon-slot-1').innerText(), /Level 2/);
     await page.keyboard.press('Escape');
     await page.evaluate(() => (window.__surfaceFixture = true));
     await page.waitForFunction(

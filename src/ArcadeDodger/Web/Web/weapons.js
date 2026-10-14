@@ -10,7 +10,7 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
   document.head.append(
     element('style', loadoutStyles + shopStyles + compactStyles + equipmentStyles),
   );
-  const panel = element('section', '', 'arena-shell');
+  const panel = element('section', '', 'arena-shell arena-surface');
   panel.id = 'weapon-bench';
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');
@@ -506,14 +506,17 @@ export function createWeaponBench(element, info, send, buy, onToggle) {
       const id = i ? w?.attachments[i - 1] : w?.emitter;
       b.querySelector('.slot-icon').textContent = glyph(id || 0);
       b.querySelector('.slot-name').textContent = i
-        ? moduleName(id) + (i > availableMods ? ` · L${unlock[bay] + i}` : '')
+        ? moduleName(id) +
+          (i > availableMods
+            ? ` · ${id ? 'Dormant · activates at level' : 'Level'} ${unlock[bay] + i}`
+            : '')
         : weaponName(w);
       b.dataset.dormant = String(i > availableMods);
       b.dataset.module = id || 0;
       b.style.setProperty('--part', color(id || 0));
       b.disabled = !canEdit() || (i > 0 && !w);
       b.title = i
-        ? `${moduleName(id)} · activates at level ${unlock[bay] + i}`
+        ? `${moduleName(id)} · Component tier ${Math.floor((id || 0) / 32) + 1} · ${i > availableMods ? 'Dormant · ' : 'Active · '}activates at level ${unlock[bay] + i}`
         : 'Select a complete weapon from inventory to replace this build';
       b.setAttribute(
         'aria-label',

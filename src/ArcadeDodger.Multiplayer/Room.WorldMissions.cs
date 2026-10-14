@@ -105,7 +105,10 @@ public sealed partial class Room
         }
         else if (kind == "smuggling")
         {
-            targets = [p.Docked == 12 ? 11 : 12];
+            var destination = DeliveryDestination(p, p.Docked);
+            if (destination == 0)
+                return "no_delivery_station";
+            targets = [destination];
             state.IllegalCargo = 1;
         }
         else
@@ -126,6 +129,7 @@ public sealed partial class Room
         state.JobState = "active";
         state.Targets = targets;
         state.Progress.Clear();
+        state.LastKnownAttackers.Clear();
         Broadcast(
             "mission",
             "Assignment dispatch",
@@ -150,6 +154,7 @@ public sealed partial class Room
         state.IllegalCargo = 0;
         state.Reward = null;
         state.Progress.Clear();
+        state.LastKnownAttackers.Clear();
         return "ok";
     }
 
@@ -160,15 +165,7 @@ public sealed partial class Room
             return "assignment_incomplete";
         if (state.IllegalCargo > 0 && state.Police.Length > 0)
             return "resolve_inspection_first";
-        if (
-            p.Docked == 0
-            && !enemies.Any(e =>
-                e.Allied
-                && e.Hull > 0
-                && Vector2.Distance(e.Position, p.Position) < 180
-                && ServiceLine(p.Position, e.Position)
-            )
-        )
+        if (!CanTurnIn(p))
             return "contact_required";
         if (p.EconomyPending || state.RewardPending)
             return "busy";
@@ -241,6 +238,29 @@ public sealed partial class Room
         foreach (var p in players.Values)
         {
             var state = Living(p);
+            if (state.Job == "smuggling" && state.JobState is "active" or "waiting")
+            {
+                if (!DeliveryStation(state.Targets[0]))
+                {
+                    var destination = DeliveryDestination(p);
+                    if (destination != 0)
+                    {
+                        state.Targets = [destination];
+                        state.JobState = "active";
+                        Broadcast(
+                            "mission",
+                            p.Name,
+                            "Delivery rerouted to "
+                                + Location(destination)!.Name
+                                + ". Original reward retained."
+                        );
+                    }
+                    else
+                        state.JobState = "waiting";
+                }
+                else if (state.JobState == "waiting")
+                    state.JobState = "active";
+            }
             if (state.JobState != "active")
                 continue;
             if (

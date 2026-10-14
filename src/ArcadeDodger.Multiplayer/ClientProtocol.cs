@@ -16,7 +16,8 @@ public sealed record InputMessage(
     bool Fire,
     bool Menu,
     bool Editing = false,
-    bool Brake = false
+    bool Brake = false,
+    bool CursorSteering = false
 ) : SequencedMessage(Sequence);
 
 public sealed record ChoiceMessage(int Sequence, string Choice) : SequencedMessage(Sequence);
@@ -38,7 +39,7 @@ public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 12;
+    public const int Version = 15;
     public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -100,6 +101,7 @@ public static class ClientProtocol
                                     or "menu"
                                     or "editing"
                                     or "brake"
+                                    or "cursorSteering"
                                 )
                         )
                         || !Sequence(root, out var sequence)
@@ -116,7 +118,23 @@ public static class ClientProtocol
                     var brake = false;
                     if (names.Contains("brake") && !Boolean(root, "brake", out brake))
                         return false;
-                    message = new InputMessage(sequence, x, y, aim, fire, menu, editing, brake);
+                    var cursorSteering = false;
+                    if (
+                        names.Contains("cursorSteering")
+                        && !Boolean(root, "cursorSteering", out cursorSteering)
+                    )
+                        return false;
+                    message = new InputMessage(
+                        sequence,
+                        x,
+                        y,
+                        aim,
+                        fire,
+                        menu,
+                        editing,
+                        brake,
+                        cursorSteering
+                    );
                     return true;
                 case "choice":
                     if (
@@ -208,6 +226,7 @@ public static class ClientProtocol
                                 or "radio_close"
                                 or "convoy_buy"
                                 or "tow"
+                                or "receipts_ack"
                                 or "race_join"
                                 or "race_stop"
                                 or "race_retry"

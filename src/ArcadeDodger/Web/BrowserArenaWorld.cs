@@ -33,6 +33,7 @@ internal sealed partial class BrowserArenaWorld
         Muzzle,
         Hit,
         Death,
+        Service,
     }
 
     private readonly record struct Effect(
@@ -43,7 +44,9 @@ internal sealed partial class BrowserArenaWorld
         float Duration,
         EffectKind Kind,
         int Seed,
-        float Scale = 1
+        float Scale = 1,
+        int WeaponKind = 0,
+        string Material = ""
     );
 
     public void Draw(
@@ -88,7 +91,7 @@ internal sealed partial class BrowserArenaWorld
         if (snapshot.Tick > tick)
             Observe(snapshot, ownId, origin, time, reducedEffects);
         ObserveShots(snapshot, ownId, origin, time, reducedEffects);
-        ObserveCombat(snapshot, origin, time);
+        ObserveCombat(snapshot, origin, time, reducedEffects);
 
         DrawEffects(origin, time, reducedEffects);
         foreach (var drop in snapshot.Energy ?? [])
@@ -150,6 +153,15 @@ internal sealed partial class BrowserArenaWorld
             if (enemy.Kind != "installation")
                 DrawEnemy(enemy, origin, time, reducedEffects);
         foreach (var player in snapshot.Players)
+        {
+            var observer = snapshot.Players.FirstOrDefault(p => p.Id == ownId);
+            if (
+                player.Id != ownId
+                && observer is not null
+                && Vector2.DistanceSquared(new(player.X, player.Y), new(observer.X, observer.Y))
+                    > observer.DetectionRadius * observer.DetectionRadius
+            )
+                continue;
             DrawPlayer(
                 player,
                 ownId,
@@ -159,6 +171,7 @@ internal sealed partial class BrowserArenaWorld
                 snapshot.Social?.Friends.Any(n => FriendBook.Key(n) == FriendBook.Key(player.Name))
                     == true
             );
+        }
         DrawWeapons(snapshot, origin, time, reducedEffects);
         foreach (var blast in snapshot.Explosions ?? [])
         {
@@ -178,7 +191,9 @@ internal sealed partial class BrowserArenaWorld
                     Raylib.Fade(Gold, (1 - age) * .12f)
                 );
         }
+        DrawDebris(time, reducedEffects);
         DrawThreatWarnings(snapshot, ownId, origin);
+        DrawObjectiveOverlays(snapshot, origin, view);
     }
 
     private static Color EnemyColor(EnemySnapshot e) =>

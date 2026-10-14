@@ -48,6 +48,22 @@ internal sealed partial class BrowserArenaWorld
                         );
                 }
             }
+            var own = frame.Players.FirstOrDefault(p => p.Id == ownId);
+            if (
+                own is not null
+                && players.TryGetValue(ownId, out var previousPilot)
+                && (own.Docked != previousPilot.Docked || own.Experience > previousPilot.Experience)
+            )
+                Add(
+                    new(own.X, own.Y),
+                    Vector2.Zero,
+                    Cyan,
+                    time,
+                    .5f,
+                    EffectKind.Hit,
+                    ownId,
+                    origin
+                );
             foreach (var e in frame.Enemies ?? [])
             {
                 if (enemies.TryGetValue(e.Id, out var old) && e.Hull < old.Hull)
@@ -90,19 +106,7 @@ internal sealed partial class BrowserArenaWorld
             {
                 if (shots.Contains(s.Id) || low || s.Parent > 0)
                     continue;
-                Vector2 muzzle = new(s.X, s.Y);
-                if (s.Owner > 0)
-                {
-                    var owner = players.GetValueOrDefault(s.Owner);
-                    if (owner is not null)
-                        muzzle = new Vector2(owner.X, owner.Y) + Direction(new(s.Dx, s.Dy)) * 25;
-                }
-                else
-                {
-                    var owner = enemies.GetValueOrDefault(-s.Owner);
-                    if (owner is not null)
-                        muzzle = new Vector2(owner.X, owner.Y) + Direction(new(s.Dx, s.Dy)) * 25;
-                }
+                Vector2 muzzle = new(s.BirthX, s.BirthY);
                 Add(
                     muzzle,
                     Direction(new(s.Dx, s.Dy)),
@@ -142,6 +146,7 @@ internal sealed partial class BrowserArenaWorld
         lastCombatEvent = 0;
         shotTransitions = false;
         effects.Clear();
+        fragments.Clear();
         enemyHitFlashes.Clear();
         players.Clear();
         enemies.Clear();

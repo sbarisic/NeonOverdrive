@@ -29,10 +29,32 @@ internal sealed partial class BrowserArenaWorld
                     panel.Vertices[0]
                         + new Vector2(0, (panel.Vertices[3].Y - panel.Vertices[0].Y) / 2)
                 );
-                var glow = ChassisCatalog.Rotate(new Vector2(-6 - 18 * throttle, 0), heading);
-                Raylib.DrawLineEx(aft, aft + glow, 3 * scale, color);
+                var phase = (float)Raylib.GetTime() * 24 + at.X * .03f + panel.Vertices[0].Y;
+                var flicker = low
+                    ? 1
+                    : 1 + .12f * MathF.Sin(phase) + .06f * MathF.Sin(phase * 2.7f);
+                var length = (4 + 24 * throttle) * flicker * scale;
+                var tail = aft + ChassisCatalog.Rotate(new Vector2(-length, 0), heading);
+                var side = ChassisCatalog.Rotate(new Vector2(0, (2 + throttle) * scale), heading);
+                var cyan = new Color(65, 225, 255, 220);
+                var blue = new Color(65, 125, 255, 65);
                 if (!low)
-                    Raylib.DrawCircleV(aft, 7 * scale, Raylib.Fade(color, .12f));
+                {
+                    Raylib.DrawLineEx(
+                        aft,
+                        tail + ChassisCatalog.Rotate(new(-length * .5f, 0), heading),
+                        7 * scale,
+                        blue
+                    );
+                    Raylib.DrawCircleV(aft, 6 * scale, Raylib.Fade(cyan, .15f));
+                }
+                Raylib.DrawTriangle(aft + side, tail, aft - side, cyan);
+                Raylib.DrawLineEx(
+                    aft,
+                    aft + (tail - aft) * .45f,
+                    2 * scale,
+                    new Color(235, 255, 255, 255)
+                );
             }
         }
         for (var i = 0; i < 4; i++)
@@ -62,8 +84,8 @@ internal sealed partial class BrowserArenaWorld
         {
             var fill = panel.Material switch
             {
-                "bridge" => NeonRendering.Ink,
-                "engine" => Raylib.Fade(color, .8f),
+                "bridge" => Raylib.Fade(NeonRendering.Ink, color.A / 255f),
+                "engine" => Raylib.Fade(new Color(90, 200, 230, 220), color.A / 255f),
                 "armor" => Raylib.Fade(color, .45f),
                 _ => Raylib.Fade(color, .65f),
             };

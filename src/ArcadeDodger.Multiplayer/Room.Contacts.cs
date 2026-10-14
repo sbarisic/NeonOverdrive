@@ -14,6 +14,8 @@ public sealed record AssignmentSnapshot(
     int Cooldown
 );
 
+public sealed record ServiceAvailability(int Target, string Action, string Reason);
+
 public sealed record ServiceSnapshot(
     ContactSnapshot[] Contacts,
     OutpostSnapshot[] Outposts,
@@ -21,7 +23,8 @@ public sealed record ServiceSnapshot(
     int Hailing,
     int[] ClaimedCaches,
     AssignmentSnapshot Assignment,
-    int[] KnownCaches
+    int[] KnownCaches,
+    ServiceAvailability[]? Availability = null
 );
 
 public sealed partial class Room
@@ -76,6 +79,8 @@ public sealed partial class Room
             {
                 var at =
                     Location(10)!.Position + new Vector2(220, -80 + contacts.IndexOf(contact) * 80);
+                if (!TryLocalSpawn(at, ChassisCatalog.Get(3).Radius * EnemyCatalog.Size(1), out at))
+                    continue;
                 contact.Ship = new()
                 {
                     Id = ++nextEnemy,
@@ -93,7 +98,7 @@ public sealed partial class Room
                     Shield = 60,
                     MaxShield = 60,
                 };
-                enemies.Add(contact.Ship);
+                AddEnemy(contact.Ship);
                 contact.Destination = 11;
                 contact.DepartAt = Tick + 60 * TickRate;
             }
@@ -135,23 +140,14 @@ public sealed partial class Room
         if (!FriendlyStation(contact.Destination))
             contact.Destination = NextFriendlyStation(npc.Home);
         var destination = Location(contact.Destination)!.Position + new Vector2(150, 0);
-        if (Vector2.Distance(npc.Position, destination) < 180)
+        if (Vector2.Distance(npc.Position, destination) < 180 && npc.Velocity.LengthSquared() < 100)
         {
             npc.Home = contact.Destination;
             contact.Destination = NextFriendlyStation(npc.Home);
             contact.DepartAt = Tick + 60 * TickRate;
             return true;
         }
-        var delta = Navigate(npc, destination) - npc.Position;
-        if (delta.LengthSquared() > 1)
-        {
-            npc.Aim = MathF.Atan2(delta.Y, delta.X);
-            npc.Position = MoveShip(
-                npc.Position,
-                npc.Position + Vector2.Normalize(delta) * 100 / TickRate,
-                EnemyRadius(npc)
-            );
-        }
+        FlyNpc(npc, destination, 100, 120);
         return true;
     }
 
@@ -184,13 +180,14 @@ public sealed partial class Room
         var contact = contacts.FirstOrDefault(c => c.Ship?.Id == request.Target && c.Ship.Hull > 0);
         if (request.Action == "hail")
         {
-            if (
-                p.Docked != 0
-                || contact?.Ship is not { } ship
-                || Vector2.Distance(p.Position, ship.Position) > 180
-                || !ServiceLine(p.Position, ship.Position)
-            )
+            if (p.Docked != 0)
+                return "undock_first";
+            if (contact?.Ship is not { } ship)
+                return "target_gone";
+            if (Vector2.Distance(p.Position, ship.Position) > 180)
                 return "out_of_range";
+            if (!ServiceLine(p.Position, ship.Position))
+                return "blocked";
             state.Hailing = ship.Id;
             p.Pending = p.Held = null;
             state.InteractionTarget = 0;
@@ -265,6 +262,7 @@ public sealed partial class Room
             return;
         if (state.Job == "explorer" && state.JobTargets.Contains(cache.Id))
             state.JobProgress.Add(cache.Id);
+        CombatFx(0, 5, cache.Position, 2);
         var level = cache.Parent;
         pendingCredits.Add(
             new(++nextCredit, cache.Position, 20 * level, Tick + EnergyLifetimeTicks, p.Id)
@@ -276,12 +274,139 @@ public sealed partial class Room
         p.LootNoticeUntil = Tick + 240;
     }
 
+    private ServiceAvailability[] ServiceAvailabilityFor(Player p)
+    {
+        var result = new List<ServiceAvailability>();
+        string Range(Vector2 target) =>
+            Vector2.Distance(p.Position, target) > 180 ? "out_of_range"
+            : !ServiceLine(p.Position, target) ? "blocked"
+            : "";
+        var state = ExplorationFor(p);
+        var contract = Contracts.FirstOrDefault(c => c.Id == state.Contract);
+        foreach (
+            var l in Sector!.Locations.Where(l =>
+                l.Kind is "station" or "cache" or "beacon" or "wreck"
+            )
+        )
+        {
+            if (Vector2.Distance(p.Position, l.Position) > 240)
+                continue;
+            var action = l.Kind == "station" ? "dock" : "interact";
+            var reason = Range(l.Position);
+            if (p.Docked != 0)
+                reason = "undock_first";
+            else if (
+                l.Kind == "station"
+                && territory.TryGetValue(l.Id, out var control)
+                && (!control.Friendly || control.Contested)
+            )
+                reason = "station_contested";
+            else if (l.Kind != "station")
+            {
+                if (Vector2.Distance(p.Position, l.Position) > 100)
+                    reason = "out_of_range";
+                else if (
+                    l.Kind == "cache"
+                        ? state.Caches.Contains(l.Id)
+                        : !(
+                            contract?.Kind == "survey"
+                                && l.Kind == "beacon"
+                                && !state.Progress.Contains(l.Id)
+                            || contract?.Kind == "recover"
+                                && contract.Target == l.Id
+                                && !state.Carrying
+                        )
+                )
+                    reason = "assignment_unavailable";
+            }
+            result.Add(new(l.Id, action, reason));
+        }
+        foreach (var c in contacts.Where(c => c.Ship is { Hull: > 0 }))
+            result.Add(new(c.Ship!.Id, "hail", Range(c.Ship.Position)));
+        foreach (
+            var ship in enemies.Where(e =>
+                e.Allied && e.Hull > 0 && Vector2.Distance(p.Position, e.Position) <= Detection(p)
+            )
+        )
+            if (
+                civilians.Any(c => c.Ship == ship && c.Ship.Role == NpcRole.Trader)
+                || contacts.Any(c => c.Ship == ship && c.Role == "trader")
+            )
+                result.Add(
+                    new(
+                        ship.Id,
+                        "radio_trade",
+                        p.Docked != 0 ? "undock_first" : Range(ship.Position)
+                    )
+                );
+        foreach (var site in salvageSites.Values)
+        {
+            var reason =
+                territory.TryGetValue(site.Location.Id, out var control) && !control.Friendly
+                    ? "capture_required"
+                    : Range(site.Location.Position);
+            foreach (var action in new[] { "activate", "turret_one", "turret_two", "repair_bot" })
+                result.Add(new(site.Location.Id, action, reason));
+        }
+        var living = Living(p);
+        if (living.Tow != 0)
+            result.Add(new(0, "tow", ""));
+        foreach (
+            var cargo in worldCargo.Where(c => Vector2.Distance(p.Position, c.Position) <= 240)
+        )
+            if (cargo.Kind is not ("derelict" or "anomaly"))
+                result.Add(
+                    new(
+                        cargo.Id,
+                        "tow",
+                        living.Tow != 0 ? "already_towing"
+                            : cargo.Pending || cargo.Owner != 0 ? "tow_unavailable"
+                            : Range(cargo.Position)
+                    )
+                );
+        if (living.Job == "exploration" && living.JobState == "active")
+        {
+            var target = worldCargo.FirstOrDefault(c => c.Id == living.Targets.FirstOrDefault());
+            var reach = new[] { 2000, 900, 180 }[Math.Min(2, living.Progress.Count)];
+            result.Add(
+                new(
+                    0,
+                    "mission_scan",
+                    target is null ? "target_lost"
+                        : Vector2.Distance(p.Position, target.Position) > reach ? "signal_too_weak"
+                        : living.Progress.Count >= 2 && !ServiceLine(p.Position, target.Position)
+                            ? "signal_obstructed"
+                        : ""
+                )
+            );
+        }
+        if (living.JobState == "ready")
+            result.Add(
+                new(
+                    0,
+                    "mission_claim",
+                    p.EconomyPending || living.RewardPending ? "busy"
+                        : living.IllegalCargo > 0 && living.Police.Length > 0
+                            ? "resolve_inspection_first"
+                        : CanTurnIn(p) ? ""
+                        : "contact_required"
+                )
+            );
+        AddActionAvailability(p, result);
+        return result
+            .Select(v => v with { Reason = ActionReason(p, v.Action, v.Target) ?? v.Reason })
+            .ToArray();
+    }
+
     private ServiceSnapshot ServicesFor(Player p)
     {
         var state = ExplorationFor(p);
         return new(
             contacts
-                .Where(c => c.Ship is { Hull: > 0 })
+                .Where(c =>
+                    c.Ship is { Hull: > 0 }
+                    && Vector2.Distance(c.Ship.Position, p.Position) <= Detection(p)
+                )
                 .Select(c => new ContactSnapshot(
                     c.Ship!.Id,
                     c.Name,
@@ -304,7 +429,8 @@ public sealed partial class Room
                 state.Job == "explorer" ? 30 : 45,
                 (int)Math.Max(0, (state.JobCooldown - Tick) / TickRate)
             ),
-            state.Discovered.Where(id => Location(id)?.Kind == "cache").ToArray()
+            state.Discovered.Where(id => Location(id)?.Kind == "cache").ToArray(),
+            ServiceAvailabilityFor(p)
         );
     }
 }

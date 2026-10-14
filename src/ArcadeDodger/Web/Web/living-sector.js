@@ -1,3 +1,5 @@
+import { reconcile } from './stable-dom.js';
+import { actionMessage } from './action-messages.js';
 import { control } from './interface.js';
 
 export function createLivingSector(
@@ -28,6 +30,7 @@ export function createLivingSector(
     toggle = el('button', 'Radio / Missions');
   feed.id = 'radio-feed';
   panel.id = 'radio-console';
+  panel.classList.add('arena-surface');
   status.id = 'world-status';
   toggle.id = 'radio-toggle';
   panel.setAttribute('aria-label', 'Live radio communications');
@@ -42,10 +45,30 @@ export function createLivingSector(
     self,
     selected = 0,
     pendingTrade = 0,
+    pendingRun = '',
     lastKey = '',
-    mute = false;
+    mute = false,
+    suspended = false;
+  const pendingActions = new Map();
+  const economic = (action) =>
+    [
+      'convoy_buy',
+      'mission_claim',
+      'job_claim',
+      'police_pay',
+      'wreck_reactor',
+      'wreck_cargo',
+      'wreck_navigation',
+      'radio_trade',
+    ].includes(action);
   const act = (action, target = 0) => {
+    const key = action + ':' + target;
+    if (pendingActions.has(key)) return;
     const sequence = send(action, target);
+    if (sequence && economic(action)) {
+      pendingActions.set(key, sequence);
+      lastKey = '';
+    }
     if (action === 'radio_trade') pendingTrade = sequence || 0;
     if (action === 'radio' || action === 'radio_close') pendingTrade = 0;
     canvas.focus();
@@ -53,8 +76,29 @@ export function createLivingSector(
   function button(label, action, target = 0) {
     const b = el('button', label);
     b.dataset.radioAction = `${action}:${target}`;
-    control(b, 'locate');
-    b.onclick = () => act(action, target);
+    control(
+      b,
+      'locate',
+      'secondary',
+      action.includes('buy') || action === 'police_pay'
+        ? 'purchase'
+        : /abandon|close|refuse/.test(action)
+          ? 'danger'
+          : /claim|surrender/.test(action)
+            ? 'success'
+            : /radio|race/.test(action)
+              ? 'special'
+              : 'action',
+    );
+    const reason = frame?.sector?.services?.availability?.find(
+      (v) => v.target === target && v.action === action,
+    )?.reason;
+    b.disabled = pendingActions.has(`${action}:${target}`) || !!reason;
+    if (reason) b.title = actionMessage(reason);
+    b.onclick = () => {
+      act(action, target);
+      render();
+    };
     return b;
   }
   toggle.onclick = () => {
@@ -63,23 +107,9 @@ export function createLivingSector(
     render();
     canvas.focus();
   };
-  canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (!self || self.hull <= 0) return;
-    const bounds = canvas.getBoundingClientRect();
-    selected = host.ArenaPick(
-      (e.clientX - bounds.left) / bounds.width,
-      (e.clientY - bounds.top) / bounds.height,
-    );
-    if (!selected) return;
-    panel.hidden = false;
-    lastKey = '';
-    if (selected < 1000000) act('radio', selected);
-    else act('radio_close');
-    render();
-  });
   function render() {
-    toggle.hidden = !self || !panel.hidden;
+    toggle.hidden = suspended || !self || !panel.hidden;
+    feed.hidden = status.hidden = suspended || !self;
     feed.style.right = panel.hidden ? '18px' : 'auto';
     feed.style.left = panel.hidden ? 'auto' : '20px';
     const world = frame?.sector?.world;
@@ -106,8 +136,11 @@ export function createLivingSector(
       world.contacts?.map((c) => [c.id, c.cargoRevision]),
       world.cargo.map((c) => [c.id, c.owner]),
       frame.sector?.services?.assignment,
+      frame.sector?.services?.availability,
       world.job,
       world.jobState,
+      world.protection,
+      race?.stagingSeconds,
       world.objective?.uncertainty,
       world.event,
       world.eventTarget,
@@ -117,6 +150,7 @@ export function createLivingSector(
       frame.sector?.pilot?.receipt,
       frame.sector?.services?.hailing,
       mute,
+      [...pendingActions],
     ]);
     if (key === lastKey) return;
     lastKey = key;
@@ -124,17 +158,17 @@ export function createLivingSector(
     const focused = panel.contains(document.activeElement)
       ? document.activeElement.dataset.radioAction
       : null;
+    const content = el('div');
     const header = el('header');
     header.append(el('h3', 'LIVE RADIO'));
-    panel.replaceChildren(header);
+    content.append(header);
     const receipt = frame.sector?.pilot?.receipt;
     if (receipt && !['ok', 'pending'].includes(receipt.result))
-      panel.append(el('p', receipt.result.replaceAll('_', ' ')));
-    const close = el('button', 'Close');
-    control(close, 'exit');
-    close.onclick = () => {
-      panel.hidden = true;
-      act('radio_close');
+      content.append(el('p', actionMessage(receipt.result)));
+    const closeButton = el('button', 'Close');
+    control(closeButton, 'exit');
+    closeButton.onclick = () => {
+      close();
     };
     const muteButton = el('button', mute ? 'Unmute chatter' : 'Mute chatter');
     control(muteButton, 'friends');
@@ -144,7 +178,7 @@ export function createLivingSector(
       render();
       canvas.focus();
     };
-    header.append(close, muteButton);
+    header.append(closeButton, muteButton);
     if (world.eventObjective) {
       const event = el('button', 'Navigate: ' + world.event.replaceAll('-', ' '));
       control(event, 'locate');
@@ -152,7 +186,7 @@ export function createLivingSector(
         navigate(frame?.sector?.world?.eventObjective);
         canvas.focus();
       };
-      panel.append(event);
+      content.append(event);
     }
     const nearby = world.contacts || [];
     if (nearby.length) {
@@ -168,7 +202,7 @@ export function createLivingSector(
         if (selected) act('radio', selected);
         render();
       };
-      panel.append(picker);
+      content.append(picker);
     }
     if (world.cargo.length) {
       const picker = el('select');
@@ -188,13 +222,13 @@ export function createLivingSector(
         lastKey = '';
         render();
       };
-      panel.append(picker);
+      content.append(picker);
     }
     const cargo = world.cargo.find((c) => c.id === selected);
     if (cargo) {
-      panel.append(el('p', `${cargo.kind} · ${cargo.credits} credits`));
+      content.append(el('p', `${cargo.kind} · ${cargo.credits} credits`));
       if (cargo.kind === 'derelict') {
-        panel.append(
+        content.append(
           el(
             'p',
             [
@@ -205,24 +239,24 @@ export function createLivingSector(
           ),
         );
         for (const choice of ['reactor', 'cargo', 'navigation', 'abandon'])
-          panel.append(button(choice, 'wreck_' + choice, cargo.id));
+          content.append(button(choice, 'wreck_' + choice, cargo.id));
       } else if (cargo.kind === 'anomaly') {
-        panel.append(
+        content.append(
           el(
             'p',
             'Ancient signal: accept an exploration assignment from a contact, then take three sensor readings.',
           ),
         );
-      } else if (!cargo.owner) panel.append(button('Tow cargo', 'tow', cargo.id));
+      } else if (!cargo.owner) content.append(button('Tow cargo', 'tow', cargo.id));
     }
-    if (world.tow) panel.append(button('Stop tow', 'tow', 0));
+    if (world.tow) content.append(button('Stop tow', 'tow', 0));
     const contact = nearby.find((c) => c.id === selected);
     if (contact) {
-      panel.append(
+      content.append(
         el('p', `${contact.name} · ${contact.state}`),
         button('Hail / banter', 'radio', selected),
       );
-      if (contact.trade) panel.append(button('Close-range trade', 'radio_trade', selected));
+      if (contact.trade) content.append(button('Close-range trade', 'radio_trade', selected));
       if (
         frame.sector?.services?.contacts.some((c) => c.id === selected && c.role === 'trader') &&
         frame.sector.services.hailing === selected
@@ -230,26 +264,26 @@ export function createLivingSector(
         const shop = el('button', 'Open module shop');
         control(shop, 'shop');
         shop.onclick = openShop;
-        panel.append(shop);
+        content.append(shop);
       }
     }
     for (const stock of world.stock) {
       const row = el('div');
       row.dataset.stock = stock.id;
       row.append(el('span', stock.name), button(`${stock.price} credits`, 'convoy_buy', stock.id));
-      panel.append(row);
+      content.append(row);
     }
-    panel.append(el('h4', 'ASSIGNMENTS'));
+    content.append(el('h4', 'ASSIGNMENTS'));
     const legacy = frame.sector?.services?.assignment;
     if (legacy?.kind) {
-      panel.append(
+      content.append(
         el(
           'p',
           `${legacy.kind}: ${Math.min(3, legacy.progress)}/3${legacy.ready ? ' · Return to a contact or station' : ''}`,
         ),
       );
-      if (legacy.ready) panel.append(button('Claim completed work', 'job_claim'));
-      panel.append(button('Abandon assignment', 'mission_abandon'));
+      if (legacy.ready) content.append(button('Claim completed work', 'job_claim'));
+      content.append(button('Abandon assignment', 'mission_abandon'));
     } else if (!world.job)
       for (const kind of [
         'bounty',
@@ -259,9 +293,9 @@ export function createLivingSector(
         'exploration',
         'protection',
       ])
-        panel.append(button(kind, 'mission_' + kind));
+        content.append(button(kind, 'mission_' + kind));
     else {
-      panel.append(el('p', `${world.job}: ${world.jobState}`));
+      content.append(el('p', `${world.job}: ${world.jobState}`));
       const guidance = {
         bounty: 'Damage the marked enemy and help destroy it.',
         interception: 'Destroy the marked courier before it reaches its station.',
@@ -271,7 +305,7 @@ export function createLivingSector(
           'Take readings within 2,000, 900, then 180 units. The last reading requires a clear sensor path.',
         smuggling: 'Dock at the marked station without having your cargo confiscated.',
       };
-      panel.append(
+      content.append(
         el(
           'p',
           world.jobState === 'ready'
@@ -281,9 +315,37 @@ export function createLivingSector(
               : guidance[world.job],
         ),
       );
-      if (world.jobState === 'ready') panel.append(button('Claim completed work', 'mission_claim'));
-      panel.append(button('Abandon assignment', 'mission_abandon'));
-      if (world.job === 'exploration') panel.append(button('Take sensor reading', 'mission_scan'));
+      if (world.jobState === 'waiting')
+        content.append(
+          el(
+            'p',
+            'Waiting for a friendly, uncontested delivery station. Cargo and reward are preserved.',
+          ),
+        );
+      if (world.protection) {
+        const p = world.protection;
+        content.append(
+          el(
+            'p',
+            `Protected ship: ${p.hull} hull · ${p.shield} shields · ${p.remaining} attackers remaining · ${p.participated ? 'Participation secured' : 'Damage an attacker to qualify'}`,
+          ),
+          el('p', p.reason),
+        );
+        for (const mark of p.attackers) {
+          const locate = el(
+            'button',
+            `${mark.visible ? 'Attacker' : 'Last known attacker'} #${mark.id}`,
+          );
+          control(locate, 'locate');
+          locate.onclick = () => navigate({ x: mark.x, y: mark.y, name: locate.textContent });
+          content.append(locate);
+        }
+      }
+      if (world.jobState === 'ready')
+        content.append(button('Claim completed work', 'mission_claim'));
+      content.append(button('Abandon assignment', 'mission_abandon'));
+      if (world.job === 'exploration')
+        content.append(button('Take sensor reading', 'mission_scan'));
       if (world.objective) {
         const locate = el('button', 'Navigate to objective');
         control(locate, 'locate');
@@ -291,35 +353,72 @@ export function createLivingSector(
           navigate(frame?.sector?.world?.objective);
           canvas.focus();
         };
-        panel.append(locate);
+        content.append(locate);
       }
     }
-    if (world.police === 'scanning') panel.append(button('Surrender cargo', 'police_surrender'));
+    if (world.police === 'scanning') content.append(button('Surrender cargo', 'police_surrender'));
     if (world.police)
-      panel.append(
+      content.append(
         button('Confiscation + fine', 'police_pay'),
         button('Refuse inspection', 'police_refuse'),
       );
-    panel.append(el('h4', 'RACING · Arrival Port start'));
+    content.append(el('h4', 'RACING · Arrival Port start'));
     ['Sprint', 'Obstacle', 'Rally'].forEach((name, i) =>
-      panel.append(button(name, 'race_join', i)),
+      content.append(button(name, 'race_join', i)),
     );
-    if (race) panel.append(button('Leave race', 'race_stop'));
-    if (race?.state === 'save_failed') panel.append(button('Retry saving result', 'race_retry'));
+    if (race) {
+      content.append(button('Leave race', 'race_stop'));
+      if (race.state === 'staging') {
+        content.append(
+          el(
+            'p',
+            `Fly to your staging marker, stop below 5 u/s and align with its arrow. ${race.stagingSeconds}s remaining.`,
+          ),
+        );
+        const stage = el('button', 'Navigate to staging slot');
+        control(stage, 'locate');
+        stage.onclick = () => navigate({ x: race.stageX, y: race.stageY, name: 'Race staging' });
+        content.append(stage);
+      }
+    }
+    if (race?.state === 'save_failed') content.append(button('Retry saving result', 'race_retry'));
     const friendly = world.territory.filter((t) => t.owner === 'friendly').length;
-    panel.append(
+    content.append(
       el(
         'p',
         `Territory: ${Math.round((friendly / Math.max(1, world.territory.length)) * 100)}% friendly`,
       ),
     );
+    reconcile(panel, content);
     if (focused)
       [...panel.querySelectorAll('[data-radio-action]')]
         .find((b) => b.dataset.radioAction === focused)
         ?.focus({ preventScroll: true });
     panel.scrollTop = scroll;
   }
+  function close(keepTrade = false) {
+    if (panel.hidden) return false;
+    panel.hidden = true;
+    if (!keepTrade) act('radio_close');
+    render();
+    return true;
+  }
   return {
+    close,
+    suspend(value, keepTrade = false) {
+      if (suspended === value) return;
+      suspended = value;
+      if (value) close(keepTrade && !!frame?.sector?.services?.hailing);
+      render();
+    },
+    openTarget(id, trade = false) {
+      if (suspended) return;
+      selected = id;
+      panel.hidden = false;
+      lastKey = '';
+      act(trade ? 'radio_trade' : 'radio', id);
+      render();
+    },
     get trading() {
       return (
         !panel.hidden &&
@@ -329,9 +428,37 @@ export function createLivingSector(
       );
     },
     update(p, snapshot) {
+      if (!p || pendingRun !== p.runId) {
+        pendingActions.clear();
+        pendingTrade = 0;
+        pendingRun = p?.runId || '';
+      }
       self = p;
       frame = snapshot;
-      if (!p || frame?.sector?.pilot?.receipt?.sequence >= pendingTrade) pendingTrade = 0;
+      const receipt = frame?.sector?.pilot?.receipt;
+      for (const [key, seq] of pendingActions)
+        if (
+          !p ||
+          (frame?.sector?.pilot?.receipts || [receipt]).some(
+            (r) =>
+              r &&
+              seq >= r.sequence &&
+              seq <= (r.throughSequence || r.sequence) &&
+              !['pending', 'refund_pending'].includes(r.result),
+          )
+        )
+          pendingActions.delete(key);
+      if (
+        !p ||
+        (frame?.sector?.pilot?.receipts || [receipt]).some(
+          (r) =>
+            r &&
+            pendingTrade >= r.sequence &&
+            pendingTrade <= (r.throughSequence || r.sequence) &&
+            !['pending', 'refund_pending'].includes(r.result),
+        )
+      )
+        pendingTrade = 0;
       toggle.hidden = !p;
       feed.hidden = status.hidden = !p;
       if (!p) panel.hidden = true;

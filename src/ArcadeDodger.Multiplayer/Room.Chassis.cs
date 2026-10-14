@@ -19,9 +19,16 @@ public sealed partial class Room
             {
                 p.EconomyPending = false;
                 if (result == "ok" && p.Hull > 0)
+                {
                     LoadEquipment(p, profiles.Get(p.Name));
-                if (state.Receipt?.Sequence == request.Sequence)
-                    state.Receipt = new(request.Sequence, result);
+                    p.Position = ClearSpawn(
+                        p.Position,
+                        ChassisCatalog.Get(p.Chassis).Radius,
+                        ignorePilot: p.Id
+                    );
+                    p.Previous = p.Position;
+                }
+                state.Receipt = new(request.Sequence, result);
             }
         );
         return profiles.BackgroundWrites ? "pending" : state.Receipt.Result;

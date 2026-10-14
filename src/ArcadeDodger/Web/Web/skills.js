@@ -6,7 +6,7 @@ export function createSkillTree(element, info, buySkill, onToggle) {
   opener.hidden = true;
   opener.type = 'button';
   info.append(opener);
-  const panel = element('section', '', 'arena-shell');
+  const panel = element('section', '', 'arena-shell arena-surface');
   panel.id = 'arena-skills';
   panel.hidden = true;
   panel.setAttribute('role', 'dialog');

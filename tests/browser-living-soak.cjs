@@ -51,7 +51,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         await page.waitForTimeout(250);
         await page.keyboard.up('Space');
         const { frame, self } = await read(page);
-        assert.equal(frame.v, 12);
+        assert.equal(frame.v, 15);
         assert(Number.isFinite(self.x) && Number.isFinite(self.y));
         assert(frame.enemies.length <= 192 && frame.shots.length <= 512);
         assert(frame.sector.world.radio.length <= 32);

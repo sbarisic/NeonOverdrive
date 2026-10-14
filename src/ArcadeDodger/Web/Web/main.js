@@ -1,17 +1,31 @@
-import { dotnet } from './_framework/dotnet.js';
+import { createLoadingScreen } from './loading-screen.js';
 const canvas = document.getElementById('canvas');
 const status = document.getElementById('status');
+const loading = createLoadingScreen(status);
+const paintLoading = () =>
+  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 try {
-  const { getAssemblyExports, getConfig, runMain } = await dotnet.create();
+  const { dotnet } = await import('./_framework/dotnet.js');
+  const { getAssemblyExports, getConfig, runMain } = await dotnet
+    .withModuleConfig({ onDownloadResourceProgress: loading.progress })
+    .create();
+  loading.phase(
+    1,
+    'Starting flight systems',
+    'Preparing the renderer, instruments, and sector interface.',
+  );
+  await paintLoading();
   const config = getConfig();
   const exports = await getAssemblyExports(config.mainAssemblyName);
   const host = exports.ArcadeDodger.Web.BrowserHost;
   dotnet.instance.Module.canvas = canvas;
   await runMain();
-  status.hidden = true;
+  loading.phase(2, 'Preparing pilot console', 'Getting your multiplayer flight console ready.');
+  await paintLoading();
   canvas.focus();
   const { startNetwork } = await import('./network.js');
   startNetwork(host, canvas, status);
+  loading.ready();
   let running = true;
   window.addEventListener(
     'pagehide',
@@ -34,8 +48,7 @@ try {
       }
     } catch (error) {
       running = false;
-      status.hidden = false;
-      status.textContent = `Game stopped: ${error}`;
+      loading.fail(error, 'Flight systems stopped');
       console.error(error);
       try {
         host.Close();
@@ -46,7 +59,6 @@ try {
   }
   requestAnimationFrame(frame);
 } catch (error) {
-  status.hidden = false;
-  status.textContent = `Could not start game: ${error}`;
+  loading.fail(error);
   console.error(error);
 }

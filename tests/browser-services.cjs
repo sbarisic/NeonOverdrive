@@ -12,17 +12,16 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     const state = () =>
       page.locator('#network-info').evaluate((e) => JSON.parse(e.dataset.snapshot));
-    assert.equal((await state()).v, 12);
+    assert.equal((await state()).v, 15);
     assert.equal((await state()).sector.services.contacts.length, 3);
     const ownId = +(await page.locator('#network-info').getAttribute('data-player'));
     assert.equal((await state()).players.find((p) => p.id === ownId).playthrough, 1);
     await page.locator('#canvas').focus();
-    await page.keyboard.press('e');
     const trader = (await state()).sector.services.contacts.find((c) => c.role === 'trader');
-    await page
-      .locator('.service-board')
-      .getByRole('button', { name: 'Hail ' + trader.name, exact: true })
-      .click();
+    const hailAction = page.locator(`#context-actions [data-context-action="hail:${trader.id}"]`);
+    if (!(await hailAction.isVisible()))
+      await page.locator('#context-actions [data-context-action="more"]').click();
+    await hailAction.click();
     await page.getByRole('button', { name: 'Chat', exact: true }).waitFor();
     await page.waitForFunction(() => {
       const f = JSON.parse(document.querySelector('#network-info').dataset.snapshot);
@@ -79,7 +78,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert((await page.locator('.map-location[data-kind="contact"]').count()) >= 3);
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: v12, playthrough, contextual hailing, authored chat, cloak/exit, desktop footer, six gear colors, roaming map contacts.',
+      'PASS: v14, playthrough, contextual hailing, authored chat, cloak/exit, desktop footer, six gear colors, roaming map contacts.',
     );
   } finally {
     await browser.close();

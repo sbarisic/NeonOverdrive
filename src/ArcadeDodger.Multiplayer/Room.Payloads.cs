@@ -91,6 +91,7 @@ public sealed partial class Room
                 e.Hull--;
                 e.DamageFraction = MathF.Max(0, e.DamageFraction - 1);
             }
+            actual += absorbed;
             if (s.Burns > 0)
             {
                 if (
@@ -180,14 +181,24 @@ public sealed partial class Room
     private void Contact(Shot s, Player? p, Enemy? e, Vector2 at)
     {
         var amount = s.IsBeam ? s.Damage / TickRate : s.Damage;
+        var shieldBefore =
+            p is not null ? p.Shield - p.ShieldFraction
+            : e is not null ? e.Shield - e.ShieldFraction
+            : 0;
         var dealt = Hit(s, p, e, amount);
-        if (dealt > 0 && !s.IsBeam && s.Pierce > 0 && !s.Proximity)
+        var shieldAfter =
+            p is not null ? p.Shield - p.ShieldFraction
+            : e is not null ? e.Shield - e.ShieldFraction
+            : 0;
+        if ((dealt > 0 || shieldBefore > shieldAfter) && (!s.IsBeam || Tick % 6 == s.Weapon % 6))
             CombatFx(
                 s.Id,
-                3,
+                s.Pierce > 0 && !s.IsBeam ? 3 : 1,
                 at,
                 s.VisualPower,
-                s.Velocity.LengthSquared() > 0 ? Vector2.Normalize(s.Velocity) : Vector2.UnitX
+                s.Velocity.LengthSquared() > 0 ? Vector2.Normalize(s.Velocity) : Vector2.UnitX,
+                weaponKind: s.Kind,
+                material: shieldBefore > shieldAfter ? "shield" : "hull"
             );
         if (s.Secondary)
             return;

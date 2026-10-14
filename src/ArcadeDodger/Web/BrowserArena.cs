@@ -6,13 +6,14 @@ using Raylib_cs;
 
 namespace ArcadeDodger.Web;
 
+[JsonSerializable(typeof(SelectableContact[]))]
 [JsonSerializable(typeof(RoomSnapshot))]
 [JsonSerializable(typeof(SectorDefinition))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal partial class SnapshotJson : JsonSerializerContext { }
 
 // WebAssembly presentation of the authoritative multiplayer sector.
-internal sealed class BrowserArena
+internal sealed partial class BrowserArena
 {
     private RoomSnapshot? snapshot;
     private readonly SnapshotPlayback playback = new();
@@ -51,7 +52,15 @@ internal sealed class BrowserArena
         reducedEffects = reduced;
     }
 
-    public void Release() => world.ReleaseSector();
+    private readonly BrowserCrt crt = new();
+
+    public void Crt(int style) => crt.Style = Math.Clamp(style, 0, 2);
+
+    public void Release()
+    {
+        world.ReleaseSector();
+        crt.Release();
+    }
 
     public void SetSector(string json)
     {
@@ -70,14 +79,15 @@ internal sealed class BrowserArena
         prediction.Reset();
     }
 
-    public void Input(double x, double y, double aim, bool menu, bool brake) =>
+    public void Input(double x, double y, double aim, bool menu, bool brake, bool cursorSteering) =>
         prediction.Input(
             menuOpen ? 0 : (float)x,
             menuOpen ? 0 : (float)y,
             (float)aim,
             menuOpen || menu,
             clock.Elapsed.TotalSeconds,
-            brake
+            brake,
+            cursorSteering
         );
 
     public void SentInput(int sequence) =>
@@ -155,7 +165,10 @@ internal sealed class BrowserArena
         if (self is null)
             prediction.Reset();
         else
+        {
+            prediction.SetContacts(next, ownId);
             prediction.Receive(self, next.Tick, seconds);
+        }
     }
 
     public double Aim(double u, double v)
@@ -272,6 +285,7 @@ internal sealed class BrowserArena
         try
         {
             Raylib.ClearBackground(new Color(6, 8, 23, 255));
+            var postProcess = crt.Begin(reducedEffects);
             cameraKick = world.CameraKick((float)seconds, reducedEffects || menuOpen);
             Raylib.BeginMode2D(
                 new Camera2D
@@ -291,11 +305,15 @@ internal sealed class BrowserArena
                     (float)clock.Elapsed.TotalSeconds,
                     reducedEffects
                 );
+                if (!menuOpen)
+                    DrawSelection();
             }
             finally
             {
                 Raylib.EndMode2D();
             }
+            if (postProcess)
+                crt.End();
             BrowserArenaHud.Draw(
                 snapshot,
                 ownId,

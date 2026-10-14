@@ -247,13 +247,13 @@ public class InertialFlightTests
     public void BrakeIntentIsStrictlyBoolean(string value, bool valid)
     {
         var json =
-            $$"""{"v":12,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"brake":{{value}}}""";
+            $$"""{"v":15,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"brake":{{value}}}""";
         Assert.Equal(valid, ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out var parsed));
         if (valid)
             Assert.Equal(value == "true", Assert.IsType<InputMessage>(parsed).Brake);
         Assert.False(
             ClientProtocol.TryParse(
-                Encoding.UTF8.GetBytes(json.Replace("\"v\":12", "\"v\":11")),
+                Encoding.UTF8.GetBytes(json.Replace("\"v\":15", "\"v\":11")),
                 out _
             )
         );

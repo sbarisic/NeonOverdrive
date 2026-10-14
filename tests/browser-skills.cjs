@@ -70,13 +70,16 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
               const dx = next.x - p.x,
                 dy = next.y - p.y,
                 d = Math.hypot(dx, dy);
-              const desired = Math.atan2(dy, dx) + (!drop && d < 240 ? Math.PI / 2 : 0);
+              const speed = Math.min(180, Math.sqrt(160 * Math.max(0, d - (drop ? 0 : 200))));
+              const ax = (dx / Math.max(1, d)) * speed - p.velocityX,
+                ay = (dy / Math.max(1, d)) * speed - p.velocityY;
+              const desired = Math.atan2(ay, ax);
               const error = Math.atan2(
                 Math.sin(desired - p.heading),
                 Math.cos(desired - p.heading),
               );
               m.x = Math.max(-1, Math.min(1, error * 3));
-              const throttle = Math.abs(error) > 0.7 ? 0.15 : Math.min(1, d / 250);
+              const throttle = Math.abs(error) > 0.6 ? 0 : Math.min(1, Math.hypot(ax, ay) / 90);
               m.y = Math.max(-1, Math.min(1, (p.throttle - throttle) * 8));
             }
             if (enemy) {

@@ -6,7 +6,10 @@ namespace ArcadeDodger.Multiplayer;
 public static class Movement
 {
     public const float BrakeDeceleration = 300;
-    public const int ModelVersion = 2;
+    public const int ModelVersion = 5;
+
+    public static float AssistedAcceleration(float acceleration, Vector2 gravity) =>
+        acceleration + 2 * gravity.Length();
 
     public static bool Steer(
         ref Vector2 position,
@@ -23,7 +26,8 @@ public static class Movement
         bool inputAvailable = true,
         float turnRate = MathF.Tau / 3,
         float radius = Room.Radius,
-        bool brake = false
+        bool brake = false,
+        float? cursorHeading = null
     )
     {
         brake &= inputAvailable && !immobilized;
@@ -35,10 +39,15 @@ public static class Movement
             return false;
         }
         // Stationary pilots still turn, but need no repeated obstacle sweeps.
-        if (throttle == 0 && velocity == Vector2.Zero && (!inputAvailable || controls.Y >= 0))
+        if (
+            throttle == 0
+            && velocity == Vector2.Zero
+            && (!inputAvailable || controls.Y >= 0)
+            && (geometry?.GravityAt(position) ?? Vector2.Zero) == Vector2.Zero
+        )
         {
             if (inputAvailable)
-                heading = MathF.IEEERemainder(heading + controls.X * turnRate * dt, MathF.Tau);
+                heading = Turn(heading, controls.X, cursorHeading, turnRate * dt);
             return false;
         }
         // Fixed substeps bound turn integration error independently of packet/render cadence.
@@ -49,7 +58,7 @@ public static class Movement
             var slice = MathF.Min(remaining, 1f / 120);
             if (!immobilized && inputAvailable)
             {
-                heading = MathF.IEEERemainder(heading + controls.X * turnRate * slice, MathF.Tau);
+                heading = Turn(heading, controls.X, cursorHeading, turnRate * slice);
                 if (!brake)
                     throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
             }
@@ -69,6 +78,16 @@ public static class Movement
             remaining -= slice;
         }
         return collided;
+    }
+
+    public static float Turn(float heading, float manual, float? target, float step)
+    {
+        var change =
+            manual != 0 ? manual * step
+            : target is { } aim
+                ? Math.Clamp(MathF.IEEERemainder(aim - heading, MathF.Tau), -step, step)
+            : 0;
+        return MathF.IEEERemainder(heading + change, MathF.Tau);
     }
 
     public static bool Step(
@@ -98,6 +117,8 @@ public static class Movement
         // Avoid treating roundoff at a perpendicular heading as opposing thrust.
         var rate =
             Vector2.Dot(previous, input) < -previousSpeed * .00001f ? steering : acceleration;
+        var gravity = geometry?.GravityAt(position) ?? Vector2.Zero;
+        rate = AssistedAcceleration(rate, gravity);
         Vector2 end;
         if (brake)
         {
@@ -119,6 +140,9 @@ public static class Movement
                 velocity = Vector2.Normalize(velocity) * limit;
             end = position + (previous + velocity) * (.5f * dt);
         }
+        // External acceleration applies even with idle engines or brakes.
+        velocity += gravity * dt;
+        end += gravity * (.5f * dt * dt);
         if (geometry is not null)
             position = geometry.Move(position, end, radius, ref velocity);
         else

@@ -76,8 +76,7 @@ public sealed partial class Room
                     state.Progress.Clear();
                 }
                 p.EconomyPending = false;
-                if (state.Receipt?.Sequence == request.Sequence)
-                    state.Receipt = new(request.Sequence, r);
+                state.Receipt = new(request.Sequence, r);
             }
         );
         if (!profiles.BackgroundWrites)

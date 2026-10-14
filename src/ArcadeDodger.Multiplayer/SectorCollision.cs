@@ -7,12 +7,14 @@ public sealed class SectorCollision
 {
     private readonly SectorDefinition sector;
     private readonly int geometryCount;
+    private readonly SectorLocation[] gravityBodies;
     private readonly (Vector2 Position, float Radius)[] shipObstacles;
     private readonly Dictionary<(int, int), List<SectorObstacle>> cells = [];
 
     public SectorCollision(SectorDefinition sector)
     {
         this.sector = sector;
+        gravityBodies = sector.Locations.Where(l => l.Solid).ToArray();
         shipObstacles = sector
             .Locations.Where(l => l.Kind is "base" or "outpost" or "station")
             .Select(l => (l.Position, l.Kind == "station" ? 90f : l.Radius))
@@ -37,6 +39,26 @@ public sealed class SectorCollision
                     cells[(x, y)] = cell = [];
                 cell.Add(o);
             }
+    }
+
+    public Vector2 GravityAt(Vector2 position)
+    {
+        var result = Vector2.Zero;
+        if (sector.GravityRange <= 0 || sector.GravityAcceleration <= 0)
+            return result;
+        foreach (var body in gravityBodies)
+        {
+            if (!body.Solid)
+                continue;
+            var delta = body.Position - position;
+            var distance = delta.Length();
+            var altitude = MathF.Max(0, distance - body.Radius);
+            if (distance < .001f || altitude >= sector.GravityRange)
+                continue;
+            var strength = 1 - altitude / sector.GravityRange;
+            result += delta / distance * (sector.GravityAcceleration * strength * strength);
+        }
+        return result;
     }
 
     public IEnumerable<SectorObstacle> Query(Vector2 a, Vector2 b, float padding = 0)

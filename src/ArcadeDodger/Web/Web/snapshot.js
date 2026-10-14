@@ -89,6 +89,7 @@ export function presentSnapshot(host, f) {
       p.cruiseTicks || 0,
       +!!p.braking,
       p.cruiseMultiplier ?? 1,
+      p.inertia ?? 1,
     ),
   );
   list(f.shots, (s) => {
@@ -148,6 +149,10 @@ export function presentSnapshot(host, f) {
       e.surfacePlanet || 0,
       e.chassis || 0,
       label(e.role || 'combat'),
+      e.heading ?? e.aim ?? 0,
+      e.velocityX || 0,
+      e.velocityY || 0,
+      e.throttle || 0,
     ),
   );
   list(f.energy, (e) => a.push(e.id, e.x, e.y, e.value, e.owner || 0));
@@ -175,7 +180,25 @@ export function presentSnapshot(host, f) {
   list(f.social?.friends, (n) => a.push(label(n)));
   a.push(f.workshop?.credits ?? 0);
   list(f.combatEvents, (e) =>
-    a.push(e.id, e.shot, e.kind, e.x, e.y, e.born, e.size, e.dx || 0, e.dy || 0),
+    a.push(
+      e.id,
+      e.shot,
+      e.kind,
+      e.x,
+      e.y,
+      e.born,
+      e.size,
+      e.dx || 0,
+      e.dy || 0,
+      e.chassis ?? -1,
+      e.heading || 0,
+      e.scale || 1,
+      label(e.faction || ''),
+      e.velocityX || 0,
+      e.velocityY || 0,
+      e.weaponKind || 0,
+      label(e.material || ''),
+    ),
   );
   a.push(f.sector?.pilot?.interactionTarget || 0, f.sector?.pilot?.interaction || 0);
   const rescue = f.sector?.rescue;
@@ -212,6 +235,7 @@ export function presentSnapshot(host, f) {
     list(job.targets, (id) => a.push(id));
     a.push(+job.ready, job.credits, job.experience, job.cooldown);
     list(services.knownCaches, (id) => a.push(id));
+    list(services.availability, (v) => a.push(v.target, label(v.action), label(v.reason)));
   }
   const world = f.sector?.world;
   list(world?.territory, (t) => a.push(t.id, label(t.owner), t.capture, +t.contested));
@@ -223,5 +247,17 @@ export function presentSnapshot(host, f) {
     list(race.course, (n) => a.push(n));
     list(race.ghost, (n) => a.push(n));
   }
+  list(world?.contacts, (c) =>
+    a.push(
+      c.id,
+      label(c.name),
+      label(c.role),
+      label(c.state),
+      c.destination,
+      c.cargoRevision,
+      +c.trade,
+      +c.work,
+    ),
+  );
   host.ArenaSnapshotPacked(a, text);
 }

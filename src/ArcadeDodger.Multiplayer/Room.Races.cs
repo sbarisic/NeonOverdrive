@@ -12,7 +12,11 @@ public sealed record RaceSnapshot(
     float Seconds,
     int Countdown,
     float[] Course,
-    float[] Ghost
+    float[] Ghost,
+    float StageX = 0,
+    float StageY = 0,
+    float StageHeading = 0,
+    int StagingSeconds = 0
 );
 
 public sealed partial class Room
@@ -28,7 +32,12 @@ public sealed partial class Room
             CollisionAt;
         public int Checkpoint = 1;
         public float Penalty;
-        public string State = "countdown";
+        public string State = "preparing";
+        public string Preparation = "";
+        public Vector2 Stage;
+        public float StageHeading;
+        public long StageDeadline;
+        public bool Staged;
         public readonly List<float> Ghost = [];
         public float[] PreviousGhost = [];
         public float Result;
@@ -40,15 +49,25 @@ public sealed partial class Room
     private bool Racing(Player p) =>
         races.TryGetValue(p.Id, out var race)
         && race.Run == p.RunId
-        && race.State is "countdown" or "racing";
+        && (
+            race.State is "countdown" or "racing"
+            || race.State == "staging"
+                && (p.LastDamage < 0 || Tick - p.LastDamage >= 5 * TickRate)
+                && Vector2.Distance(p.Position, race.Stage) <= 350
+        );
 
-    private bool RaceCountdown(Player p) => Racing(p) && races[p.Id].Start > Tick;
+    private bool RaceCountdown(Player p) =>
+        Racing(p) && races[p.Id].State == "countdown" && races[p.Id].Start > Tick;
 
     private string JoinRace(Player p, int category)
     {
         if (category is < 0 or > 2 || Sector is null || navigation is null)
             return "invalid_race";
-        if (Racing(p))
+        if (
+            races.TryGetValue(p.Id, out var current)
+            && current.Run == p.RunId
+            && current.State is "preparing" or "staging" or "countdown" or "racing"
+        )
             return "already_racing";
         if (
             p.Menu
@@ -87,30 +106,21 @@ public sealed partial class Room
                 start,
             ],
         };
-        var points = new List<Vector2> { start };
-        foreach (var goal in goals)
-        {
-            var path = navigation.Route(points[^1], goal, ChassisCatalog.Get(p.Chassis).Radius);
-            if (path.Length == 0)
-                return "course_unavailable";
-            foreach (var point in path)
-                if (Vector2.Distance(points[^1], point) > 100)
-                    points.Add(point);
-        }
-        var existing = races.Values.FirstOrDefault(r =>
-            r.Category == kind && r.State == "countdown" && r.Start > Tick
-        );
-        var startAt = existing?.Start ?? Tick + 10 * TickRate;
+        CancelCruise(p);
+        var preparation = PrepareRace(category, goals, start, ChassisCatalog.Get(p.Chassis).Radius);
+        var points = preparation.Path;
+        var startAt = 0L;
         var key = string.Create(
             CultureInfo.InvariantCulture,
-            $"flight{Movement.ModelVersion}:{Sector.Seed}:{kind}:{p.Chassis}:{Gear(p, 12)}:{MoveSpeedFor(p):F2}:{TurnRateFor(p):F3}:{AccelerationFor(p):F2}:{SteeringFor(p):F2}"
+            $"race2:flight{Movement.ModelVersion}:{Sector.Seed}:{kind}:{p.Chassis}:{Gear(p, 12)}:{MoveSpeedFor(p):F2}:{TurnRateFor(p):F3}:{AccelerationFor(p):F2}:{SteeringFor(p):F2}"
         );
         races[p.Id] = new()
         {
             Run = p.RunId,
             Category = kind,
             Key = key,
-            Course = points.ToArray(),
+            Course = points,
+            Preparation = preparation.Key,
             Start = startAt,
             ProgressAt = startAt,
             PreviousGhost =
@@ -141,7 +151,7 @@ public sealed partial class Room
         Broadcast(
             "race",
             "Race control",
-            $"{kind} starts in {(startAt - Tick) / TickRate}s. Combat disabled for entrants."
+            $"{kind} course preparing. Fly to your assigned staging slot when ready."
         );
         return "ok";
     }
@@ -155,9 +165,10 @@ public sealed partial class Room
 
     private void StepRaces()
     {
+        AdvanceRaceCourses();
         foreach (var (id, race) in races)
         {
-            if (race.State is not ("countdown" or "racing"))
+            if (race.State is not ("preparing" or "staging" or "countdown" or "racing"))
                 continue;
             if (
                 !players.TryGetValue(id, out var p)
@@ -169,6 +180,11 @@ public sealed partial class Room
             )
             {
                 race.State = "abandoned";
+                continue;
+            }
+            if (race.State is "preparing" or "staging")
+            {
+                StageRace(p, race);
                 continue;
             }
             if (Tick < race.Start)
@@ -227,13 +243,18 @@ public sealed partial class Room
         }
     }
 
-    private void SaveRaceResult(Player p, RaceRun race)
+    private void SaveRaceResult(Player p, RaceRun race, int sequence = 0)
     {
         race.State = "saving";
         var record = new RaceRecord(race.Key, race.Category, race.Result, race.Ghost.ToArray());
         Persist(
             () => profiles.SaveRace(p.Name, record),
-            result => race.State = result == "ok" ? "finished" : "save_failed"
+            result =>
+            {
+                race.State = result == "ok" ? "finished" : "save_failed";
+                if (sequence > 0 && race.Run == p.RunId)
+                    ExplorationFor(p).Receipt = new(sequence, result);
+            }
         );
     }
 
@@ -245,7 +266,7 @@ public sealed partial class Room
             || race.State != "save_failed"
         )
             return "no_failed_record";
-        SaveRaceResult(p, race);
+        SaveRaceResult(p, race, p.LastReceived);
         return race.State == "finished" ? "ok" : "pending";
     }
 
@@ -255,12 +276,16 @@ public sealed partial class Room
                 r.Category,
                 r.State,
                 r.Checkpoint,
-                r.Result > 0
-                    ? r.Result
+                r.Result > 0 ? r.Result
+                    : r.State is "preparing" or "staging" ? 0
                     : MathF.Max(0, (Tick - r.Start) / (float)TickRate) + r.Penalty,
                 (int)Math.Max(0, (r.Start - Tick) / TickRate),
                 r.Course.SelectMany(v => new[] { v.X, v.Y }).ToArray(),
-                r.PreviousGhost
+                r.PreviousGhost,
+                r.Stage.X,
+                r.Stage.Y,
+                r.StageHeading,
+                (int)Math.Max(0, (r.StageDeadline - Tick) / TickRate)
             )
             : null;
 }

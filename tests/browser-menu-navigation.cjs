@@ -53,7 +53,18 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       await page.screenshot({ path: `artifacts/browser-check/menu-alliances-${size.width}.png` });
       await navigate('pilot');
     }
-    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    const resume = page.getByRole('button', { name: 'Resume', exact: true });
+    await resume.focus();
+    await resume.press('Space');
+    await page.locator('#arena-menu').waitFor({ state: 'hidden' });
+    assert(
+      !(await page
+        .locator('#network-info')
+        .evaluate((e) =>
+          JSON.parse(e.dataset.snapshot).shots.some((s) => s.owner === +e.dataset.player),
+        )),
+      'focused Space must not fire',
+    );
     await page.keyboard.press('e');
     const dock = page.getByRole('button', { name: 'Dock at Arrival Port', exact: true });
     if (await dock.isVisible()) await dock.click();

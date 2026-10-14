@@ -34,7 +34,20 @@ public partial class BrowserHost
     public static double ArenaAim(double u, double v) => arena?.Aim(u, v) ?? 0;
 
     [JSExport]
+    public static string ArenaRadarPoint(double u, double v) => BrowserArenaHud.RadarPoint(u, v);
+
+    [JSExport]
+    public static string ArenaContacts() => arena?.ContactJson() ?? "[]";
+
+    [JSExport]
+    public static void ArenaSelection(string selected, string hovered) =>
+        arena?.Select(selected, hovered);
+
+    [JSExport]
     public static int ArenaPick(double u, double v) => arena?.Pick(u, v) ?? 0;
+
+    [JSExport]
+    public static void ArenaCrt(int style) => arena?.Crt(style);
 
     [JSExport]
     public static void ArenaPresentation(bool menuOpen, bool reducedEffects) =>
@@ -56,8 +69,14 @@ public partial class BrowserHost
         BrowserArenaHud.Configure(width, height);
 
     [JSExport]
-    public static void ArenaInput(double x, double y, double aim, bool menu, bool brake) =>
-        arena?.Input(x, y, aim, menu, brake);
+    public static void ArenaInput(
+        double x,
+        double y,
+        double aim,
+        bool menu,
+        bool brake,
+        bool cursorSteering
+    ) => arena?.Input(x, y, aim, menu, brake, cursorSteering);
 
     [JSExport]
     public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);

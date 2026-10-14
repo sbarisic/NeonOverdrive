@@ -6,7 +6,7 @@ namespace ArcadeDodger.Web;
 
 internal sealed partial class BrowserArenaWorld
 {
-    private void ObserveCombat(RoomSnapshot frame, Vector2 origin, float time)
+    private void ObserveCombat(RoomSnapshot frame, Vector2 origin, float time, bool low)
     {
         foreach (var e in frame.CombatEvents ?? [])
         {
@@ -18,6 +18,8 @@ internal sealed partial class BrowserArenaWorld
             Vector2 position = new(e.X, e.Y);
             if (!Visible(position, origin, 160))
                 continue;
+            if (e.Kind == 2)
+                Breakup(e, time, low);
             // Reserve room for destruction; cosmetic trails/muzzles must not crowd it out.
             if (effects.Count >= EffectCapacity)
             {
@@ -33,12 +35,26 @@ internal sealed partial class BrowserArenaWorld
                 new(
                     position,
                     new(e.Dx, e.Dy),
-                    death ? new Color(255, 145, 60, 255) : Gold,
+                    e.Kind == 5 ? new Color(80, 255, 160, 255)
+                        : death ? new Color(255, 145, 60, 255)
+                        : e.Material == "shield" ? Shield
+                        : e.WeaponKind == 4 ? new Color(195, 110, 255, 255)
+                        : e.WeaponKind == 2 ? Cyan
+                        : e.WeaponKind == 3 ? new Color(255, 145, 60, 255)
+                        : Gold,
                     time,
-                    death ? .85f : .24f,
-                    death ? EffectKind.Death : EffectKind.Hit,
+                    e.Kind == 5 ? .7f
+                        : death ? .85f
+                        : .24f,
+                    e.Kind == 5 ? EffectKind.Service
+                        : death ? EffectKind.Death
+                        : EffectKind.Hit,
                     e.Id,
-                    death ? Math.Clamp(e.Size / 20, .7f, 3) : Math.Clamp(MathF.Sqrt(e.Size), .7f, 2)
+                    death
+                        ? Math.Clamp(e.Size / 20, .7f, 3)
+                        : Math.Clamp(MathF.Sqrt(e.Size), .7f, 2),
+                    e.WeaponKind,
+                    e.Material
                 )
             );
         }
@@ -94,6 +110,11 @@ internal sealed partial class BrowserArenaWorld
                     continue;
                 var side = new Vector2(-e.Direction.Y, e.Direction.X);
                 Raylib.DrawCircleV(e.Position, 18 * alpha, Raylib.Fade(color, .12f));
+                Raylib.DrawCircleLinesV(
+                    e.Position + e.Direction * 6,
+                    3 + 12 * progress,
+                    Raylib.Fade(color, alpha * .5f)
+                );
                 Raylib.DrawTriangle(
                     e.Position + side * 5 * alpha,
                     e.Position - side * 5 * alpha,
@@ -107,6 +128,17 @@ internal sealed partial class BrowserArenaWorld
                     Raylib.Fade(NeonRendering.Ink, alpha)
                 );
                 Raylib.DrawCircleV(e.Position, 4 * alpha, Raylib.Fade(NeonRendering.Ink, alpha));
+                continue;
+            }
+            if (e.Kind == EffectKind.Service)
+            {
+                Raylib.DrawPolyLinesEx(e.Position, 6, 16 + 45 * progress, 30, 2, color);
+                if (!low)
+                    Raylib.DrawCircleLinesV(
+                        e.Position,
+                        10 + 65 * progress,
+                        Raylib.Fade(color, .4f)
+                    );
                 continue;
             }
             var death = e.Kind == EffectKind.Death;
@@ -129,6 +161,34 @@ internal sealed partial class BrowserArenaWorld
                             color
                         );
                 }
+            }
+            if (!low && !death)
+            {
+                if (e.Material == "shield")
+                    for (var ring = 0; ring < 2; ring++)
+                        Raylib.DrawCircleLinesV(
+                            e.Position,
+                            (8 + progress * 28 + ring * 7) * size,
+                            Raylib.Fade(Shield, alpha * (.6f - ring * .2f))
+                        );
+                else if (e.WeaponKind == 4)
+                    for (var drop = 0; drop < 4; drop++)
+                    {
+                        var angle = e.Seed + drop * MathF.PI / 2;
+                        var at =
+                            e.Position
+                            + new Vector2(MathF.Cos(angle), MathF.Sin(angle))
+                                * 30
+                                * progress
+                                * size;
+                        Raylib.DrawCircleV(at, 5 * alpha * size, Raylib.Fade(color, .7f));
+                    }
+                else if (e.WeaponKind == 3)
+                    Raylib.DrawCircleLinesV(
+                        e.Position,
+                        (6 + progress * 65) * size,
+                        Raylib.Fade(Gold, alpha * .7f)
+                    );
             }
             var radius = (death ? 8 + 70 * progress : 3 + 24 * progress) * size;
             Raylib.DrawCircleLines((int)e.Position.X, (int)e.Position.Y, radius, color);

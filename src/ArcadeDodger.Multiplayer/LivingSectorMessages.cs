@@ -66,5 +66,18 @@ public sealed record LivingSnapshot(
     RaceSnapshot? Race = null,
     WorldObjective? Objective = null,
     RadioContact[]? Contacts = null,
-    WorldObjective? EventObjective = null
+    WorldObjective? EventObjective = null,
+    ProtectionStatus? Protection = null
+);
+
+public sealed record ProtectionMark(int Id, float X, float Y, bool Visible, long SeenAt);
+
+public sealed record ProtectionStatus(
+    int Ship,
+    int Hull,
+    int Shield,
+    int Remaining,
+    bool Participated,
+    string Reason,
+    ProtectionMark[] Attackers
 );

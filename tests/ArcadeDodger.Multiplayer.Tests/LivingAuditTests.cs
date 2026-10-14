@@ -149,8 +149,14 @@ public class LivingAuditTests
         Set(npc, "LastHit", 19L);
         Call(room, "MoveCivilian", npc);
         Assert.Equal(10, Get(agent, "Destination"));
+        for (var i = 0; i < 90; i++)
+        {
+            Call(room, "MoveCivilian", npc);
+            Call(room, "StepNpcFlight");
+        }
         Assert.True(Vector2.Distance((Vector2)Get(npc, "Position"), station) < 400);
         Set(npc, "Position", station + new Vector2(160, 0));
+        Set(npc, "Velocity", Vector2.Zero);
         Call(room, "MoveCivilian", npc);
         Assert.Equal(10, Get(npc, "Home"));
     }

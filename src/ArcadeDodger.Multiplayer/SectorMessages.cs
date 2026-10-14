@@ -3,7 +3,13 @@ namespace ArcadeDodger.Multiplayer;
 public sealed record SectorActionMessage(int Sequence, string Action, int Target = 0)
     : SequencedMessage(Sequence);
 
-public sealed record SectorReceipt(int Sequence, string Result);
+public sealed record SectorReceipt(
+    int Sequence,
+    string Result,
+    int Cursor = 0,
+    string Run = "",
+    int ThroughSequence = 0
+);
 
 public sealed record LocationState(int Id, int Hull, string State, int LaunchTicks = 0);
 
@@ -33,7 +39,8 @@ public sealed record SectorSessionSnapshot(
     string LootNotice = "",
     int[]? CoolingContracts = null,
     int[]? Contributions = null,
-    int InteractionTarget = 0
+    int InteractionTarget = 0,
+    SectorReceipt[]? Receipts = null
 );
 
 public sealed record MapPing(

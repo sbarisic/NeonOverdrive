@@ -18,6 +18,56 @@ public sealed class LocalPrediction
     private readonly List<Sent> sent = new();
     private PlayerSnapshot? authoritative;
     private SectorCollision? geometry;
+    private readonly List<(
+        Vector2 Position,
+        Vector2 Velocity,
+        Vector2[] Hull,
+        float Radius
+    )> contacts = [];
+
+    public void SetContacts(RoomSnapshot frame, int ownId)
+    {
+        contacts.Clear();
+        var self = frame.Players.FirstOrDefault(p => p.Id == ownId);
+        if (self is null)
+            return;
+        bool Visible(float x, float y) =>
+            Vector2.DistanceSquared(new(self.X, self.Y), new(x, y))
+            <= self.DetectionRadius * self.DetectionRadius;
+        foreach (
+            var p in frame.Players.Where(p => p.Id != ownId && p.Hull > 0 && Visible(p.X, p.Y))
+        )
+            contacts.Add(
+                (
+                    new(p.X, p.Y),
+                    new(p.VelocityX, p.VelocityY),
+                    ShipContact.Hull(p.Chassis, p.Heading),
+                    ChassisCatalog.Get(p.Chassis).Radius
+                )
+            );
+        foreach (var e in frame.Enemies ?? [])
+            if (e.Hull > 0 && Visible(e.X, e.Y))
+            {
+                var structure =
+                    e.Kind
+                    is "installation"
+                        or "turret"
+                        or "rover"
+                        or "salvage-core"
+                        or "salvage-turret"
+                        or "repair-bot";
+                contacts.Add(
+                    (
+                        new(e.X, e.Y),
+                        Vector2.Zero,
+                        structure
+                            ? ShipContact.Disc(e.Radius)
+                            : ShipContact.Hull(e.Chassis, e.Heading, EnemyCatalog.Size(e.Level)),
+                        e.Radius
+                    )
+                );
+            }
+    }
 
     public void SetSector(SectorDefinition sector) => geometry = new(sector);
 
@@ -35,7 +85,8 @@ public sealed class LocalPrediction
         Vector2 Direction,
         float Aim,
         bool Menu,
-        bool Brake
+        bool Brake,
+        bool CursorSteering
     );
 
     private readonly record struct Sent(int Sequence, double At);
@@ -58,10 +109,19 @@ public sealed class LocalPrediction
         correction = Vector2.Zero;
         history.Clear();
         sent.Clear();
+        contacts.Clear();
     }
 
     // Called promptly on local changes, and refreshed independently of packet frequency.
-    public void Input(float x, float y, float aim, bool menu, double seconds, bool brake = false)
+    public void Input(
+        float x,
+        float y,
+        float aim,
+        bool menu,
+        double seconds,
+        bool brake = false,
+        bool cursorSteering = false
+    )
     {
         if (
             !double.IsFinite(seconds)
@@ -84,11 +144,13 @@ public sealed class LocalPrediction
             && prior.Direction == direction
             && prior.Menu == menu
             && prior.Brake == brake
+            && prior.CursorSteering == cursorSteering
+            && (!cursorSteering || prior.Aim == aim)
             && seconds < prior.RefreshedAt + InputTimeoutSeconds
         )
             history[^1] = prior with { RefreshedAt = seconds, Aim = aim };
         else
-            history.Add(new(seconds, seconds, direction, aim, menu, brake));
+            history.Add(new(seconds, seconds, direction, aim, menu, brake, cursorSteering));
         Trim(seconds);
     }
 
@@ -213,6 +275,7 @@ public sealed class LocalPrediction
                     )
                         is not null;
             var cancelledActiveCruise = cruiseCancelled && p.CruiseState == "active";
+            var before = position;
             var collided = Movement.Steer(
                 ref position,
                 ref velocity,
@@ -228,8 +291,52 @@ public sealed class LocalPrediction
                 held,
                 p.TurnRate * (cancelledActiveCruise ? 2 : 1),
                 ChassisCatalog.Get(p.Chassis).Radius,
-                held && intent.Brake
+                held && intent.Brake,
+                held && intent.CursorSteering ? intent.Aim : null
             );
+            if (!p.Menu && !(held && intent.Menu))
+            {
+                Vector2[]? hull = null;
+                foreach (var body in contacts)
+                {
+                    var start = body.Position + body.Velocity * (float)(time - anchorTime);
+                    var other = start + body.Velocity * dt;
+                    var otherVelocity = body.Velocity;
+                    if (
+                        SectorCollision.DistanceToSegment(other, before, position)
+                        > ChassisCatalog.Get(p.Chassis).Radius
+                            + body.Radius
+                            + body.Velocity.Length() * dt
+                    )
+                        continue;
+                    hull ??= ShipContact.Hull(p.Chassis, heading);
+                    var beforeContact = position;
+                    if (
+                        ShipContact.Resolve(
+                            hull,
+                            before,
+                            ref position,
+                            ref velocity,
+                            1,
+                            body.Hull,
+                            start,
+                            ref other,
+                            ref otherVelocity,
+                            0
+                        )
+                    )
+                    {
+                        collided = true;
+                        if (geometry is not null)
+                            position = geometry.Move(
+                                beforeContact,
+                                position,
+                                ChassisCatalog.Get(p.Chassis).Radius,
+                                ref velocity
+                            );
+                    }
+                }
+            }
             cruiseCancelled |= collided;
             time = next;
         }

@@ -32,7 +32,9 @@ public sealed record SectorDefinition(
     float Width,
     float Height,
     SectorLocation[] Locations,
-    SectorObstacle[] Obstacles
+    SectorObstacle[] Obstacles,
+    float GravityRange = 400,
+    float GravityAcceleration = 45
 )
 {
     public const float DefaultWidth = 24000,
@@ -117,14 +119,14 @@ public sealed record SectorDefinition(
                 50 + i,
                 "beacon",
                 "Orbital Survey " + (i + 1),
-                planets[i + 1] + Vector2.Normalize(new Vector2(-500, -400)) * 1450,
+                planets[i + 1] + Vector2.Normalize(new Vector2(-500, -400)) * 1650,
                 24
             );
         Add(
             60,
             "thermal",
             "Cinder Thermal Vent",
-            planets[1] + Vector2.Normalize(new Vector2(-250, 200)) * 1450,
+            planets[1] + Vector2.Normalize(new Vector2(-250, 200)) * 1650,
             170
         );
         var clusters = new[]

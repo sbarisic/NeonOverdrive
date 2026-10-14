@@ -123,7 +123,12 @@ public static class EquipmentCatalog
         new(0, 0, "Capacitor", "+1 maximum shield per tier"),
         new(1, 0, "Quick-charge unit", "−0.5s recharge delay per tier; minimum 1s"),
         new(2, 1, "Cruise engine", "+5% maximum speed per tier"),
-        new(3, 1, "Vector thrusters", "+10% thrust and steering acceleration per tier"),
+        new(
+            3,
+            1,
+            "Vector thrusters",
+            "+10% thrust, counter-thrust and turning per tier; lower relative inertia"
+        ),
         new(4, 2, "Survey array", "+250 exploration radius per tier"),
         new(5, 2, "Combat scanner", "+200 enemy detection radius per tier"),
         new(6, 3, "Collector", "+20 pickup radius per tier"),

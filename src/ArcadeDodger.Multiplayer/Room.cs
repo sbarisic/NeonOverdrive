@@ -49,6 +49,19 @@ public sealed partial class Room
         stations = Sector?.Locations.Where(l => l.Kind == "station").ToArray() ?? [];
         geometry = Sector is null ? null : new(Sector);
         navigation = Sector is null ? null : new(Sector, geometry!);
+        if (Sector is not null)
+        {
+            var space = Sector with
+            {
+                Locations = Sector
+                    .Locations.Select(l =>
+                        l.Solid ? l with { Radius = l.Radius + Sector.GravityRange } : l
+                    )
+                    .ToArray(),
+            };
+            spaceGeometry = new(space);
+            spaceNavigation = new(space, spaceGeometry);
+        }
         InitializeSector();
         InitializeAllies();
         InitializeOutposts();
@@ -60,6 +73,7 @@ public sealed partial class Room
     {
         Tick++;
         CompleteTransactions();
+        BeginShipContacts();
         StepContacts();
         foreach (
             var p in players
@@ -72,18 +86,42 @@ public sealed partial class Room
         playerGrid.Rebuild(players.Values, p => p.Position);
         StepStatuses();
         if (enemiesEnabled)
+        {
             StepEnemies();
+            StepNpcFlight();
+        }
         enemyGrid.Rebuild(enemies, e => e.Position);
+        StepShipContacts();
+        enemyGrid.Rebuild(enemies, e => e.Position);
+        playerGrid.Rebuild(players.Values, p => p.Position);
         StepBeams();
         StepProjectiles();
         StepMines();
+        if (gravityMovedShips)
+        {
+            StepShipContacts();
+            enemyGrid.Rebuild(enemies, e => e.Position);
+            playerGrid.Rebuild(players.Values, p => p.Position);
+            gravityMovedShips = false;
+        }
         beams.RemoveAll(b => players.TryGetValue(b.Owner, out var owner) && owner.Hull <= 0);
         StepRescue();
         StepOutposts();
         foreach (var enemy in enemies.Where(e => e.Hull <= 0))
         {
+            enemy.RouteSearch?.Dispose();
             WorldEnemyDefeated(enemy);
-            CombatFx(0, 2, enemy.Position, EnemyRadius(enemy));
+            CombatFx(
+                0,
+                2,
+                enemy.Position,
+                EnemyRadius(enemy),
+                chassis: Stationary(enemy) || enemy.SurfacePlanet != 0 ? -1 : enemy.Chassis,
+                heading: enemy.Heading,
+                scale: EnemyCatalog.Size(enemy.Level),
+                faction: enemy.Faction.ToString().ToLowerInvariant(),
+                velocity: enemy.Velocity
+            );
             if (!enemy.Allied)
                 RewardEncounter(enemy);
             DestroyInstallation(enemy);
@@ -119,7 +157,7 @@ public sealed partial class Room
                 && s.Position.Y <= Height
             )
                 return false;
-            CombatFx(s.Id, s.Impact ? 1 : 0, s.Position, s.VisualPower);
+            CombatFx(s.Id, 0, s.Position, s.VisualPower);
             return true;
         });
         foreach (

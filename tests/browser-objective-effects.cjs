@@ -32,7 +32,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
           seed: 123,
           width: 12000,
           height: 8000,
-          obstacles: [],
+          obstacles: [{ id: 1, x: 3000, y: 2880, radius: 42 }],
           locations: [
             { id: 50, kind: 'beacon', name: 'Orbital Survey 1', x: 3000, y: 2950, radius: 18 },
             { id: 10, kind: 'station', name: 'Arrival Port', x: 2660, y: 3060, radius: 58 },
@@ -42,7 +42,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       );
       const frame = {
         ...base,
-        v: 12,
+        v: 15,
         players: [
           {
             ...base.players[0],

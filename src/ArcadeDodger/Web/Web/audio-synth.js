@@ -21,7 +21,10 @@ export function createCombatSynth(context) {
     samples[i] = (seed / 0x100000000) * 2 - 1;
   }
 
+  let spatialGain = 1,
+    spatialPan = 0;
   function voice(source, duration, volume, delay = 0, filter = null) {
+    volume *= spatialGain;
     const gain = context.createGain(),
       at = context.currentTime + delay;
     gain.gain.setValueAtTime(0, at);
@@ -31,13 +34,19 @@ export function createCombatSynth(context) {
       source.connect(filter);
       filter.connect(gain);
     } else source.connect(gain);
-    gain.connect(output);
-    const entry = { source, gain, filter };
+    const pan = context.createStereoPanner?.();
+    if (pan) {
+      pan.pan.value = spatialPan;
+      gain.connect(pan);
+      pan.connect(output);
+    } else gain.connect(output);
+    const entry = { source, gain, filter, pan };
     voices.add(entry);
     source.onended = () => {
       source.disconnect();
       filter?.disconnect();
       gain.disconnect();
+      pan?.disconnect();
       voices.delete(entry);
     };
     source.start(at);
@@ -91,9 +100,20 @@ export function createCombatSynth(context) {
         noise(2400, 0.045, 0.16);
       }
     },
-    impact(shield = false) {
-      tone(shield ? 720 : 210, shield ? 260 : 65, 0.095, 'triangle', 0.08);
-      noise(shield ? 3800 : 1800, 0.045, 0.08);
+    impact(shield = false, kind = 1, material = 'hull', volume = 1, pan = 0) {
+      spatialGain = Math.max(0, Math.min(1, volume));
+      spatialPan = Math.max(-1, Math.min(1, pan));
+      tone(
+        shield ? 880 : kind === 4 ? 360 : 190,
+        shield ? 240 : 48,
+        0.11,
+        shield ? 'sine' : 'triangle',
+        0.11,
+      );
+      noise(material === 'rock' ? 1100 : shield ? 4200 : 2100, 0.06, 0.12);
+      if (kind === 3 || kind === 4) tone(125, 32, 0.16, 'sine', 0.09);
+      spatialGain = 1;
+      spatialPan = 0;
     },
     explosion(destruction = false) {
       tone(destruction ? 105 : 145, 28, destruction ? 0.42 : 0.24, 'sine', 0.18);
@@ -127,10 +147,11 @@ export function createCombatSynth(context) {
     stopHum,
     silence() {
       stopHum();
-      for (const { source, gain, filter } of voices) {
+      for (const { source, gain, filter, pan } of voices) {
         source.stop();
         source.disconnect();
         filter?.disconnect();
+        pan?.disconnect();
         gain.disconnect();
       }
       voices.clear();

@@ -146,16 +146,6 @@ public sealed partial class Room
 
     private void CivilianTravel(Enemy npc, Vector2 destination, float speed, float stop)
     {
-        if (Vector2.Distance(npc.Position, destination) <= stop)
-            return;
-        var delta = Navigate(npc, destination) - npc.Position;
-        if (delta.LengthSquared() < 1)
-            return;
-        npc.Aim = MathF.Atan2(delta.Y, delta.X);
-        npc.Position = MoveShip(
-            npc.Position,
-            npc.Position + Vector2.Normalize(delta) * speed / TickRate,
-            EnemyRadius(npc)
-        );
+        FlyNpc(npc, destination, speed, stop);
     }
 }

@@ -15,7 +15,31 @@ public sealed partial class Room
             NpcRole.Mercenary => 5,
             _ => 3,
         };
-        var at = Location(10)!.Position + new Vector2(-220 + index * 75, 210);
+        var stations = Sector!
+            .Locations.Where(l => DeliveryStation(l.Id))
+            .OrderBy(l => l.Id)
+            .ToArray();
+        if (stations.Length == 0)
+            return;
+        var home = stations[index % stations.Length];
+        var angle = index * 2.399963f;
+        var at = home.Position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 280;
+        var level =
+            home.Id == 12 ? 4
+            : home.Id == 11 ? 2
+            : 1;
+        var design = ChassisCatalog.Get(chassis);
+        var scaling = EnemyCatalog.Health(level) / EnemyCatalog.Health(1);
+        var hull = (int)MathF.Ceiling(60 * design.Hull / 8f * scaling);
+        var shield = (int)MathF.Ceiling(30 * design.Shield / 4f * scaling);
+        if (role is NpcRole.Miner or NpcRole.Scavenger)
+            at = Sector
+                .Locations.Where(l => l.Kind == "cache")
+                .OrderBy(l => Vector2.DistanceSquared(l.Position, home.Position))
+                .Select(l => Exterior(l.Position + new Vector2(180, 100)))
+                .FirstOrDefault(at);
+        if (!TryLocalSpawn(at, design.Radius * EnemyCatalog.Size(level), out at))
+            return;
         var ship = new Enemy
         {
             Id = ++nextEnemy,
@@ -25,19 +49,20 @@ public sealed partial class Room
             ChassisOverride = chassis,
             Position = at,
             Previous = at,
-            Hull = 60,
-            MaxHull = 60,
-            Shield = 30,
-            MaxShield = 30,
-            Level = 1,
-            Home = 10,
+            Hull = hull,
+            MaxHull = hull,
+            Shield = shield,
+            MaxShield = shield,
+            Level = level,
+            Home = home.Id,
         };
-        enemies.Add(ship);
+        AddEnemy(ship);
         var agent = new Civilian
         {
             Ship = ship,
             Name = $"{role} {index + 1}",
             Identity = index,
+            Destination = NextFriendlyStation(home.Id),
             DepartAt = Tick + 60 * TickRate,
         };
         civilians.Add(agent);
@@ -47,9 +72,14 @@ public sealed partial class Room
 
     private void LoadManifest(Civilian agent)
     {
-        agent.Stock.RemoveAll(s => !agent.Reserved.Contains(s.Id));
         if (agent.Reserved.Count > 0)
+        {
+            agent.ManifestPending = true;
             return;
+        }
+        agent.Stock.Clear();
+        agent.ManifestPending = false;
+        agent.LoadedAt = agent.Ship.Home;
         agent.CargoRevision++;
         var tier =
             agent.Ship.Home == 12 ? 4
@@ -104,6 +134,8 @@ public sealed partial class Room
         var agent = civilians.FirstOrDefault(c => c.Ship == npc);
         if (agent is null)
             return false;
+        if (agent.ManifestPending && agent.Reserved.Count == 0)
+            LoadManifest(agent);
         if (
             players.Values.Any(p =>
                 p.Connected && p.Hull > 0 && ExplorationFor(p).Hailing == npc.Id
@@ -117,17 +149,22 @@ public sealed partial class Room
             return true;
         if (
             npc.Role is NpcRole.Police or NpcRole.Patrol or NpcRole.Mercenary
-            && enemyGrid.Query(npc.Position, npc.Position, 900).Any(e => !e.Allied && e.Hull > 0)
+            && enemyGrid
+                .Query(npc.Position, npc.Position, 1000)
+                .Any(e => EligibleNpcOpponent(npc, e))
         )
             return false;
         var fleeing = Tick - npc.LastHit < 6 * TickRate && npc.LastHit > 0;
+        if (!fleeing && PatrolCivilian(agent))
+            return true;
         if (fleeing)
         {
             agent.Destination = Sector!
                 .Locations.Where(l => l.Kind == "station" && FriendlyStation(l.Id))
                 .MinBy(l => Vector2.DistanceSquared(l.Position, npc.Position))!
                 .Id;
-            agent.DepartAt = Tick;
+            if (Vector2.Distance(npc.Position, Location(agent.Destination)!.Position) >= 180)
+                agent.DepartAt = Tick;
             if (npc.State != "fleeing")
                 Broadcast(
                     "distress",
@@ -143,32 +180,26 @@ public sealed partial class Room
         var goal = Location(agent.Destination)!.Position;
         if (Tick < agent.DepartAt)
             return true;
-        if (Vector2.Distance(npc.Position, goal) < 180)
+        if (Vector2.Distance(npc.Position, goal) < 180 && npc.Velocity.LengthSquared() < 100)
         {
             npc.Home = agent.Destination;
             agent.Destination = NextFriendlyStation(npc.Home);
             agent.DepartAt = Tick + 60 * TickRate;
             if (npc.Role == NpcRole.Trader)
             {
-                LoadManifest(agent);
-                Broadcast(
-                    "trade",
-                    agent.Name,
-                    "Fresh cargo loaded. Radio for today's limited offers."
-                );
+                if (agent.LoadedAt != npc.Home)
+                {
+                    LoadManifest(agent);
+                    Broadcast(
+                        "trade",
+                        agent.Name,
+                        "Fresh cargo loaded. Radio for today's limited offers."
+                    );
+                }
             }
             return true;
         }
-        var delta = Navigate(npc, goal) - npc.Position;
-        if (delta.LengthSquared() > 1)
-        {
-            npc.Aim = MathF.Atan2(delta.Y, delta.X);
-            npc.Position = MoveShip(
-                npc.Position,
-                npc.Position + Vector2.Normalize(delta) * 100 / TickRate,
-                EnemyRadius(npc)
-            );
-        }
+        FlyNpc(npc, goal, npc.State == "fleeing" ? 150 : 100, 120);
         return true;
     }
 
@@ -194,8 +225,10 @@ public sealed partial class Room
             return "ok";
         }
         var ship = enemies.FirstOrDefault(e => e.Id == target && e.Allied && e.Hull > 0);
-        if (ship is null || Vector2.Distance(p.Position, ship.Position) > Detection(p))
-            return "out_of_range";
+        if (ship is null)
+            return "target_gone";
+        if (Vector2.Distance(p.Position, ship.Position) > Detection(p))
+            return "out_of_sensor_range";
         // Switching back to sensor-range radio must release an earlier trade cloak.
         if (action == "radio" && ExplorationFor(p).Hailing != 0)
             EndHail(p, ExplorationFor(p));
@@ -207,12 +240,12 @@ public sealed partial class Room
                 && !contacts.Any(c => c.Ship == ship && c.Role == "trader")
             )
                 return "trade_unavailable";
-            if (
-                p.Docked != 0
-                || Vector2.Distance(p.Position, ship.Position) > 180
-                || !ServiceLine(p.Position, ship.Position)
-            )
+            if (p.Docked != 0)
+                return "undock_first";
+            if (Vector2.Distance(p.Position, ship.Position) > 180)
                 return "out_of_range";
+            if (!ServiceLine(p.Position, ship.Position))
+                return "blocked";
             ExplorationFor(p).Hailing = target;
             p.Pending = p.Held = null;
             p.Editing = p.Menu = true;

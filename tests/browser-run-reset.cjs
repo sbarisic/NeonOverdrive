@@ -61,7 +61,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await victim.waitForTimeout(750);
     await victim.keyboard.up('d');
     await victim.keyboard.down('w');
-    await victim.waitForTimeout(3000);
+    await victim.waitForTimeout(4300);
     await victim.keyboard.up('w');
     await victim.keyboard.down('x');
     await victim.waitForTimeout(2100);

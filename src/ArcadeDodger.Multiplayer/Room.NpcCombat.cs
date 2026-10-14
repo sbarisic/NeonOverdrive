@@ -4,7 +4,10 @@ namespace ArcadeDodger.Multiplayer;
 
 public sealed partial class Room
 {
-    private readonly SectorNavigation? navigation;
+    private readonly SectorNavigation? navigation,
+        spaceNavigation;
+    private readonly SectorCollision? spaceGeometry;
+    private int npcRouteWork = 2048;
 
     private Vector2 NpcMuzzle(Enemy npc)
     {
@@ -12,7 +15,7 @@ public sealed partial class Room
             npc.Position
             + ChassisCatalog.Rotate(
                 ChassisCatalog.Get(npc.Chassis).Hardpoints[0] * EnemyCatalog.Size(npc.Level),
-                npc.Aim
+                npc.Heading
             );
         if (npc.SurfacePlanet != 0 || npc.Type.StartsWith("salvage-"))
             point = npc.Position + new Vector2(MathF.Cos(npc.Aim), MathF.Sin(npc.Aim)) * 20;
@@ -53,22 +56,106 @@ public sealed partial class Room
 
     private Vector2 Navigate(Enemy npc, Vector2 goal)
     {
-        goal = Exterior(goal, EnemyRadius(npc) + 100);
-        if (geometry is null || geometry.TraceShips(npc.Position, goal, EnemyRadius(npc)) is null)
-            return goal;
-        if (Tick >= npc.RepathAt || Vector2.DistanceSquared(npc.RouteGoal, goal) > 300 * 300)
+        if (npc.YieldPoint is { } yieldPoint)
         {
-            npc.Route = navigation?.Route(npc.Position, goal, EnemyRadius(npc)) ?? [];
-            npc.RouteIndex = 0;
+            if (
+                Tick < npc.YieldUntil
+                && Vector2.Distance(npc.Position, yieldPoint) > 25
+                && geometry?.TraceShips(npc.Position, yieldPoint, EnemyRadius(npc)) is null
+            )
+                return yieldPoint;
+            npc.YieldPoint = null;
+            npc.RepathAt = 0;
+        }
+        goal = Exterior(goal, EnemyRadius(npc) + 100);
+        var openSpace =
+            geometry is not null
+            && geometry.GravityAt(npc.Position) == Vector2.Zero
+            && geometry.GravityAt(goal) == Vector2.Zero;
+        var routeGeometry = openSpace ? spaceGeometry ?? geometry : geometry;
+        var router =
+            openSpace && !npc.RouteGravityFallback ? spaceNavigation ?? navigation : navigation;
+        if (
+            routeGeometry is null
+            || routeGeometry.TraceShips(npc.Position, goal, EnemyRadius(npc)) is null
+        )
+        {
+            npc.RouteSearch?.Dispose();
+            npc.RouteSearch = null;
+            return goal;
+        }
+        if (Vector2.DistanceSquared(npc.RouteGoal, goal) > 300 * 300)
+        {
+            npc.RouteSearch?.Dispose();
+            npc.RouteSearch = null;
+            npc.RepathAt = 0;
+            npc.RouteGravityFallback = false;
+        }
+        if (npc.RouteSearch is null && Tick >= npc.RepathAt)
+        {
+            npc.RouteSearch = router?.Begin(npc.Position, goal, EnemyRadius(npc));
             npc.RouteGoal = goal;
-            npc.RepathAt = Tick + 300;
+        }
+        if (npc.RouteSearch is { } search && npcRouteWork > 0)
+        {
+            var before = search.WorkItems;
+            search.Advance(Math.Min(128, npcRouteWork));
+            npcRouteWork -= search.WorkItems - before;
+            if (search.Complete)
+            {
+                npc.Route = search.Path;
+                npc.RouteIndex = 0;
+                npc.RouteSearch = null;
+                npc.RepathAt = Tick + (npc.Route.Length == 0 ? 30 : 300);
+                if (npc.Route.Length == 0 && openSpace && !npc.RouteGravityFallback)
+                {
+                    // Preference must not make a physically reachable narrow corridor impassable.
+                    npc.RouteGravityFallback = true;
+                    npc.RepathAt = Tick + 1;
+                }
+            }
         }
         while (
             npc.RouteIndex < npc.Route.Length
             && Vector2.Distance(npc.Position, npc.Route[npc.RouteIndex]) < 25
         )
             npc.RouteIndex++;
-        return npc.RouteIndex < npc.Route.Length ? npc.Route[npc.RouteIndex] : npc.Position;
+        if (npc.RouteIndex < npc.Route.Length)
+        {
+            var point = npc.Route[npc.RouteIndex];
+            if (geometry?.TraceShips(npc.Position, point, EnemyRadius(npc)) is null)
+                return point;
+            npc.RepathAt = Math.Min(npc.RepathAt, Tick + 1);
+        }
+        if (npc.BlockedRoutes > 0 && npc.RouteSearch is null)
+        {
+            // A clear position can lack a visible coarse-grid connector near a dock.
+            // Fly to a nearby clear approach before asking the grid for another route.
+            var facing = MathF.Atan2(goal.Y - npc.Position.Y, goal.X - npc.Position.X);
+            for (var i = 0; i < 12; i++)
+            {
+                var angle = facing + (i % 2 == 0 ? 1 : -1) * (i / 2 + 1) * MathF.PI / 6;
+                var point = npc.Position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 240;
+                if (
+                    geometry?.TraceShips(npc.Position, point, EnemyRadius(npc)) is not null
+                    || point.X < EnemyRadius(npc)
+                    || point.Y < EnemyRadius(npc)
+                    || point.X > Width - EnemyRadius(npc)
+                    || point.Y > Height - EnemyRadius(npc)
+                    || enemies.Any(e =>
+                        e != npc
+                        && e.Hull > 0
+                        && Vector2.Distance(point, e.Position)
+                            < EnemyRadius(e) + EnemyRadius(npc) + 10
+                    )
+                )
+                    continue;
+                npc.YieldPoint = point;
+                npc.YieldUntil = Tick + 5 * TickRate;
+                return point;
+            }
+        }
+        return npc.Position;
     }
 
     private void InitializeAllies()
@@ -78,7 +165,7 @@ public sealed partial class Room
         foreach (var location in Sector.Locations.Where(l => l.Kind == "outpost"))
         {
             sources[location.Id] = new() { Location = location, NextLaunch = 600 };
-            enemies.Add(
+            AddEnemy(
                 new()
                 {
                     Id = ++nextEnemy,
@@ -108,7 +195,7 @@ public sealed partial class Room
         var position =
             planet.Position
             + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (planet.Radius + 34);
-        enemies.Add(
+        AddEnemy(
             new()
             {
                 Id = ++nextEnemy,
@@ -146,17 +233,6 @@ public sealed partial class Room
             npc.NpcTarget = 0;
             return false;
         }
-        if (
-            npc.Allied
-            && (npc.Shield < npc.MaxShield || npc.ShieldFraction > 0)
-            && Tick - npc.LastHit >= 8 * TickRate
-            && Tick % TickRate == 0
-        )
-        {
-            npc.Shield = Math.Min(npc.MaxShield, npc.Shield + 1);
-            if (npc.Shield == npc.MaxShield)
-                npc.ShieldFraction = 0;
-        }
         // Keep the broadcast's designated group in the battle. Ordinary acquisition
         // would let them retarget another outpost or abandon the ship behind cover.
         var assignedShip =
@@ -164,7 +240,7 @@ public sealed partial class Room
             && mission.Attackers.Contains(npc.Id)
             && mission.Ship.Hull > 0
                 ? mission.Ship
-                : RaidTarget(npc);
+                : ProtectionTarget(npc) ?? RaidTarget(npc);
         var valuableCargo =
             npc.Role == NpcRole.Pirate
                 ? civilians
@@ -183,13 +259,7 @@ public sealed partial class Room
             ?? valuableCargo
             ?? enemyGrid
                 .Query(npc.Position, npc.Position, 1000)
-                .Where(e =>
-                    e.Hull > 0
-                    && e.Allied != npc.Allied
-                    && !Sanctuary(e.Position)
-                    && Vector2.DistanceSquared(e.Position, npc.Position) < 1000 * 1000
-                    && VisibleLine(npc.Position, e.Position)
-                )
+                .Where(e => EligibleNpcOpponent(npc, e))
                 .MinBy(e => Vector2.DistanceSquared(e.Position, npc.Position));
         var previousTarget = npc.NpcTarget;
         npc.NpcTarget = opponent?.Id ?? 0;
@@ -259,7 +329,10 @@ public sealed partial class Room
                     npc.Patrol == 0
                         ? Location(npc.Home)!.Position + new Vector2(650, 0)
                         : Location(npc.Home == 22 ? 12 : 11)!.Position + new Vector2(200, 0);
-                if (Vector2.Distance(npc.Position, Exterior(goal)) < 120)
+                if (
+                    Vector2.Distance(npc.Position, Exterior(goal)) < 120
+                    && npc.Velocity.LengthSquared() < 100
+                )
                 {
                     npc.Patrol++;
                     if (npc.Patrol >= 2)
@@ -300,7 +373,10 @@ public sealed partial class Room
                     npc.Patrol == 0
                         ? Location(npc.Home)!.Position + new Vector2(650, 0)
                         : Location(npc.Home == 22 ? 12 : 11)!.Position;
-                if (Vector2.Distance(npc.Position, Exterior(goal)) < 120)
+                if (
+                    Vector2.Distance(npc.Position, Exterior(goal)) < 120
+                    && npc.Velocity.LengthSquared() < 100
+                )
                 {
                     npc.Patrol++;
                     if (npc.Patrol >= 2)
@@ -309,36 +385,7 @@ public sealed partial class Room
             }
             else
                 goal = npc.Position;
-            var delta = Navigate(npc, goal) - npc.Position;
-            if (delta.LengthSquared() > 1)
-            {
-                npc.Aim = MathF.Atan2(delta.Y, delta.X);
-                var next = MoveShip(
-                    npc.Position,
-                    npc.Position
-                        + Vector2.Normalize(delta)
-                            * EnemyCatalog.Get(npc.Type).Speed
-                            / TickRate
-                            * (Tick < npc.SlowUntil ? npc.SlowFactor : 1),
-                    EnemyRadius(npc)
-                );
-                if (npc.Allied || !Sanctuary(next))
-                    npc.Position = next;
-            }
-        }
-        if (
-            npc.Type == "rammer"
-            && opponent is not null
-            && Tick >= npc.FireAt
-            && Intersection(
-                npc.Previous - opponent.Previous,
-                npc.Position - opponent.Position,
-                EnemyRadius(npc) + EnemyRadius(opponent)
-            ).HasValue
-        )
-        {
-            Hit(new Shot { Owner = -npc.Id }, null, opponent, EnemyCatalog.Damage(npc.Level));
-            npc.FireAt = Tick + 30;
+            FlyNpc(npc, goal, EnemyCatalog.Get(npc.Type).Speed, target.HasValue ? 0 : 35);
         }
         if (
             target is { } aimAt

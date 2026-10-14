@@ -1,3 +1,5 @@
+import { contactNumber } from './contact-state.js';
+import { control } from './interface.js';
 import { names, colors, paths } from './sector-chart-symbols.js';
 import { chartStyles } from './sector-chart.styles.js';
 import { territoryCells } from './territory.js';
@@ -112,6 +114,12 @@ export function createSectorChart(el, root, actions) {
     return { w, h, scale, x: w / 2 - cx * scale, y: h / 2 - cy * scale };
   }
   function select(l) {
+    if (['contact', 'pilot'].includes(l.kind))
+      window.dispatchEvent(
+        new CustomEvent('neon-select-contact', {
+          detail: (l.kind === 'pilot' ? 'player:' : 'npc:') + l.id,
+        }),
+      );
     selected = l;
     context.hidden = true;
     refresh();
@@ -138,7 +146,18 @@ export function createSectorChart(el, root, actions) {
       destroyed = locationState?.state === 'destroyed';
     const region = l?.biome || sector?.locations.find((p) => p.id === l?.parent)?.biome || '';
     const level = { inhabited: 1, volcanic: 2, gas: 3, shattered: 4 }[region];
-    category.textContent = l ? names[l.kind] || l.kind : 'NAVIGATION';
+    const ownership = frame?.sector?.world?.territory?.find((t) => t.id === l?.id);
+    const stationOpen = !ownership || (ownership.owner === 'friendly' && !ownership.contested);
+    category.textContent =
+      l?.kind === 'station'
+        ? stationOpen
+          ? 'Friendly station'
+          : ownership?.contested
+            ? 'Contested station'
+            : 'Hostile station'
+        : l
+          ? names[l.kind] || l.kind
+          : 'NAVIGATION';
     title.textContent = l?.name || 'Select a location';
     metadata.textContent =
       l && self
@@ -149,11 +168,13 @@ export function createSectorChart(el, root, actions) {
       : l.kind === 'rescue'
         ? `Save the relief ship: ${l.hull}/${l.maxHull} hull · ${l.shield}/${l.maxShield} shields · ${l.remaining} attackers. Open cooperative mission.`
         : l.kind === 'contact'
-          ? 'Roaming friendly contact. Approach within 180 units and hail with E for trade or assignments.'
+          ? `${l.faction || 'friendly'} · ${l.role || 'contact'} · ${l.state || ''}. Select the ship for available radio and service actions.`
           : l.kind === 'cache'
             ? 'Hold still and search for three seconds. Personal credits and XP; each pilot can claim once per sector.'
             : l.kind === 'station'
-              ? 'Safe docking, module shop, hull repairs, and local contracts. Sanctuary extends 300 units.'
+              ? stationOpen
+                ? 'Friendly docking, repairs, shops and contracts. Docked pilots retain sanctuary.'
+                : 'Friendly docking is unavailable until this station is friendly and uncontested.'
               : l.kind === 'base'
                 ? destroyed
                   ? 'This installation is permanently destroyed. Its wreck remains cover.'
@@ -191,7 +212,32 @@ export function createSectorChart(el, root, actions) {
     b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[l.kind]}</svg>`;
     if (l.kind === 'planet') b.append(el('span', l.name, 'planet-name'));
     b.onclick = () => {
-      if (!suppressClick) select(l);
+      if (suppressClick) return;
+      const nearby = [...markers.values()].filter(
+        (m) =>
+          !m.b.hidden &&
+          Math.hypot(
+            parseFloat(m.b.style.left) - parseFloat(b.style.left),
+            parseFloat(m.b.style.top) - parseFloat(b.style.top),
+          ) < 20,
+      );
+      if (nearby.length > 1) {
+        select(l);
+        context.replaceChildren();
+        for (const m of nearby) {
+          const choice = el('button', m.b.getAttribute('aria-label'));
+          control(choice, 'locate');
+          choice.onclick = () => {
+            select(m.l);
+            context.hidden = true;
+          };
+          context.append(choice);
+        }
+        context.style.left = Math.min(view.clientWidth - 190, parseFloat(b.style.left)) + 'px';
+        context.style.top = Math.min(view.clientHeight - 120, parseFloat(b.style.top)) + 'px';
+        context.hidden = false;
+        context.querySelector('button')?.focus();
+      } else select(l);
     };
     b.ondblclick = () => {
       select(l);
@@ -219,6 +265,7 @@ export function createSectorChart(el, root, actions) {
             ]),
       ]) {
         const item = el('button', label);
+        control(item, 'locate');
         item.disabled = disabled;
         item.onclick = () => {
           fn();
@@ -410,17 +457,9 @@ export function createSectorChart(el, root, actions) {
       player.style.left = x + 'px';
       player.style.top = y + 'px';
     }
-    const contacts = [...markers.values()]
-      .filter((m) => m.l.kind === 'contact')
-      .sort((a, b) => a.l.id - b.l.id);
     for (const { b, l } of markers.values()) {
       let x = t.x + l.x * t.scale,
         y = t.y + l.y * t.scale;
-      // Contacts gather near stations. Fan their icons out without moving navigation targets.
-      if (l.kind === 'contact') {
-        x += (contacts.findIndex((m) => m.l === l) - 1) * 26;
-        y += 30;
-      }
       b.hidden =
         (l.kind === 'cache' &&
           !state?.discovered?.includes(l.id) &&
@@ -430,6 +469,34 @@ export function createSectorChart(el, root, actions) {
         x > t.w - 14 ||
         y < 14 ||
         y > t.h - 14;
+      if (l.kind === 'pilot') {
+        b.setAttribute('aria-label', `${contactNumber('player:' + l.id)} · ${l.name} · Pilot`);
+        b.title = b.getAttribute('aria-label');
+      }
+      if (l.kind === 'contact') {
+        b.style.setProperty(
+          '--marker',
+          l.faction === 'neutral' ? '#ffd569' : l.faction === 'hostile' ? '#ff645f' : '#41f5eb',
+        );
+        b.setAttribute(
+          'aria-label',
+          `${l.number} · ${l.name} · ${l.faction} · ${l.role || 'contact'}`,
+        );
+        b.title = b.getAttribute('aria-label');
+        let label = b.querySelector('.contact-number');
+        if (!label) {
+          label = el('span', '', 'contact-number');
+          b.append(label);
+        }
+        label.textContent = `${l.role === 'trader' ? '$' : ''}${l.number}`;
+      }
+      if (l.kind === 'station') {
+        const owner = frame?.sector?.world?.territory?.find((t) => t.id === l.id);
+        b.style.setProperty(
+          '--marker',
+          owner?.contested ? '#ffd569' : owner?.owner === 'hostile' ? '#ff645f' : '#41f5eb',
+        );
+      }
       b.style.left = x + 'px';
       b.style.top = y + 'px';
       b.setAttribute('aria-pressed', String(selected === l));
@@ -510,11 +577,7 @@ export function createSectorChart(el, root, actions) {
       state = st;
       pending = waiting;
       const allies = f.players.filter(
-        (a) =>
-          a.id !== p.id &&
-          a.hull > 0 &&
-          a.connected &&
-          f.social?.friends.some((n) => n.toLowerCase() === a.name.toLowerCase()),
+        (a) => a.id !== p.id && a.hull > 0 && Math.hypot(a.x - p.x, a.y - p.y) <= p.detectionRadius,
       );
       for (const [key, m] of markers)
         if (m.l.kind === 'pilot' && !allies.some((a) => a.id === m.l.id)) {
@@ -524,23 +587,23 @@ export function createSectorChart(el, root, actions) {
         }
       for (const a of allies) {
         const old = markers.get('pilot:' + a.id);
-        if (old) {
-          old.l.x = a.x;
-          old.l.y = a.y;
-        } else addMarker({ ...a, kind: 'pilot', pilot: a.id });
+        if (old) Object.assign(old.l, a, { number: contactNumber('player:' + a.id) });
+        else
+          addMarker({ ...a, number: contactNumber('player:' + a.id), kind: 'pilot', pilot: a.id });
       }
       const contacts = [
         ...(f.sector?.services?.contacts || []),
         ...(f.enemies || [])
           .filter(
             (e) =>
-              e.faction !== 'hostile' &&
-              e.surfacePlanet === 0 &&
-              !e.kind.startsWith('salvage-') &&
-              e.kind !== 'installation',
+              e.surfacePlanet === 0 && !e.kind.startsWith('salvage-') && e.kind !== 'installation',
           )
           .filter((e) => !(f.sector?.services?.contacts || []).some((c) => c.id === e.id))
-          .map((e) => ({ ...e, name: e.role + ' · ' + e.state })),
+          .map((e) => ({
+            ...e,
+            name:
+              f.sector?.world?.contacts?.find((c) => c.id === e.id)?.name || e.role + ' ' + e.id,
+          })),
       ];
       for (const [key, marker] of markers)
         if (marker.l.kind === 'contact' && !contacts.some((c) => c.id === marker.l.id)) {
@@ -549,6 +612,8 @@ export function createSectorChart(el, root, actions) {
           if (selected === marker.l) selected = null;
         }
       for (const c of contacts) {
+        c.faction ||= f.enemies?.find((e) => e.id === c.id)?.faction || 'friendly';
+        c.number = contactNumber('npc:' + c.id);
         const old = markers.get('contact:' + c.id);
         if (old) Object.assign(old.l, c);
         else addMarker({ ...c, kind: 'contact' });

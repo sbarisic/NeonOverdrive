@@ -437,7 +437,7 @@ public class SectorTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":12,"type":"sector","seq":1,"action":"dock","target":10}"""
+                    """{"v":15,"type":"sector","seq":1,"action":"dock","target":10}"""
                 ),
                 out _
             )
@@ -445,7 +445,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":12,"type":"sector","seq":1,"action":"teleport","target":10}"""
+                    """{"v":15,"type":"sector","seq":1,"action":"teleport","target":10}"""
                 ),
                 out _
             )
@@ -453,7 +453,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":12,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
+                    """{"v":15,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
                 ),
                 out _
             )

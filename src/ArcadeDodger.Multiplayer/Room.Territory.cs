@@ -46,7 +46,7 @@ public sealed partial class Room
                 for (var i = 0; i < 2 && enemies.Count < EnemyLimit; i++)
                 {
                     var at = location.Position + new Vector2(i == 0 ? -240 : 240, 130);
-                    enemies.Add(
+                    AddEnemy(
                         new()
                         {
                             Id = ++nextEnemy,
@@ -81,7 +81,7 @@ public sealed partial class Room
                         Gunner = slot > 0,
                     };
                     site.Units[slot] = unit;
-                    enemies.Add(unit);
+                    AddEnemy(unit);
                 }
         }
     }
@@ -177,7 +177,7 @@ public sealed partial class Room
                 var level = 1 + (int)(MathF.Max(0, .5f - FriendlyControl) * 8);
                 var at = Location(10)!.Position + new Vector2(300, 100);
                 var hull = (int)MathF.Ceiling(12 * EnemyCatalog.Health(level));
-                enemies.Add(
+                AddEnemy(
                     new()
                     {
                         Id = ++nextEnemy,

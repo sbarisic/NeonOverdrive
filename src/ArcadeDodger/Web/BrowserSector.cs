@@ -127,7 +127,6 @@ internal sealed partial class BrowserArenaWorld
                         12,
                         searched ? MutedMine : Gold
                     );
-                    DrawScanProgress(snapshot, l, p - new Vector2(0, 70));
                     break;
                 case "planet":
                     var tint = l.Biome switch
@@ -233,13 +232,18 @@ internal sealed partial class BrowserArenaWorld
                     break;
                 case "corridor":
                     Raylib.DrawCircleLines((int)p.X, (int)p.Y, 110, Hostile);
-                    BrowserText.DrawText("HOSTILE ARRIVAL", (int)p.X - 90, (int)p.Y - 140, 16, Hostile);
+                    BrowserText.DrawText(
+                        "HOSTILE ARRIVAL",
+                        (int)p.X - 90,
+                        (int)p.Y - 140,
+                        16,
+                        Hostile
+                    );
                     break;
                 case "wreck":
                     Raylib.DrawPoly(p, 5, 40, 25, new Color(60, 63, 76, 255));
                     Raylib.DrawLineEx(p - new Vector2(30, 20), p + new Vector2(20, 35), 4, Gold);
                     BrowserText.DrawText("SALVAGE", (int)p.X - 35, (int)p.Y - 62, 12, Gold);
-                    DrawScanProgress(snapshot, l, p - new Vector2(0, 92));
                     break;
                 case "beacon":
                     Raylib.DrawPoly(p, 4, 18, 0, Cyan);
@@ -249,7 +253,6 @@ internal sealed partial class BrowserArenaWorld
                         reduced ? 40 : 40 + MathF.Sin(time * 2) * 8,
                         Cyan
                     );
-                    DrawScanProgress(snapshot, l, p - new Vector2(0, 70));
                     break;
                 case "thermal":
                     var phase = snapshot.Tick % 300;
@@ -329,6 +332,74 @@ internal sealed partial class BrowserArenaWorld
         }
     }
 
+    private void DrawObjectiveOverlays(RoomSnapshot snapshot, Vector2 origin, Vector2 view)
+    {
+        void Label(Vector2 point, string text, Color color)
+        {
+            var width = BrowserText.MeasureText(text, 13);
+            var at = Vector2.Clamp(
+                point,
+                origin + new Vector2(width / 2 + 8, 100),
+                origin + view - new Vector2(width / 2 + 8, 150)
+            );
+            Raylib.DrawRectangle(
+                (int)at.X - width / 2 - 5,
+                (int)at.Y - 3,
+                width + 10,
+                21,
+                new Color(4, 12, 23, 245)
+            );
+            BrowserText.DrawText(text, (int)at.X - width / 2, (int)at.Y, 13, color);
+        }
+        foreach (var cargo in snapshot.Sector?.World?.Cargo ?? [])
+            if (Visible(new(cargo.X, cargo.Y), origin, 100))
+                Label(new(cargo.X, cargo.Y - 40), cargo.Kind.ToUpperInvariant(), Gold);
+        if (snapshot.Sector?.World?.Race is { State: "racing" } activeRace)
+        {
+            var index = activeRace.Checkpoint * 2;
+            if (index + 1 < activeRace.Course.Length)
+                Label(
+                    new(activeRace.Course[index], activeRace.Course[index + 1] - 115),
+                    $"CHECKPOINT {activeRace.Checkpoint}",
+                    Gold
+                );
+        }
+        if (snapshot.Sector?.World?.Objective is { } objective)
+            Label(new(objective.X, objective.Y - 45), objective.Name, Gold);
+        if (snapshot.Sector?.World?.Race is { State: "staging" or "countdown" } race)
+        {
+            var point = new Vector2(race.StageX, race.StageY);
+            Raylib.DrawCircleLines((int)point.X, (int)point.Y, 20, Gold);
+            Raylib.DrawLineEx(
+                point,
+                point
+                    + new Vector2(MathF.Cos(race.StageHeading), MathF.Sin(race.StageHeading)) * 50,
+                3,
+                Gold
+            );
+            Label(
+                point - new Vector2(0, 45),
+                race.State == "staging"
+                    ? $"STAGE HERE · {race.StagingSeconds}s"
+                    : $"START IN {race.Countdown}s",
+                Gold
+            );
+        }
+        if (snapshot.Sector?.World?.Protection is { } protection)
+            foreach (var mark in protection.Attackers.Where(a => a.Visible))
+                Label(new(mark.X, mark.Y - 60), "DESIGNATED ATTACKER", Hostile);
+        var id = snapshot.Sector?.Pilot?.InteractionTarget ?? 0;
+        var location = sector?.Locations.FirstOrDefault(l => l.Id == id);
+        if (location is null)
+            return;
+        var at = Vector2.Clamp(
+            location.Position - new Vector2(0, 70),
+            origin + new Vector2(90, 95),
+            origin + view - new Vector2(90, 150)
+        );
+        DrawScanProgress(snapshot, location, at);
+    }
+
     private static void DrawScanProgress(RoomSnapshot snapshot, SectorLocation location, Vector2 p)
     {
         var scan = snapshot.Sector?.Pilot;
@@ -338,9 +409,15 @@ internal sealed partial class BrowserArenaWorld
         const int width = 148;
         var x = (int)p.X - width / 2;
         var y = (int)p.Y;
-        Raylib.DrawRectangle(x - 7, y - 24, width + 14, 44, new Color(4, 12, 23, 235));
+        Raylib.DrawRectangle(x - 7, y - 24, width + 14, 44, new Color(4, 12, 23, 255));
         var label = $"SCANNING {(int)(progress * 100)}%";
-        BrowserText.DrawText(label, (int)p.X - BrowserText.MeasureText(label, 14) / 2, y - 19, 14, Cyan);
+        BrowserText.DrawText(
+            label,
+            (int)p.X - BrowserText.MeasureText(label, 14) / 2,
+            y - 19,
+            14,
+            Cyan
+        );
         Raylib.DrawRectangle(x, y, width, 10, new Color(33, 52, 66, 255));
         Raylib.DrawRectangle(x, y, (int)(width * progress), 10, Cyan);
         Raylib.DrawRectangleLines(x - 1, y - 1, width + 2, 12, Raylib.Fade(Cyan, .65f));

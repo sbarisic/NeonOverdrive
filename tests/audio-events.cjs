@@ -112,6 +112,16 @@ assert.equal(count('explosion'), 1, 'events do not replay');
 observe(25, [], [], { enemies: [{ id: 1, x: 0, y: 0, hull: 2 }] });
 observe(27, [], [], { enemies: [] });
 assert.equal(count('explosion'), 1, 'enemy relevance exits are silent');
+const impacts = [
+  { id: 2, kind: 1, x: 30, y: 0, material: 'shield', weaponKind: 1 },
+  { id: 3, kind: 3, x: 50, y: 0, material: 'hull', weaponKind: 4 },
+  { id: 4, kind: 1, x: 2000, y: 0, material: 'rock', weaponKind: 1 },
+];
+observe(28, [], [], { combatEvents: impacts });
+assert.equal(count('impact'), 2, 'nearby shield and piercing events sound, distant impacts do not');
+assert.equal(last('impact').args[1], 4);
+observe(29, [], [], { combatEvents: impacts });
+assert.equal(count('impact'), 2, 'repeated snapshots cannot replay impacts');
 sandbox.document.hidden = true;
 visibility.visibilitychange();
 assert.equal(count('silence'), 2);

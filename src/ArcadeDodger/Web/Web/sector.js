@@ -1,3 +1,5 @@
+import { createContextActions } from './context-actions.js';
+import { actionMessage } from './action-messages.js';
 import { createServicePanel } from './sector-services.js';
 import { stationStyles } from './sector.styles.js';
 import { control } from './interface.js';
@@ -10,6 +12,7 @@ export function createSectorConsole(
   openShop,
   navigationChanged = () => {},
   route = () => [],
+  radio = () => {},
 ) {
   let definition,
     chassisCatalog = [],
@@ -21,6 +24,7 @@ export function createSectorConsole(
     waypoint = null,
     lastDock = 0,
     lastReceipt = 0,
+    receiptRun = '',
     pending = 0,
     objectiveKey = '';
   const style = el('style');
@@ -115,6 +119,117 @@ export function createSectorConsole(
   claimJob.onclick = () => action('job_claim');
   toolbar.append(claimJob);
   const pingButtons = new Map();
+  const contextActions = createContextActions(el, (item) => {
+    if (['radio', 'radio_trade'].includes(item.action)) {
+      radio(item.id, item.action === 'radio_trade');
+      return;
+    }
+    if (item.action === 'manage' || item.build) {
+      serviceTarget = item.id;
+      setOpen('outpost');
+      return;
+    }
+    action(item.action, item.id);
+    if (item.action === 'hail') setOpen('contact');
+    else document.querySelector('#canvas')?.focus();
+  });
+  function nearbyActions() {
+    if (!self || !definition) return [];
+    const available = frame.sector?.services?.availability || [];
+    const actions = [];
+    const add = (entity, action, label, icon, build = false) => {
+      const eligibility = available.find((a) => a.target === entity.id && a.action === action);
+      if (eligibility?.reason) return;
+      actions.push({
+        id: entity.id,
+        action,
+        label,
+        icon,
+        build,
+        distance: Math.hypot(entity.x - self.x, entity.y - self.y),
+        pending: !build && action !== 'manage' && action !== 'radio' && !!pending,
+      });
+    };
+    for (const l of definition.locations) {
+      const a = available.find((a) => a.target === l.id && ['dock', 'interact'].includes(a.action));
+      if (a && !a.reason)
+        add(
+          l,
+          a.action,
+          `${a.action === 'dock' ? 'Dock' : l.kind === 'cache' ? 'Search' : 'Salvage / Scan'}: ${l.name} [E]`,
+          l.kind === 'station' ? 'station' : 'locate',
+        );
+    }
+    for (const c of frame.sector?.services?.contacts || [])
+      if (Math.hypot(c.x - self.x, c.y - self.y) <= 180)
+        add(c, 'hail', `Hail: ${c.name}`, 'friends');
+    for (const c of frame.enemies || [])
+      if (
+        c.hull > 0 &&
+        ['friendly', 'neutral'].includes(c.faction) &&
+        c.surfacePlanet === 0 &&
+        !['installation', 'salvage-core', 'salvage-turret', 'repair-bot'].includes(c.kind) &&
+        Math.hypot(c.x - self.x, c.y - self.y) <= 180 &&
+        !(frame.sector?.services?.contacts || []).some((n) => n.id === c.id)
+      )
+        add(c, 'radio', `Radio: ${c.role || c.kind} #${c.id}`, 'friends');
+    for (const contact of frame.sector?.world?.contacts || []) {
+      const eligibility = available.find(
+        (a) => a.target === contact.id && a.action === 'radio_trade',
+      );
+      const ship = frame.enemies?.find((e) => e.id === contact.id);
+      if (ship && eligibility && !eligibility.reason)
+        add(ship, 'radio_trade', `Trade: ${contact.name}`, 'shop');
+    }
+    for (const site of frame.sector?.services?.outposts || []) {
+      if (Math.hypot(site.x - self.x, site.y - self.y) > 180) continue;
+      add(site, 'manage', `Manage: ${site.name}`, 'loadout');
+      for (const socket of site.sockets || []) {
+        if (socket.hull > 0 || socket.pending || (socket.slot && !site.active)) continue;
+        add(
+          site,
+          ['activate', 'turret_one', 'turret_two', 'repair_bot'][socket.slot],
+          `${['Activate core', 'Build turret 1', 'Build turret 2', 'Build repair bot'][socket.slot]} · ${socket.cost} cr`,
+          'shop',
+          true,
+        );
+      }
+    }
+    for (const eligibility of available) {
+      if (
+        eligibility.reason ||
+        !['tow', 'mission_scan', 'mission_claim'].includes(eligibility.action)
+      )
+        continue;
+      const cargo = frame.sector?.world?.cargo?.find((c) => c.id === eligibility.target);
+      const target = cargo || { id: eligibility.target, x: self.x, y: self.y };
+      const label =
+        eligibility.action === 'tow'
+          ? target.id
+            ? `Tow: ${cargo?.kind || 'cargo'} #${target.id}`
+            : 'Stop towing'
+          : eligibility.action === 'mission_scan'
+            ? 'Mission: take sensor reading'
+            : 'Claim mission reward';
+      add(
+        target,
+        eligibility.action,
+        label,
+        eligibility.action === 'mission_claim' ? 'apply' : 'locate',
+      );
+    }
+    const selected = document.querySelector('#target-details')?.dataset.targetKey;
+    return actions.sort(
+      (a, b) =>
+        Number(selected === `npc:${b.id}` && ['hail', 'radio', 'radio_trade'].includes(b.action)) -
+          Number(
+            selected === `npc:${a.id}` && ['hail', 'radio', 'radio_trade'].includes(a.action),
+          ) ||
+        a.distance - b.distance ||
+        a.id - b.id ||
+        a.action.localeCompare(b.action),
+    );
+  }
   function setOpen(next, keepHail = false) {
     if (frame?.sector?.services?.hailing && next !== 'contact' && !keepHail) send('goodbye', 0);
     if (!self || self.hull <= 0) next = '';
@@ -192,6 +307,7 @@ export function createSectorConsole(
   claim.onclick = () => action('claim');
   close.onclick = () => (mode === 'station' ? action('undock') : setOpen(''));
   function render() {
+    contextActions.update(nearbyActions(), !!self && self.hull > 0);
     if (!self) return;
     const docked = state?.docked || 0;
     const location = definition?.locations.find((l) => l.id === docked);
@@ -497,17 +613,23 @@ export function createSectorConsole(
         setOpen('');
         navigationChanged(null);
         guide.hidden = true;
+        contextActions.update([], false);
         return;
       }
-      if (
-        state?.receipt &&
-        state.receipt.sequence > lastReceipt &&
-        !['pending', 'refund_pending'].includes(state.receipt.result)
-      ) {
-        lastReceipt = state.receipt.sequence;
-        pending = 0;
-        status.textContent =
-          state.receipt.result === 'ok' ? 'Confirmed.' : state.receipt.result.replaceAll('_', ' ');
+      const currentRun = p?.runId || state?.receipts?.[0]?.run || state?.receipt?.run;
+      if (currentRun && receiptRun !== currentRun) {
+        if (receiptRun) pending = 0;
+        receiptRun = currentRun;
+        lastReceipt = 0;
+      }
+      for (const receipt of state?.receipts || (state?.receipt ? [state.receipt] : [])) {
+        if (['pending', 'refund_pending'].includes(receipt.result)) continue;
+        if (pending >= receipt.sequence && pending <= (receipt.throughSequence || receipt.sequence))
+          pending = 0;
+        if ((receipt.cursor || receipt.sequence) <= lastReceipt) continue;
+        lastReceipt = receipt.cursor || receipt.sequence;
+        status.textContent = receipt.result === 'ok' ? 'Confirmed.' : actionMessage(receipt.result);
+        if (receipt.result !== 'ok') contextActions.report(status.textContent);
       }
       if ((state?.docked || 0) !== lastDock) {
         lastDock = state?.docked || 0;

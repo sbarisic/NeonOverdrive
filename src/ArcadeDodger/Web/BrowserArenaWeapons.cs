@@ -42,7 +42,8 @@ internal sealed partial class BrowserArenaWorld
                 if (!reducedEffects)
                     for (int i = 1; i <= 4; i++)
                     {
-                        var puff = p - direction * (9 + i * 8);
+                        var puff =
+                            p - direction * (9 + i * 8 + MathF.Sin(time * 35 + shot.Id + i) * 3);
                         Raylib.DrawCircleV(puff, 2 + i, Raylib.Fade(color, (5 - i) * .055f));
                     }
                 Raylib.DrawPoly(p, 3, 7, MathF.Atan2(shot.Dy, shot.Dx) * 180 / MathF.PI, color);

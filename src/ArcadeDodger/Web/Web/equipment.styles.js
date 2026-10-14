@@ -13,6 +13,8 @@ export const equipmentStyles = `
 #weapon-bench .empty-preview { display:grid; place-items:center; border:1px solid #394652; color:#92aebe; }
 #weapon-bench .equipment-middle > * { min-height:0; box-sizing:border-box; }
 #weapon-bench .chain-stages { gap:3px; }
+#weapon-bench .preview-values { min-height:0; overflow-y:auto; scrollbar-gutter:stable; }
+#weapon-bench .chain-stage > span:last-child { min-width:0; overflow-wrap:anywhere; }
 #weapon-bench .ship-panel { position: relative; border: 1px solid #617784; background: #09131e; display:grid; grid-template-columns: 1fr 1fr; gap: 6px 42px; padding: 8px; grid-template-rows:repeat(3,minmax(0,1fr)); min-height:0; }
 #weapon-bench .ship-silhouette { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:62px; height:132px; pointer-events:none; }
 #weapon-bench .ship-silhouette svg { width:100%; height:100%; }
@@ -20,7 +22,7 @@ export const equipmentStyles = `
 #weapon-bench .ship-socket small { display:block; margin-top:4px; font-size:9px; color:#98abbc; }
 #weapon-bench .chain-panel { height:100%; margin:0; grid-template-columns:minmax(0,1.2fr) minmax(230px,1fr); padding:7px; }
 #weapon-bench .chain-preview { height:164px; }
-#weapon-bench .chain-stage { padding:2px 3px; font-size:10px; min-height:0; height:26px; line-height:1.1; }
+#weapon-bench .chain-stage { padding:2px 3px; font-size:10px; min-height:26px; height:auto; line-height:1.1; align-items:flex-start; }
 #weapon-bench .chain-stage strong, #weapon-bench .chain-stage small { font-size:10px; line-height:11px; }
 #weapon-bench .chain-summary { font-size:10px; line-height:12px; gap:2px; padding-bottom:5px; }
 #weapon-bench .chain-caption { font-size:10px; }

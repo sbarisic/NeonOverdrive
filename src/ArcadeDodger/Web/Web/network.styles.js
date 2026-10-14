@@ -1,5 +1,6 @@
 // Presentation styles; inserted by the owning UI component.
 export const shellStyles = `
+.modal-open #sector-guide,.modal-open #radio-feed,.modal-open #world-status,.modal-open .credit-payout {display:none!important;}
 .arena-shell {
   color: #ebf0fa;
   font:

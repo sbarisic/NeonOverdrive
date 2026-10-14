@@ -102,13 +102,14 @@ public sealed partial class Room
         };
         if (territory.TryGetValue(request.Target, out var control) && !control.Friendly)
             return "capture_required";
-        if (
-            !salvageSites.TryGetValue(request.Target, out var site)
-            || Vector2.Distance(p.Position, site.Location.Position) > 180
-            || !ServiceLine(p.Position, site.Location.Position)
-            || p.Docked != 0
-        )
+        if (!salvageSites.TryGetValue(request.Target, out var site))
+            return "target_gone";
+        if (p.Docked != 0)
+            return "undock_first";
+        if (Vector2.Distance(p.Position, site.Location.Position) > 180)
             return "out_of_range";
+        if (!ServiceLine(p.Position, site.Location.Position))
+            return "blocked";
         if (p.EconomyPending || site.Reserved[slot])
             return "busy";
         if (site.Units[slot] is { Hull: > 0 } || slot > 0 && !site.Active)
@@ -177,7 +178,8 @@ public sealed partial class Room
                         FireAt = Tick + 30,
                     };
                     site.Units[slot] = unit;
-                    enemies.Add(unit);
+                    AddEnemy(unit);
+                    CombatFx(0, 5, unit.Position, 3);
                     if (raidAt < 0)
                         raidAt = Tick + 240 * TickRate;
                 }
@@ -334,20 +336,8 @@ public sealed partial class Room
         }
         npc.State = "return";
         npc.Target = npc.NpcTarget = 0;
-        var delta = Navigate(npc, home) - npc.Position;
-        if (delta.LengthSquared() > 1)
-        {
-            npc.Aim = MathF.Atan2(delta.Y, delta.X);
-            npc.Position = MoveShip(
-                npc.Position,
-                npc.Position
-                    + Vector2.Normalize(delta)
-                        * EnemyCatalog.Get(npc.Type).Speed
-                        / TickRate
-                        * (Tick < npc.SlowUntil ? npc.SlowFactor : 1),
-                EnemyRadius(npc)
-            );
-        }
+        npc.State = "return";
+        FlyNpc(npc, home, EnemyCatalog.Get(npc.Type).Speed, 200);
         return true;
     }
 

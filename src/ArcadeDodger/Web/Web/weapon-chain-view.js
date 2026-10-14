@@ -47,11 +47,11 @@ export function createChainPreview(element, onStage) {
         element('strong', `WEAPON ${index + 1} · ${model.emitter}`),
         element(
           'span',
-          `${amount(model.baseDamage)} base ${model.unit} · ${Math.round(model.range)} range${model.laser ? '' : ` · ${amount(model.rate)} shots/s`}`,
+          `${amount(model.baseDamage)} base ${model.baseUnit} · ${Math.round(model.range)} range${model.laser ? '' : ` · ${amount(model.rate)} shots/s`}`,
         ),
         element(
           'b',
-          `${amount(model.branches)} ${model.terminal ? 'mines' : 'branches'} · ${amount(model.damage)} ${model.unit} each`,
+          `${model.projectile} · ${amount(model.branches)} ${model.terminal ? 'mines' : 'branches'} · ${amount(model.damage)} ${model.unit} each · ${Math.round(model.outputRange)} range`,
         ),
       );
       note.textContent =
@@ -65,14 +65,15 @@ export function createChainPreview(element, onStage) {
       for (const [i, stage] of model.stages.entries()) {
         const row = rows[i];
         row.name.textContent = stage.name;
+        row.name.style.color = stage.color;
         row.result.textContent = !stage.reachable
           ? 'Unreachable'
           : !stage.id
             ? 'Pass through'
-            : `${amount(stage.damage)} × ${amount(stage.branches)}${stage.angle !== null ? ` · ±${Number(stage.angle.toPrecision(3))} rad` : ''}`;
+            : `${amount(stage.damage)} × ${amount(stage.branches)}${stage.angle !== null ? ` · ±${Number(stage.angle.toPrecision(3))} rad` : ''}${stage.effect ? ' · ' + stage.effect : ''}`;
         row.button.dataset.reachable = String(stage.reachable);
         row.button.dataset.empty = String(!stage.id);
-        row.button.title = `${(i + 1) * 5}% · ${stage.name}: ${row.result.textContent} (${model.unit} per branch × branch count). Select checkpoint.`;
+        row.button.title = `${(i + 1) * 5}% · ${stage.name}: ${row.result.textContent} (${stage.unit} per branch × branch count). ${stage.description} Select checkpoint.`;
       }
     },
     draw(time) {
@@ -117,7 +118,7 @@ export function createChainPreview(element, onStage) {
         ctx.moveTo(x1, y1);
         ctx.bezierCurveTo(mid, y1, mid, y2, x2, y2);
         ctx.stroke();
-        if (!model.laser) {
+        if (link.projectile !== 'Laser') {
           // Stagger path lights so a dense fork does not become a solid white wall.
           const t = (time * 0.65 - link.from * 0.09 + ((index * 0.173) % 1) + 2) % 1,
             u = 1 - t,
@@ -125,7 +126,12 @@ export function createChainPreview(element, onStage) {
             py = u ** 3 * y1 + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * y2;
           ctx.globalAlpha = 0.9;
           ctx.fillStyle = '#fff3ce';
-          ctx.fillRect(px - 1.3, py - 1, 2.6, 2);
+          if (link.projectile === 'Plasma') {
+            ctx.fillStyle = link.color;
+            ctx.beginPath();
+            ctx.arc(px, py, 3, 0, Math.PI * 2);
+            ctx.fill();
+          } else ctx.fillRect(px - 1.3, py - 1, 2.6, 2);
         }
       }
       ctx.globalAlpha = 1;

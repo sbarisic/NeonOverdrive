@@ -19,7 +19,10 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Fonts/Rajdhani-SemiBold.ttf" LogicalName="NeonOverdrive.Rajdhani.ttf" />
+    <EmbeddedResource
+      Include="Fonts/Rajdhani-SemiBold.ttf"
+      LogicalName="NeonOverdrive.Rajdhani.ttf"
+    />
     <WasmExtraFilesToDeploy Include="Fonts/OFL.txt" TargetPath="fonts/OFL.txt" />
     <PackageReference Include="Raylib-cs" Version="8.1.0" />
     <ProjectReference Include="../../ArcadeDodger.Multiplayer/ArcadeDodger.Multiplayer.csproj" />

@@ -56,7 +56,7 @@ public sealed partial class Room
                         e.Chassis,
                         from / scale,
                         to / scale,
-                        e.Aim,
+                        e.Heading,
                         ProjectileRadius(s) / scale
                     )
                     : Intersection(
@@ -109,6 +109,8 @@ public sealed partial class Room
             s.Velocity = Vector2.Normalize(direction) * speed;
     }
 
+    private bool gravityMovedShips;
+
     private void Pull(Shot s, Vector2 at, float seconds)
     {
         if (s.Gravity == 0)
@@ -121,6 +123,7 @@ public sealed partial class Room
                     && CanHit(s, e)
                     && e.SurfacePlanet == 0
                     && !e.Installation
+                    && !Stationary(e)
                     && !Sanctuary(e.Position)
                     && VisibleLine(at, e.Position)
                 )
@@ -131,14 +134,29 @@ public sealed partial class Room
             var distance = delta.Length();
             if (distance > .001f && distance < s.GravityRadius)
             {
+                if (!gravityMovedShips)
+                    BeginShipContacts();
+                gravityMovedShips = true;
+                var previous = e.Position;
                 e.Position = MoveShip(
                     e.Position,
                     e.Position
                         + delta
                             / distance
                             * MathF.Min(distance, Definition(22).Value * s.Gravity * seconds),
-                    20
+                    EnemyRadius(e)
                 );
+                if (seconds > 0)
+                {
+                    var pulled = (e.Position - previous) / seconds;
+                    if (pulled.LengthSquared() > .0001f)
+                    {
+                        var normal = Vector2.Normalize(pulled);
+                        e.Velocity +=
+                            normal
+                            * MathF.Max(0, pulled.Length() - Vector2.Dot(e.Velocity, normal));
+                    }
+                }
                 enemyGrid.Move(e, e.Position);
             }
         }

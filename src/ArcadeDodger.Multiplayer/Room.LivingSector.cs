@@ -14,6 +14,9 @@ public sealed partial class Room
         public int Cargo;
         public long WorkUntil;
         public long CargoRevision;
+        public int LoadedAt;
+        public bool ManifestPending;
+        public readonly Dictionary<int, long> Visited = [];
         public readonly List<TradeStock> Stock = [];
         public readonly HashSet<int> Reserved = [];
     }
@@ -40,6 +43,7 @@ public sealed partial class Room
             Police = "";
         public int[] Targets = [];
         public readonly HashSet<int> Progress = [];
+        public readonly Dictionary<int, (Vector2 Position, long Tick)> LastKnownAttackers = [];
         public long ScanAt,
             LastPoliceSeen,
             JobCooldown;

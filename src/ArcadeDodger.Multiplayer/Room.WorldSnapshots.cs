@@ -68,11 +68,54 @@ public sealed partial class Room
                         civilian?.Destination ?? contact?.Destination ?? e.Home,
                         civilian?.CargoRevision ?? 0,
                         civilian?.Stock.Count > 0 || contact?.Role == "trader",
-                        e.Role != NpcRole.Police
+                        MissionContact(e)
                     );
                 })
                 .ToArray(),
-            EventGoal()
+            EventGoal(),
+            ProtectionFor(p)
+        );
+    }
+
+    private ProtectionStatus? ProtectionFor(Player p)
+    {
+        var state = Living(p);
+        if (state.Job != "protection" || state.Targets.Length == 0)
+            return null;
+        var ship = enemies.FirstOrDefault(e => e.Id == state.Targets[0] && e.Hull > 0);
+        var attackers = enemies
+            .Where(e => e.Hull > 0 && state.Targets.Skip(1).Contains(e.Id))
+            .ToArray();
+        var marks = new List<ProtectionMark>();
+        var participated = state.Progress.Count > 0;
+        foreach (var enemy in attackers)
+        {
+            participated |=
+                enemy.Contributors.TryGetValue(p.Id, out var c)
+                && c.Run == p.RunId
+                && c.Damage >= 1;
+            var visible = Vector2.Distance(p.Position, enemy.Position) <= Detection(p);
+            if (visible)
+                state.LastKnownAttackers[enemy.Id] = (enemy.Position, Tick);
+            if (state.LastKnownAttackers.TryGetValue(enemy.Id, out var known))
+                marks.Add(new(enemy.Id, known.Position.X, known.Position.Y, visible, known.Tick));
+        }
+        var reason =
+            state.JobState == "failed"
+                ? ship is null
+                    ? "Protected ship destroyed."
+                    : "No qualifying damage contribution."
+                : state.JobState == "ready"
+                    ? "All designated attackers destroyed. Return to a mission contact or station."
+                    : "Destroy every designated attacker while the protected ship survives.";
+        return new(
+            state.Targets[0],
+            ship?.Hull ?? 0,
+            ship?.Shield ?? 0,
+            attackers.Length,
+            participated,
+            reason,
+            marks.ToArray()
         );
     }
 

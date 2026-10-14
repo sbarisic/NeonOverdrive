@@ -6,6 +6,8 @@ namespace ArcadeDodger.Web;
 
 internal sealed partial class BrowserArenaWorld
 {
+    public string SelectedContact { get; set; } = "";
+
     private void DrawPlayer(
         PlayerSnapshot p,
         int ownId,
@@ -35,7 +37,28 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawLineEx(tail + side * 4, tip, 1.5f, marker);
             Raylib.DrawLineEx(tail - side * 4, tip, 1.5f, marker);
         }
-        if (p.Shield > 0)
+        if (p.Id == ownId && sector is not null && !p.Editing && p.Docked == 0)
+        {
+            var body = sector.Locations.FirstOrDefault(l =>
+                l.Solid && Vector2.Distance(position, l.Position) < l.Radius + sector.GravityRange
+            );
+            if (body is not null)
+            {
+                var pull = Vector2.Normalize(body.Position - position);
+                var side = new Vector2(-pull.Y, pull.X);
+                var tip = position + pull * (radius + 25);
+                Raylib.DrawLineEx(tip - pull * 8 + side * 5, tip, 2, Gold);
+                Raylib.DrawLineEx(tip - pull * 8 - side * 5, tip, 2, Gold);
+                BrowserText.DrawText(
+                    p.Throttle > 0 ? "GRAVITY ASSIST" : "GRAVITY",
+                    (int)p.X - 24,
+                    (int)(p.Y + radius + 25),
+                    10,
+                    Gold
+                );
+            }
+        }
+        if (p.Shield > 0 && (p.Id == ownId || SelectedContact == "player:" + p.Id))
         {
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 2, Shield);
             Raylib.DrawRectangle(
@@ -58,6 +81,8 @@ internal sealed partial class BrowserArenaWorld
                 NeonRendering.Ink
             );
         }
+        if (p.Id != ownId && SelectedContact != "player:" + p.Id)
+            return;
         string name = p.Name.Length > 18 ? p.Name[..18] : p.Name;
         name += $" L{p.Level}";
         if (friendly)
@@ -115,11 +140,32 @@ internal sealed partial class BrowserArenaWorld
             _ => Gold,
         };
 
+    private readonly Dictionary<int, (Vector2 Position, float Time, float Thrust)> engineMotion =
+    [];
+
     private void DrawEnemy(EnemySnapshot e, Vector2 origin, float time, bool low)
     {
         if (e.Hull <= 0)
             return;
         Vector2 p = new(e.X, e.Y);
+        var thrust = 0f;
+        if (engineMotion.TryGetValue(e.Id, out var previous) && time > previous.Time)
+            thrust = Math.Clamp(
+                Vector2.Distance(p, previous.Position)
+                    / (time - previous.Time)
+                    / Math.Max(1, EnemyCatalog.Get(e.Kind).Speed),
+                0,
+                1
+            );
+        engineMotion[e.Id] = (p, time, thrust);
+        if (engineMotion.Count > 256)
+            foreach (
+                var id in engineMotion
+                    .Where(x => time - x.Value.Time > 2)
+                    .Select(x => x.Key)
+                    .ToArray()
+            )
+                engineMotion.Remove(id);
         Vector2 d = new(MathF.Cos(e.Aim), MathF.Sin(e.Aim));
         Color color =
             !low && enemyHitFlashes.TryGetValue(e.Id, out var until) && time < until
@@ -178,9 +224,9 @@ internal sealed partial class BrowserArenaWorld
             DrawChassis(
                 e.Chassis,
                 p,
+                e.Heading,
                 e.Aim,
-                e.Aim,
-                e.State is "patrol" or "traveling" ? .6f : .2f,
+                e.Throttle,
                 gunner ? 1 : 0,
                 color,
                 low,
@@ -212,11 +258,10 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawLineEx(p - new Vector2(7, 0), p + new Vector2(7, 0), 3, color);
             Raylib.DrawLineEx(p - new Vector2(0, 7), p + new Vector2(0, 7), 3, color);
         }
-        if (e.Kind == "interceptor")
-            Raylib.DrawLineEx(p - d * radius, p - d * (radius + 12), 3, color);
+
         if (e.MaxShield > 0 && e.Shield > 0)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 5, Raylib.Fade(Cyan, .6f));
-        if (e.Faction == "friendly")
+        if (SelectedContact == "npc:" + e.Id || e.Kind == "relief")
         {
             Raylib.DrawRectangle((int)p.X - 25, (int)(p.Y + radius + 8), 50, 3, MutedMine);
             Raylib.DrawRectangle(
@@ -229,7 +274,7 @@ internal sealed partial class BrowserArenaWorld
         }
         if (e.Effects != 0)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 4, Gold);
-        if (e.Kind == "contact")
+        if (e.Kind == "contact" && SelectedContact == "npc:" + e.Id)
             BrowserText.DrawText("E / HAIL", (int)p.X - 30, (int)p.Y + 40, 12, Cyan);
         if (e.Kind == "repair-bot")
         {
@@ -239,7 +284,8 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawLineEx(p, drone, 1, Raylib.Fade(Cyan, .35f));
             BrowserText.DrawText("REPAIR BAY", (int)p.X - 35, (int)p.Y + 40, 12, Cyan);
         }
-        BrowserText.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
+        if (SelectedContact == "npc:" + e.Id)
+            BrowserText.DrawText($"L{e.Level}", (int)p.X - 8, (int)(p.Y - radius - 15), 10, color);
         if (e.Telegraph)
             Raylib.DrawCircleLines((int)p.X, (int)p.Y, radius + 8, Hostile);
     }
@@ -270,7 +316,13 @@ internal sealed partial class BrowserArenaWorld
             Raylib.DrawLineEx(marker, marker + direction * 12, 3, Hostile);
             // Telegraphs are gameplay information: retain them in reduced FX mode.
             if (e.Telegraph)
-                BrowserText.DrawText("!", (int)marker.X - 4, (int)marker.Y - 10, 18, NeonRendering.Ink);
+                BrowserText.DrawText(
+                    "!",
+                    (int)marker.X - 4,
+                    (int)marker.Y - 10,
+                    18,
+                    NeonRendering.Ink
+                );
         }
     }
 }

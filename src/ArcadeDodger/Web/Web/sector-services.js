@@ -1,3 +1,5 @@
+import { actionMessage } from './action-messages.js';
+import { reconcile } from './stable-dom.js';
 import { control } from './interface.js';
 
 export function createServicePanel(el, panel, send, shop, navigate) {
@@ -50,115 +52,136 @@ export function createServicePanel(el, panel, send, shop, navigate) {
       if (previous === key) return;
       previous = key;
       const focus = document.activeElement?.dataset.serviceAction;
-      root.replaceChildren();
-      const add = (label, icon, action, id, disabled = false) => {
-        const button = el('button', label);
-        control(button, icon);
-        button.dataset.serviceAction = `${action}:${id}`;
-        button.disabled = !!actionPending || disabled;
-        button.onclick = () => send(action, id);
-        root.append(button);
-        return button;
-      };
-      if (mode === 'chooser') {
-        root.append(el('p', 'Choose a nearby ship or service.'));
-        for (const choice of choices) add(choice.name, 'locate', choice.action, choice.id);
-      } else if (mode === 'contact') {
-        const contact = services?.contacts.find((c) => c.id === services.hailing);
-        if (!contact) {
-          root.append(el('p', 'Opening channel…'));
-          return;
-        }
-        root.append(el('h3', `${contact.name} · ${contact.role.toUpperCase()}`));
-        root.append(el('p', greetings[contact.role][chatter % 2]));
-        const talk = add('Chat', 'friends', 'chat', contact.id);
-        talk.onclick = () => {
-          chatter++;
-          previous = '';
-          this.render(mode, target, choices, frame, actionPending);
+      const mount = root;
+      const draft = el('div');
+      const commit = () => reconcile(mount, draft);
+      renderContents.call(this);
+      commit();
+      function renderContents() {
+        const root = draft;
+        const add = (label, icon, action, id, disabled = false) => {
+          const button = el('button', label);
+          control(button, icon);
+          button.dataset.serviceAction = `${action}:${id}`;
+          button.disabled =
+            (!['manage', 'chat', 'trade', 'locate_cache', 'goodbye'].includes(action) &&
+              !!actionPending) ||
+            disabled;
+          const reason = services?.availability?.find(
+            (v) => v.target === id && v.action === action,
+          )?.reason;
+          if (reason) {
+            button.disabled = true;
+            button.title = actionMessage(reason);
+          }
+          button.onclick = () => send(action, id);
+          root.append(button);
+          return button;
         };
-        if (contact.role === 'trader') {
-          const trade = add('Trade modules', 'shop', 'trade', contact.id);
-          trade.onclick = shop;
-        } else
-          add(
-            contact.role === 'explorer'
-              ? 'Work: search 3 caches · 40 credits / 30 XP'
-              : 'Work: defeat 3 patrol ships · 60 credits / 45 XP',
-            'contract',
-            'job_accept',
-            contact.id,
-            !!job?.kind || job?.cooldown > 0,
-          );
-        if (job?.kind)
+        if (mode === 'chooser') {
+          root.append(el('p', 'Choose a nearby ship or service.'));
+          for (const choice of choices) add(choice.name, 'locate', choice.action, choice.id);
+        } else if (mode === 'contact') {
+          const contact = services?.contacts.find((c) => c.id === services.hailing);
+          if (!contact) {
+            root.append(el('p', 'Opening channel…'));
+            return;
+          }
+          root.append(el('h3', `${contact.name} · ${contact.role.toUpperCase()}`));
+          root.append(el('p', greetings[contact.role][chatter % 2]));
+          const talk = add('Chat', 'friends', 'chat', contact.id);
+          talk.onclick = () => {
+            chatter++;
+            previous = '';
+            this.render(mode, target, choices, frame, actionPending);
+          };
+          if (contact.role === 'trader') {
+            const trade = add('Trade modules', 'shop', 'trade', contact.id);
+            trade.onclick = shop;
+          } else
+            add(
+              contact.role === 'explorer'
+                ? 'Work: search 3 caches · 40 credits / 30 XP'
+                : 'Work: defeat 3 patrol ships · 60 credits / 45 XP',
+              'contract',
+              'job_accept',
+              contact.id,
+              !!job?.kind || job?.cooldown > 0,
+            );
+          if (job?.kind)
+            root.append(
+              el(
+                'p',
+                `${job.kind.toUpperCase()} · ${Math.min(3, job.progress)}/3 · ${job.ready ? 'Ready to claim' : 'In progress'}`,
+              ),
+            );
+          if (job?.cooldown) root.append(el('p', `Next assignment in ${job.cooldown}s`));
+          if (job?.ready)
+            add(
+              `Claim assignment · ${job.credits} credits / ${job.experience} XP`,
+              'apply',
+              'job_claim',
+              0,
+            );
+          for (const id of (job?.targets || []).filter(
+            (id) => !services.claimedCaches.includes(id),
+          )) {
+            const locate = add(`Locate cache ${id - 99}`, 'locate', 'locate_cache', id);
+            locate.onclick = () => navigate(id);
+          }
+          add('Goodbye', 'exit', 'goodbye', 0);
+        } else {
+          const site = services?.outposts.find((s) => s.id === target);
+          if (!site) return;
+          root.append(el('h3', `${site.name} · ${site.active ? 'SHARED OUTPOST' : 'INACTIVE'}`));
           root.append(
             el(
               'p',
-              `${job.kind.toUpperCase()} · ${Math.min(3, job.progress)}/3 · ${job.ready ? 'Ready to claim' : 'In progress'}`,
+              `${frame.workshop?.credits || 0} credits · Live combat area — no sanctuary. Repairs reach 350 units.`,
             ),
           );
-        if (job?.cooldown) root.append(el('p', `Next assignment in ${job.cooldown}s`));
-        if (job?.ready)
-          add(
-            `Claim assignment · ${job.credits} credits / ${job.experience} XP`,
-            'apply',
-            'job_claim',
-            0,
-          );
-        for (const id of (job?.targets || []).filter(
-          (id) => !services.claimedCaches.includes(id),
-        )) {
-          const locate = add(`Locate cache ${id - 99}`, 'locate', 'locate_cache', id);
-          locate.onclick = () => navigate(id);
-        }
-        add('Goodbye', 'exit', 'goodbye', 0);
-      } else {
-        const site = services?.outposts.find((s) => s.id === target);
-        if (!site) return;
-        root.append(el('h3', `${site.name} · ${site.active ? 'SHARED OUTPOST' : 'INACTIVE'}`));
-        root.append(
-          el(
-            'p',
-            `${frame.workshop?.credits || 0} credits · Live combat area — no sanctuary. Repairs reach 350 units.`,
-          ),
-        );
-        const schematic = el('div', '', 'outpost-schematic');
-        schematic.style.cssText =
-          'position:relative;height:160px;max-width:420px;border:1px solid #446176;margin:12px 0';
-        for (const socket of site.sockets) {
-          const mark = el('span', ['CORE', 'T1', 'T2', 'BOT'][socket.slot]);
-          mark.style.cssText = `position:absolute;left:${[40, 12, 70, 40][socket.slot]}%;top:${[25, 55, 55, 75][socket.slot]}%;color:${socket.hull ? '#65e6be' : '#71818f'}`;
-          schematic.append(mark);
-        }
-        root.append(schematic);
-        const sockets = el('div', '', 'outpost-sockets');
-        root.append(sockets);
-        for (const socket of site.sockets) {
-          const card = el('div', '', 'outpost-socket');
-          sockets.append(card);
-          const name = ['Service core', 'Turret 1', 'Turret 2', 'Repair drone bay'][socket.slot];
-          card.append(
-            el(
-              'p',
-              `${name} · ${socket.hull}/${socket.maxHull} hull${socket.pending ? ' · Transaction pending' : ''}`,
-            ),
-          );
-          const action = ['activate', 'turret_one', 'turret_two', 'repair_bot'][socket.slot];
-          const build = add(
-            `${socket.slot ? 'Build' : 'Activate'} ${name} · ${socket.cost} credits`,
-            'apply',
-            action,
-            site.id,
-            socket.hull > 0 ||
-              socket.pending ||
-              (socket.slot > 0 && !site.active) ||
-              (frame.workshop?.credits || 0) < socket.cost,
-          );
-          card.append(build);
-          build.onclick = () => {
-            if (confirm(`${name}: spend ${socket.cost} credits for this shared outpost?`))
-              send(action, site.id);
-          };
+          const reason = services?.availability?.find(
+            (v) => v.target === site.id && v.reason,
+          )?.reason;
+          if (reason) root.append(el('p', actionMessage(reason)));
+          const schematic = el('div', '', 'outpost-schematic');
+          schematic.style.cssText =
+            'position:relative;height:160px;max-width:420px;border:1px solid #446176;margin:12px 0';
+          for (const socket of site.sockets) {
+            const mark = el('span', ['CORE', 'T1', 'T2', 'BOT'][socket.slot]);
+            mark.style.cssText = `position:absolute;left:${[40, 12, 70, 40][socket.slot]}%;top:${[25, 55, 55, 75][socket.slot]}%;color:${socket.hull ? '#65e6be' : '#71818f'}`;
+            schematic.append(mark);
+          }
+          root.append(schematic);
+          const sockets = el('div', '', 'outpost-sockets');
+          root.append(sockets);
+          for (const socket of site.sockets) {
+            const card = el('div', '', 'outpost-socket');
+            sockets.append(card);
+            const name = ['Service core', 'Turret 1', 'Turret 2', 'Repair drone bay'][socket.slot];
+            card.append(
+              el(
+                'p',
+                `${name} · ${socket.hull}/${socket.maxHull} hull${socket.pending ? ' · Transaction pending' : ''}`,
+              ),
+            );
+            const action = ['activate', 'turret_one', 'turret_two', 'repair_bot'][socket.slot];
+            const build = add(
+              `${socket.slot ? 'Build' : 'Activate'} ${name} · ${socket.cost} credits`,
+              'shop',
+              action,
+              site.id,
+              socket.hull > 0 ||
+                socket.pending ||
+                (socket.slot > 0 && !site.active) ||
+                (frame.workshop?.credits || 0) < socket.cost,
+            );
+            card.append(build);
+            build.onclick = () => {
+              if (confirm(`${name}: spend ${socket.cost} credits for this shared outpost?`))
+                send(action, site.id);
+            };
+          }
         }
       }
       if (focus)

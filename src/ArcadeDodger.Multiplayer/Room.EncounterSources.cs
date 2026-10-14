@@ -14,7 +14,7 @@ public sealed partial class Room
             sources[l.Id] = new() { Location = l, NextLaunch = l.Kind == "base" ? 600 : 1800 };
             if (l.Kind != "base")
                 continue;
-            enemies.Add(
+            AddEnemy(
                 new()
                 {
                     Id = ++nextEnemy,
@@ -61,7 +61,7 @@ public sealed partial class Room
             .ToArray();
         var type = available[source.LaunchCount++ % available.Length];
         var hull = (int)MathF.Ceiling(type.Hull * EnemyCatalog.Health(level));
-        enemies.Add(
+        AddEnemy(
             new()
             {
                 Id = ++nextEnemy,

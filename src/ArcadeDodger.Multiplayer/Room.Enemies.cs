@@ -21,7 +21,11 @@ public sealed record EnemySnapshot(
     int MaxShield = 0,
     int SurfacePlanet = 0,
     int Chassis = 0,
-    string Role = "combat"
+    string Role = "combat",
+    float Heading = 0,
+    float VelocityX = 0,
+    float VelocityY = 0,
+    float Throttle = 0
 )
 {
     public string Activity =>
@@ -51,6 +55,7 @@ public sealed partial class Room
 
     private void StepEnemies()
     {
+        npcRouteWork = 2048;
         StepSources();
         var alive = players
             .Values.Where(p => p.Hull > 0 && p.Connected && !p.Editing && !Safe(p))
@@ -58,6 +63,8 @@ public sealed partial class Room
         foreach (var enemy in enemies)
         {
             enemy.Previous = enemy.Position;
+            enemy.FlightGoal = null;
+            RechargeNpc(enemy);
             if (enemy.Installation || enemy.Hull <= 0 || Tick < enemy.StunUntil)
                 continue;
             if (StepNpcCombat(enemy))
@@ -127,7 +134,6 @@ public sealed partial class Room
                 if (Vector2.Distance(enemy.Position, goal) < 60)
                     enemy.Patrol = (enemy.Patrol + 1) % 4;
             }
-            goal = Navigate(enemy, goal);
             var delta = goal - enemy.Position;
             var distance = delta.Length();
             var direction = distance > .001f ? delta / distance : Vector2.UnitX;
@@ -181,36 +187,12 @@ public sealed partial class Room
                     movement = 0;
                 }
             }
-            var step =
-                direction
-                * EnemyCatalog.Get(enemy.Type).Speed
-                / TickRate
-                * movement
-                * (Tick < enemy.SlowUntil ? enemy.SlowFactor : 1);
-            // Tangent steering lets patrols walk around cover instead of pinning against it.
-            if (
-                geometry?.TraceShips(
-                    enemy.Position,
-                    enemy.Position + direction * 100,
-                    EnemyRadius(enemy)
-                ) is
-                { } obstacle
-            )
-            {
-                var tangent = new Vector2(-obstacle.Normal.Y, obstacle.Normal.X);
-                if (Vector2.Dot(tangent, direction) < 0)
-                    tangent = -tangent;
-                step = tangent * step.Length();
-            }
-            var next = MoveShip(enemy.Position, enemy.Position + step, EnemyRadius(enemy));
-            if (!Sanctuary(next))
-                enemy.Position = next;
-            else
-            {
-                enemy.Target = 0;
-                enemy.Patrol = (enemy.Patrol + 1) % 4;
-                enemy.State = "return";
-            }
+            var flightGoal =
+                movement == 0 ? enemy.Position
+                : movement < 0 || enemy.Type == "interceptor" && target is not null
+                    ? enemy.Position + direction * (movement < 0 ? -400 : 400)
+                : goal;
+            FlyNpc(enemy, flightGoal, EnemyCatalog.Get(enemy.Type).Speed);
             if (target is null)
                 continue;
             if (
@@ -251,25 +233,6 @@ public sealed partial class Room
                     if (enemy.Type == "interceptor")
                         enemy.RetreatUntil = Tick + 45;
                 }
-            }
-            if (
-                !enemy.Gunner
-                && Tick >= enemy.FireAt
-                && Tick >= target.ProtectedUntil
-                && Intersection(
-                    enemy.Previous - target.Previous,
-                    enemy.Position - target.Position,
-                    Radius + EnemyRadius(enemy)
-                ).HasValue
-            )
-            {
-                Hit(
-                    new Shot { Owner = -enemy.Id },
-                    target,
-                    null,
-                    EnemyCatalog.Damage(enemy.Level) * (1 - Value(target, "impact"))
-                );
-                enemy.FireAt = Tick + 30;
             }
         }
     }
@@ -318,7 +281,14 @@ public sealed partial class Room
         public int CourierDestination = 12;
         public long CourierDepartAt;
         public Vector2 RouteGoal;
+        public Vector2 ProgressPosition;
+        public long ProgressAt;
+        public int BlockedRoutes;
+        public Vector2? YieldPoint;
+        public long YieldUntil;
+        public bool RouteGravityFallback;
         public Vector2[] Route = [];
+        public SectorNavigation.Search? RouteSearch;
         public int RouteIndex;
         private string? type;
         public string Type
@@ -343,7 +313,14 @@ public sealed partial class Room
         public Vector2 Position,
             Previous,
             Investigate;
-        public float Aim;
+        public float Aim,
+            Heading,
+            Throttle;
+        public Vector2 Velocity;
+        public Vector2? FlightGoal;
+        public float FlightSpeed,
+            FlightStop;
+
         public long LaunchUntil,
             InvestigateUntil,
             FireAt,

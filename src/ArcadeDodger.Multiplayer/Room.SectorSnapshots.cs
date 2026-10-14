@@ -15,7 +15,12 @@ public sealed partial class Room
         return frame with
         {
             Players = frame
-                .Players.Select(other =>
+                .Players.Where(other =>
+                    other.Id == id
+                    || Vector2.DistanceSquared(p.Position, new(other.X, other.Y))
+                        <= Detection(p) * Detection(p)
+                )
+                .Select(other =>
                     other.Id == id
                         ? other
                         : other with
@@ -31,7 +36,12 @@ public sealed partial class Room
                         }
                 )
                 .ToArray(),
-            Enemies = frame.Enemies?.Where(e => Near(e.X, e.Y)).ToArray(),
+            Enemies = frame
+                .Enemies?.Where(e =>
+                    Vector2.DistanceSquared(p.Position, new(e.X, e.Y))
+                    <= Detection(p) * Detection(p)
+                )
+                .ToArray(),
             Shots = frame.Shots.Where(e => e.Owner == id || Near(e.X, e.Y)).ToArray(),
             Beams = frame
                 .Beams?.Where(e =>
@@ -94,7 +104,10 @@ public sealed partial class Room
                     )
                     .Select(e => e.Home)
                     .ToArray(),
-                InteractionTarget: s.InteractionTarget
+                InteractionTarget: s.InteractionTarget,
+                Receipts: s.Receipts.Values.Concat(s.Rejected is null ? [] : new[] { s.Rejected })
+                    .OrderBy(r => r.Cursor)
+                    .ToArray()
             );
         }
         return new(

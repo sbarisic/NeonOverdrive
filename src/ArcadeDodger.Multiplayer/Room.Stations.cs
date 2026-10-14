@@ -16,6 +16,8 @@ public sealed partial class Room
             return "station_contested";
         if (station?.Kind != "station" || Vector2.Distance(p.Position, station.Position) > 180)
             result = "out_of_range";
+        else if (!ServiceLine(p.Position, station.Position))
+            result = "blocked";
         else
         {
             p.Docked = station.Id;
@@ -37,7 +39,7 @@ public sealed partial class Room
             result = "not_docked";
             return result;
         }
-        p.Position = Location(p.Docked)!.Position + new Vector2(150, 0);
+        p.Position = SelectSpawn(p.Docked, p.Id, p.Chassis);
         p.Previous = p.Position;
         p.Docked = 0;
         p.Held = null;
@@ -73,8 +75,7 @@ public sealed partial class Room
                     p.HullFraction = 0;
                 }
                 p.EconomyPending = false;
-                if (state.Receipt?.Sequence == request.Sequence)
-                    state.Receipt = new(request.Sequence, r);
+                state.Receipt = new(request.Sequence, r);
             }
         );
         if (!profiles.BackgroundWrites)

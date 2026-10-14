@@ -65,7 +65,7 @@ internal static partial class BrowserArenaHud
         groups.Clear();
         float x = 20,
             y = 18;
-        foreach (var size in new float[] { 90, 188, 60, 210, 140, 150, 170 })
+        foreach (var size in new float[] { 80, 175, 40, 180, 130, 140, 125, 125, 110 })
         {
             if (x + size > width - 16 && x > 20)
             {
@@ -130,7 +130,7 @@ internal static partial class BrowserArenaHud
             Text($"LV {level}", (int)p.X, (int)p.Y, 12, Cyan);
             Right(
                 level == 100 ? "MAX" : $"XP {self.Experience}/{ceiling}",
-                (int)p.X + 198,
+                (int)p.X + 170,
                 (int)p.Y,
                 12,
                 Muted
@@ -138,7 +138,7 @@ internal static partial class BrowserArenaHud
             Meter(
                 (int)p.X,
                 (int)p.Y + 24,
-                198,
+                170,
                 5,
                 level == 100
                     ? 1
@@ -152,15 +152,29 @@ internal static partial class BrowserArenaHud
         Text($"PLAYTHROUGH {self?.Playthrough ?? 1}", (int)p.X, (int)p.Y + 10, 12, Ink);
         p = groups[6];
         Text($"THROTTLE {(self?.Throttle ?? 0):P0}", (int)p.X, (int)p.Y, 12, Cyan);
+        Meter((int)p.X, (int)p.Y + 28, 110, 4, self?.Throttle ?? 0, Cyan);
+        p = groups[7];
         var speed = new Vector2(self?.VelocityX ?? 0, self?.VelocityY ?? 0).Length();
+        var overspeed = speed > (self?.MoveSpeed ?? 220) + 1;
+        Text("SPEED", (int)p.X, (int)p.Y, 12, Muted);
         Text(
-            $"{speed:0} U/S{(self?.Braking == true ? " BRAKING" : "")}",
+            $"{speed:0} U/S{(self?.Braking == true ? " BRAKE" : overspeed ? " +" : "")}",
             (int)p.X,
             (int)p.Y + 14,
             10,
-            self?.Braking == true ? Amber : Ink
+            overspeed ? Amber : Ink
         );
-        Meter((int)p.X, (int)p.Y + 28, 110, 4, self?.Throttle ?? 0, Cyan);
+        Meter(
+            (int)p.X,
+            (int)p.Y + 28,
+            110,
+            4,
+            speed / (self?.MoveSpeed ?? 220),
+            overspeed ? Amber : Cyan
+        );
+        p = groups[8];
+        Text("INERTIA", (int)p.X, (int)p.Y, 12, Muted);
+        Text($"{self?.Inertia ?? 1:0.00}×", (int)p.X, (int)p.Y + 16, 12, Ink);
         Panel((int)footer.X, (int)footer.Y, (int)footer.Width, (int)footer.Height, Cyan);
         DrawRadar(snapshot, ownId, origin, worldView, time, reducedEffects);
         if (menuOpen || self is null || self.Hull <= 0)

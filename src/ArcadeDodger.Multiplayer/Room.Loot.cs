@@ -292,6 +292,10 @@ public sealed partial class Room
             if (CreditRoll(enemy.Id, id) < .5f)
             {
                 var module = 1 + (int)(CreditRoll(enemy.Id ^ 0x13579, id) * 28);
+                module = ModuleLevels.Key(
+                    module,
+                    ModuleLevels.Roll(enemy.Level, CreditRoll(enemy.Id ^ 0x42931, id))
+                );
                 var point = Eject(enemy, id + 2);
                 pendingModules.Add(
                     new(

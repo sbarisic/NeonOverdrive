@@ -175,13 +175,19 @@ public sealed class SnapshotPlayback
                 return
                     from is null
                     || to is null
-                    || from.X == to.X && from.Y == to.Y && from.Aim == to.Aim
+                    || from.X == to.X
+                        && from.Y == to.Y
+                        && from.Aim == to.Aim
+                        && from.Heading == to.Heading
                     ? current
                     : current with
                     {
                         X = Lerp(from.X, to.X, t),
                         Y = Lerp(from.Y, to.Y, t),
                         Aim = from.Aim + MathF.IEEERemainder(to.Aim - from.Aim, MathF.Tau) * t,
+                        Heading =
+                            from.Heading
+                            + MathF.IEEERemainder(to.Heading - from.Heading, MathF.Tau) * t,
                     };
             })
             .ToArray();

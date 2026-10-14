@@ -163,6 +163,8 @@ export const chartStyles = `
   z-index: 2;
   background: radial-gradient(#fff 0 25%, transparent 35%);
 }
+#sector-console .map-location[data-kind="station"] { z-index:3; }
+#sector-console .contact-number { position:absolute; left:100%; top:-5px; background:#07121be8; color:var(--marker); padding:0 2px; font:10px monospace; pointer-events:none; }
 #sector-console .chart-context {
   position: absolute;
   z-index: 5;

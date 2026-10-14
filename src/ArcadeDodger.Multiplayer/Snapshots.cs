@@ -46,7 +46,8 @@ public sealed record PlayerSnapshot(
     string CruiseState = "ready",
     int CruiseTicks = 0,
     bool Braking = false,
-    float CruiseMultiplier = 1
+    float CruiseMultiplier = 1,
+    float Inertia = 1
 );
 
 public sealed record ShotSnapshot(

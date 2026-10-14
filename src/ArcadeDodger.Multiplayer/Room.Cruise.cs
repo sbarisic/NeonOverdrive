@@ -7,7 +7,7 @@ public sealed partial class Room
     private float CruiseMultiplier(Player p) => p.Cruise ? 2 + .5f * Gear(p, 12) : 1;
 
     private static float TurnRateFor(Player p) =>
-        ChassisCatalog.Get(p.Chassis).TurnRadians * (p.Cruise ? .5f : 1);
+        ChassisCatalog.Get(p.Chassis).TurnRadians * (1 + .1f * Gear(p, 3)) * (p.Cruise ? .5f : 1);
 
     private void CancelCruise(Player p)
     {

@@ -11,7 +11,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.route('**/sector.js*', async (route) => {
       const response = await route.fetch();
-      const source = await response.text();
+      const source = (await response.text()).replaceAll('\r\n', '\n');
       assert(source.includes('return {\n    trackRescue()'));
       await route.fulfill({
         response,
@@ -45,6 +45,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         site = frame.sector.services.outposts[0];
       self.x = site.x;
       self.y = site.y;
+      // The synthetic arrival includes the server eligibility associated with that position.
+      for (const eligibility of frame.sector.services.availability || [])
+        if (eligibility.target === site.id) eligibility.reason = '';
       frame.workshop.credits = 1000;
       window.__serviceFrame = frame;
       window.__serviceSelf = self;

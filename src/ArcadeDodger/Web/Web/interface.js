@@ -23,10 +23,34 @@ const paths = {
   contract: 'M6 3H18V21H6Z M9 8H15 M9 12H15 M9 16H13',
 };
 let installed = false;
-export function control(button, icon, variant = 'secondary') {
+export function control(button, icon, variant = 'secondary', tone = '') {
   button.classList.add('ui-action');
   button.dataset.variant = variant;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#dcc791" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${paths[icon] || paths.contract}"/></svg>`;
+  button.dataset.tone =
+    tone ||
+    {
+      exit: 'danger',
+      clear: 'danger',
+      apply: 'success',
+      repair: 'success',
+      shop: 'purchase',
+      reset: 'purchase',
+      friends: 'special',
+      mobility: 'special',
+      pilot: 'info',
+      loadout: 'info',
+      map: 'info',
+    }[icon] ||
+    'action';
+  const ink = {
+    danger: '#ff727c',
+    success: '#68efa0',
+    purchase: '#ffe078',
+    special: '#ef8aff',
+    info: '#82b8ff',
+    action: '#68eee8',
+  }[button.dataset.tone];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${paths[icon] || paths.contract}"/></svg>`;
   button.style.setProperty('--action-icon', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
   if (installed) return;
   installed = true;
