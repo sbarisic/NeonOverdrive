@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -12,7 +13,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     const state = () =>
       page.locator('#network-info').evaluate((e) => JSON.parse(e.dataset.snapshot));
-    assert.equal((await state()).v, 15);
+    assert.equal((await state()).v, 16);
     assert.equal((await state()).sector.services.contacts.length, 3);
     const ownId = +(await page.locator('#network-info').getAttribute('data-player'));
     assert.equal((await state()).players.find((p) => p.id === ownId).playthrough, 1);
@@ -54,7 +55,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
           .hailing,
     );
     await page.locator('#canvas').focus();
-    await page.keyboard.press('e');
+    await interact(page);
     await page
       .locator('.service-board')
       .getByRole('button', { name: 'Hail ' + trader.name, exact: true })

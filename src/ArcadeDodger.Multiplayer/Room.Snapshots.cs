@@ -67,7 +67,14 @@ public sealed partial class Room
                         && !RaceCountdown(p)
                         && p.Held?.Brake == true,
                     CruiseMultiplier(p),
-                    1 / (1 + .1f * Gear(p, 3))
+                    1 / (1 + .1f * Gear(p, 3)),
+                    p.Connected
+                        && p.Hull > 0
+                        && !p.Menu
+                        && !p.Editing
+                        && p.Docked == 0
+                        && !RaceCountdown(p)
+                        && p.Held is { FullThrottle: true, Brake: false }
                 ))
                 .ToArray(),
             shots

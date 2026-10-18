@@ -295,7 +295,7 @@ public class FriendsAndBeamsTests
             valid,
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    $"{{\"v\":15,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"
+                    $"{{\"v\":16,\"type\":\"friend\",\"seq\":1,\"name\":\"Player2\",\"action\":\"{action}\"}}"
                 ),
                 out _
             )

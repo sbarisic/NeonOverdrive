@@ -47,7 +47,8 @@ public sealed record PlayerSnapshot(
     int CruiseTicks = 0,
     bool Braking = false,
     float CruiseMultiplier = 1,
-    float Inertia = 1
+    float Inertia = 1,
+    bool FullThrottle = false
 );
 
 public sealed record ShotSnapshot(

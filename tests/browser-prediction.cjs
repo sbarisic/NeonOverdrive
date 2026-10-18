@@ -74,9 +74,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     );
     await page.waitForTimeout(450);
     await page.keyboard.up('w');
-    await page.keyboard.down('x');
+    await page.keyboard.down('s');
     await page.waitForTimeout(650);
-    await page.keyboard.up('x');
+    await page.keyboard.up('s');
     await page.waitForTimeout(1200);
     const settled = await read();
     assert(

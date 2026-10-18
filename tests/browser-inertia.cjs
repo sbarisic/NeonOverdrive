@@ -24,9 +24,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForTimeout(300);
     await page.keyboard.up('d');
     assert.equal((await read()).throttle, 0);
-    await page.keyboard.down('w');
+    await page.keyboard.down('q');
     await page.waitForTimeout(1000);
-    await page.keyboard.up('w');
+    await page.keyboard.up('q');
     await page.waitForTimeout(150);
     const released = await read();
     assert(released.throttle > 0.4 && released.throttle < 0.65);
@@ -34,9 +34,20 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const held = await read();
     assert(Math.abs(held.throttle - released.throttle) < 0.02);
     assert(Math.hypot(held.x - released.x, held.y - released.y) > 5);
-    await page.keyboard.down('s');
+    await page.keyboard.down('w');
+    await page.waitForTimeout(250);
+    assert(Math.abs((await read()).throttle - held.throttle) < 0.02, 'W preserves saved throttle');
+    assert.match(await page.locator('#flight-throttle').textContent(), /100%.*saved/);
+    await page.keyboard.up('w');
+    await page.waitForTimeout(100);
+    assert(
+      Math.abs((await read()).throttle - held.throttle) < 0.02,
+      'W release restores saved throttle',
+    );
+    assert(await page.locator('#flight-throttle').isHidden());
+    await page.keyboard.down('e');
     await page.waitForTimeout(1300);
-    await page.keyboard.up('s');
+    await page.keyboard.up('e');
     await page.waitForTimeout(1100);
     const coasting = await read();
     assert.equal(coasting.throttle, 0);
@@ -47,11 +58,11 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const rotated = await read();
     assert(Math.abs(rotated.velocityX - coasting.velocityX) < 1);
     assert(Math.abs(rotated.velocityY - coasting.velocityY) < 1);
-    await page.keyboard.down('x');
+    await page.keyboard.down('s');
     await page.waitForTimeout(100);
     assert.equal((await read()).braking, true);
     await page.waitForTimeout(850);
-    await page.keyboard.up('x');
+    await page.keyboard.up('s');
     await page.waitForTimeout(100);
     const stopped = await read();
     assert.equal(stopped.throttle, 0);

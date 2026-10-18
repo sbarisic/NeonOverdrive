@@ -98,7 +98,7 @@ export function createHudControls(element, canvas, host) {
   document.body.append(radarControls);
   const flightControls = element('div', '', 'arena-shell');
   flightControls.id = 'flight-controls';
-  const brakeButton = element('button', 'Brake [X]');
+  const brakeButton = element('button', 'Brake [S]');
   brakeButton.id = 'flight-brake';
   brakeButton.type = 'button';
   brakeButton.hidden = true;
@@ -106,7 +106,11 @@ export function createHudControls(element, canvas, host) {
   brakeButton.setAttribute('aria-pressed', 'false');
   control(brakeButton, 'brake');
   Object.assign(flightControls.style, { position: 'fixed', zIndex: '4' });
-  flightControls.append(brakeButton);
+  const throttleStatus = element('div');
+  throttleStatus.id = 'flight-throttle';
+  throttleStatus.hidden = true;
+  Object.assign(throttleStatus.style, { fontSize: '11px' });
+  flightControls.append(brakeButton, throttleStatus);
   document.body.append(flightControls);
   const rescueButton = element('button', '◉');
   rescueButton.id = 'radar-rescue';
@@ -193,6 +197,7 @@ export function createHudControls(element, canvas, host) {
     menuButton,
     radarControls,
     brakeButton,
+    throttleStatus,
     setWaypoint,
     rescueButton,
     setRescue,
@@ -247,7 +252,7 @@ export function createPauseMenu(element, audio, connection, link) {
     ),
     element(
       'p',
-      'Inertia is a handling rating relative to your chassis; lower is more responsive. Vector Thrusters improve acceleration and turning. A/D or hold right mouse: turn • W/S: engine throttle • X: hold brake • Click: select · Hold mouse / Space: fire. Zero throttle coasts; turn against your drift and thrust to slow down.',
+      'Inertia is a handling rating relative to your chassis; lower is more responsive. Vector Thrusters improve acceleration and turning. A/D or hold right mouse: turn • W / Up: hold 100% throttle, release to saved setting • Q/E: increase/decrease saved throttle • S / Down: hold brake (cuts saved throttle) • Click: select · Hold mouse / Space: fire. Zero throttle coasts; turn against your drift and thrust to slow down.',
       'muted',
     ),
     effectsLabel,

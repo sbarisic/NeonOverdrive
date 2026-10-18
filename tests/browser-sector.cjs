@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -23,7 +24,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert(await bench.getByRole('button', { name: 'Buy Accelerator', exact: true }).isDisabled());
     assert.match(await bench.innerText(), /Dock or hail a trader/);
     await page.keyboard.press('Escape');
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     const panel = page.locator('#sector-console');
@@ -66,7 +67,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.screenshot({ path: 'artifacts/browser-check/sector-map.png' });
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page.waitForFunction(

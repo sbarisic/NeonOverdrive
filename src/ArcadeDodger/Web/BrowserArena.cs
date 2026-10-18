@@ -7,6 +7,7 @@ using Raylib_cs;
 namespace ArcadeDodger.Web;
 
 [JsonSerializable(typeof(SelectableContact[]))]
+[JsonSerializable(typeof(FlightAssistInfo))]
 [JsonSerializable(typeof(RoomSnapshot))]
 [JsonSerializable(typeof(SectorDefinition))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
@@ -67,6 +68,9 @@ internal sealed partial class BrowserArena
         var sector = JsonSerializer.Deserialize(json, SnapshotJson.Default.SectorDefinition);
         if (sector is not null)
         {
+            assistSector = sector;
+            assistGeometry = new(sector);
+            ResetFlightAssist();
             prediction.SetSector(sector);
             world.SetSector(sector);
             BrowserArenaHud.SetSector(sector);
@@ -76,10 +80,20 @@ internal sealed partial class BrowserArena
     public void Welcome(int id)
     {
         ownId = id;
+        ResetFlightAssist();
+        cursorKnown = false;
         prediction.Reset();
     }
 
-    public void Input(double x, double y, double aim, bool menu, bool brake, bool cursorSteering) =>
+    public void Input(
+        double x,
+        double y,
+        double aim,
+        bool menu,
+        bool brake,
+        bool cursorSteering,
+        bool fullThrottle
+    ) =>
         prediction.Input(
             menuOpen ? 0 : (float)x,
             menuOpen ? 0 : (float)y,
@@ -87,7 +101,8 @@ internal sealed partial class BrowserArena
             menuOpen || menu,
             clock.Elapsed.TotalSeconds,
             brake,
-            cursorSteering
+            cursorSteering,
+            fullThrottle
         );
 
     public void SentInput(int sequence) =>
@@ -178,6 +193,8 @@ internal sealed partial class BrowserArena
             return 0;
         if (!double.IsFinite(u) || !double.IsFinite(v))
             return 0;
+        aimCursor = new((float)Math.Clamp(u, 0, 1), (float)Math.Clamp(v, 0, 1));
+        cursorKnown = true;
         var target =
             origin
             - cameraKick
@@ -307,6 +324,7 @@ internal sealed partial class BrowserArena
                 );
                 if (!menuOpen)
                     DrawSelection();
+                DrawFlightAssist(self, seconds);
             }
             finally
             {

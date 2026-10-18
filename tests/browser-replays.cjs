@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 
 (async () => {
@@ -39,7 +40,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await join();
     const first = await read();
     await page.locator('#canvas').focus();
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page
@@ -61,7 +62,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     assert.equal(recovered.profile.owned[6], 1);
     if (recovered.pilot.docked) {
       await page.locator('#canvas').focus();
-      await page.keyboard.press('e');
+      await interact(page);
       if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
         await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
       await page.locator('#sector-console').waitFor({ state: 'hidden' });

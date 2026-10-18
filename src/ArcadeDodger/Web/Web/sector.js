@@ -31,7 +31,7 @@ export function createSectorConsole(
   style.textContent = stationStyles;
   document.head.append(style);
   const opener = el('button', 'Map [M]'),
-    dockButton = el('button', 'Dock [E]');
+    dockButton = el('button', 'Dock');
   opener.type = dockButton.type = 'button';
   info.append(opener, dockButton);
   const cruiseButton = el('button', 'Cruise [Shift]');
@@ -156,7 +156,7 @@ export function createSectorConsole(
         add(
           l,
           a.action,
-          `${a.action === 'dock' ? 'Dock' : l.kind === 'cache' ? 'Search' : 'Salvage / Scan'}: ${l.name} [E]`,
+          `${a.action === 'dock' ? 'Dock' : l.kind === 'cache' ? 'Search' : 'Salvage / Scan'}: ${l.name}`,
           l.kind === 'station' ? 'station' : 'locate',
         );
     }
@@ -344,11 +344,15 @@ export function createSectorConsole(
           `Compared with ${current.name}: ${delta(design.hull - current.hull)} hull, ${delta(design.shield - current.shield)} shields, ${delta(design.speed - current.speed)} speed, ${delta(design.turnRate - current.turnRate)}°/s. No repair or trade-in.`;
       }
     }
-    close.textContent = mode === 'station' ? 'Undock [E / Esc]' : 'Return [Esc]';
+    close.textContent = mode === 'station' ? 'Undock [Esc]' : 'Return [Esc]';
     repair.textContent = state?.repairCost
       ? `Repair hull · ${state.repairCost} credits`
       : 'Hull fully repaired';
-    repair.disabled = !!pending || !state?.repairCost || !docked;
+    const repairReason = frame?.sector?.services?.availability?.find(
+      (a) => a.action === 'repair' && a.target === 0,
+    )?.reason;
+    repair.disabled = !!pending || !state?.repairCost || !docked || !!repairReason;
+    repair.title = repairReason ? actionMessage(repairReason) : '';
     claim.hidden = !active;
     claim.disabled = !!pending || !state?.ready || active?.station !== docked;
     shop.disabled = !docked;
@@ -397,7 +401,8 @@ export function createSectorConsole(
               ? 'Finish your current assignment first'
               : 'AVAILABLE';
       description.textContent = {
-        survey: 'Scan three orbital beacons. Press E at each and hold position for three seconds.',
+        survey:
+          'Scan three orbital beacons. Click Scan at each and hold position for three seconds.',
         recover: 'Retrieve data from a marked wreck, then bring it back to this station.',
         suppress: 'Contribute damage to the marked hostile array, destroy it, then return.',
         interdict: 'Help defeat three ships from the marked arrival corridor, then return.',
@@ -408,8 +413,8 @@ export function createSectorConsole(
     dockButton.textContent = docked
       ? 'Station services'
       : near
-        ? `${near.kind === 'station' ? 'Dock' : 'Interact'} [E]`
-        : 'Dock [E]';
+        ? `${near.kind === 'station' ? 'Dock' : 'Interact'}`
+        : 'Dock';
     const nearServices = [
       ...(frame.sector?.services?.contacts || []),
       ...(frame.sector?.services?.outposts || []),
@@ -417,11 +422,11 @@ export function createSectorConsole(
     dockButton.disabled = !docked && !near && !nearServices;
     cruiseButton.hidden = !self || self.hull <= 0;
     cruiseButton.textContent = `Cruise · ${self.cruiseState || 'ready'}${self.cruiseTicks ? ' ' + Math.ceil(self.cruiseTicks / 30) + 's' : ''} [Shift]`;
-    if (nearServices && !docked) dockButton.textContent = 'Hail / Services [E]';
+    if (nearServices && !docked) dockButton.textContent = 'Hail / Services';
     let text = docked
-      ? 'DOCKED · E to undock'
+      ? 'DOCKED · Esc to undock'
       : near
-        ? `E · ${near.kind === 'station' ? 'Dock at' : 'Interact with'} ${near.name}`
+        ? `Click service button · ${near.kind === 'station' ? 'Dock at' : 'Interact with'} ${near.name}`
         : '';
     if (waypoint?.kind === 'contact') {
       const contact = frame.sector?.services?.contacts.find((c) => c.id === waypoint.id);
@@ -464,7 +469,7 @@ export function createSectorConsole(
       text += `\n${compass} → ${waypoint.name} · ${Math.round(Math.hypot(dx, dy))} units`;
     }
     if (active)
-      text += `\n${active.kind.toUpperCase()} · ${state.ready ? `Complete — dock at ${next?.name || 'issuing station'} and claim reward` : active.kind === 'survey' ? `${state.progress.length}/3 scanned — next: ${next?.name || 'beacon'} · Press E to scan` : active.kind === 'recover' ? `Retrieve data at ${next?.name} · Press E` : active.kind === 'interdict' ? `${state.progress.length}/3 corridor ships defeated` : 'Damage and destroy ' + (next?.name || 'marked array')}`;
+      text += `\n${active.kind.toUpperCase()} · ${state.ready ? `Complete — dock at ${next?.name || 'issuing station'} and claim reward` : active.kind === 'survey' ? `${state.progress.length}/3 scanned — next: ${next?.name || 'beacon'} · Click Scan` : active.kind === 'recover' ? `Retrieve data at ${next?.name} · Click Interact` : active.kind === 'interdict' ? `${state.progress.length}/3 corridor ships defeated` : 'Damage and destroy ' + (next?.name || 'marked array')}`;
     if (state?.interaction > 0)
       text += `\nScanning ${Math.round(state.interaction * 100)}% · Stay still`;
     if (state?.pings?.length)
@@ -655,11 +660,6 @@ export function createSectorConsole(
       if (e.code === 'KeyM') {
         e.preventDefault();
         if (!e.repeat) setOpen(mode === 'map' ? '' : 'map');
-        return true;
-      }
-      if (e.code === 'KeyE') {
-        e.preventDefault();
-        if (!e.repeat) interact();
         return true;
       }
       if (mode === 'map' && chart.keydown(e)) return true;

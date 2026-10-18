@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({
@@ -27,7 +28,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await join(victim, 'Run' + suffix);
     const room = await victim.locator('#network-info').getAttribute('data-room');
     await victim.locator('#canvas').focus();
-    await victim.keyboard.press('e');
+    await interact(victim);
     if (await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await victim
@@ -48,7 +49,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     const before = await read(victim);
     assert.equal(before.snapshot.workshop.credits, 40);
     await victim.keyboard.press('Escape');
-    await victim.keyboard.press('e');
+    await interact(victim);
     if (await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await victim.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await victim.waitForFunction(
@@ -63,9 +64,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await victim.keyboard.down('w');
     await victim.waitForTimeout(4300);
     await victim.keyboard.up('w');
-    await victim.keyboard.down('x');
+    await victim.keyboard.down('s');
     await victim.waitForTimeout(2100);
-    await victim.keyboard.up('x');
+    await victim.keyboard.up('s');
     await join(attacker, 'Attack' + suffix, room);
     await attacker.locator('#canvas').focus();
     await attacker.keyboard.down('d');
@@ -74,9 +75,9 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await attacker.keyboard.down('w');
     await attacker.waitForTimeout(4300);
     await attacker.keyboard.up('w');
-    await attacker.keyboard.down('x');
+    await attacker.keyboard.down('s');
     await attacker.waitForTimeout(2100);
-    await attacker.keyboard.up('x');
+    await attacker.keyboard.up('s');
     await attacker.waitForTimeout(1200);
     const now = await read(attacker),
       self = now.self,

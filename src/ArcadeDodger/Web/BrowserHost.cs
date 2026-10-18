@@ -75,14 +75,18 @@ public partial class BrowserHost
         double aim,
         bool menu,
         bool brake,
-        bool cursorSteering
-    ) => arena?.Input(x, y, aim, menu, brake, cursorSteering);
+        bool cursorSteering,
+        bool fullThrottle
+    ) => arena?.Input(x, y, aim, menu, brake, cursorSteering, fullThrottle);
 
     [JSExport]
     public static void ArenaSentInput(int sequence) => arena?.SentInput(sequence);
 
     [JSExport]
     public static string ArenaMetrics() => arena?.Metrics() ?? "";
+
+    [JSExport]
+    public static string ArenaFlightAssist() => arena?.FlightAssistState() ?? "{}";
 
     [JSExport]
     public static string ArenaPosition() => arena?.Position() ?? "";
@@ -108,6 +112,7 @@ public partial class BrowserHost
             return initialized;
         if (arena is not null)
         {
+            arena.DisplayWidth(displayWidth);
             var density = Math.Clamp(pixelRatio, 1, 2);
             var width = Math.Max(1, (int)Math.Round(displayWidth * density));
             var height = Math.Max(1, (int)Math.Round(displayHeight * density));

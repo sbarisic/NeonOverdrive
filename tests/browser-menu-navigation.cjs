@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -65,7 +66,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         )),
       'focused Space must not fire',
     );
-    await page.keyboard.press('e');
+    await interact(page);
     const dock = page.getByRole('button', { name: 'Dock at Arrival Port', exact: true });
     if (await dock.isVisible()) await dock.click();
     await page.locator('#sector-console[data-mode="station"]').waitFor({ state: 'visible' });
@@ -75,7 +76,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.screenshot({ path: 'artifacts/browser-check/menu-station.png' });
     await page
       .locator('#sector-console')
-      .getByRole('button', { name: 'Undock [E / Esc]', exact: true })
+      .getByRole('button', { name: 'Undock [Esc]', exact: true })
       .click();
     await page.locator('#sector-console').waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);

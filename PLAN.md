@@ -1,6 +1,24 @@
 # Modular Fleets, Territory Warfare, and a Living Sector
 
-Status: v15 reliability repairs in progress; prior acceptance below is historical, not acceptance of this revision. Baseline patch and untracked files are saved under ignored `artifacts/living-sector-baseline/`.
+Status: v16 flight controls implemented and verified in Release; the running Visual Studio server still needs a coordinated rebuild/restart. Prior acceptance below is historical. Baseline patch and untracked files are saved under ignored `artifacts/living-sector-baseline/`.
+
+## Temporary thrust and remapped controls (protocol v16)
+
+- W/Up applies full throttle immediately while held without overwriting the saved setpoint. Releasing returns to that setpoint; Q/E adjustments are ignored during the override.
+- Q raises and E lowers the saved throttle at the existing rate. S/Down and the visible Brake button brake and cut the setpoint to zero, with priority over W. X no longer brakes.
+- E no longer opens station/services UI; existing visible nearby-action buttons remain available, with Escape for closing/undocking.
+- Shared authoritative and predicted input uses a strictly boolean `fullThrottle` intent. Input timeout, disconnect and modal states cannot retain full thrust. Saved profiles need no migration. Race records use flight model 6.
+- Release server/WASM build passes without warnings; all 648 non-performance .NET regression cases pass, including 12 temporary-throttle cases. CSharpier and Prettier checks pass. Debug output rebuild was blocked by the user's running Visual Studio server; it was not stopped.
+- Seven Edge suites pass: ship controls (DPR 1/2), inertia, repair eligibility (DPR 1/2), menu navigation, services, multiplayer and delayed-authority prediction. The new menu-cancellation fixture explicitly opens Menu rather than assuming Escape will open it when a contact is selected. Verification used isolated profiles and a temporary port-5126 server, stopped afterward; files are under `artifacts/control-v16-b568bcc924a44559bb807724739d614b/`. Other browser suites and performance benchmarks were not rerun for this update.
+- Protocol v16 requires coordinated server rebuild/restart and browser refresh; do not refresh a v15 server's source-overlaid UI as a substitute.
+
+## Advisory flight assists
+
+- Incremental release-path and zero-thrust forecasts use shared movement, gravity and swept static collision. Each forecast is bounded to 120 seconds and 361 samples; the renderer advances at most 120 simulation ticks per forecast per frame. Green requires a complete safe circuit with radial and velocity closure, not a circular-speed heuristic. Red marks collisions, cyan shows other release trajectories. Nonzero saved throttle gets a separate dashed green coast alternative when eligible.
+- Sticky cursor acquisition uses a hull-sized zone plus 18 CSS pixels and 120 ms dwell. Tracking is independent of selection, survives aiming ahead/onto the lead reticle, switches near another visible hostile NPC, and clears on death, sensor loss, menu, or run changes.
+- First enabled weapon bay supplies the labelled reference. Lead uses target velocity, hardpoint origin and a hull-centre-adjusted aim marker, accounting for active speed/range/converter checkpoints and dormancy. Terrain/range failures hide the reticle; branching/homing/ricochet/mine stages deliberately stop exact centre-line prediction. Abrupt target velocity changes fade confidence; beams use direct aim and conservative straight-segment range.
+- Shared-helper tests and Edge DPR 1/2 fixtures cover full-loop green, collisions, acquisition/retention/switching/loss, modal suppression and weapon timing. Full non-performance suite: 673 passing cases. Release server/WASM build and formatting checks pass. Existing ship-control and repair browser regressions also passed after initial integration. Green/collision/lead screenshots are under `artifacts/browser-check/flight-*.png`.
+- Caveats: current short-range quadratic gravity does not generally provide stable inverse-square orbits; the production-radius circular-speed regression correctly refuses green. Green is a bounded prediction, not indefinite stability or avoidance of future moving ships. Production mixed-population performance was not rerun; the user's live Debug/Visual Studio instance and profiles remain untouched.
 
 ## Accepted specification and tuning
 

@@ -17,7 +17,8 @@ public sealed record InputMessage(
     bool Menu,
     bool Editing = false,
     bool Brake = false,
-    bool CursorSteering = false
+    bool CursorSteering = false,
+    bool FullThrottle = false
 ) : SequencedMessage(Sequence);
 
 public sealed record ChoiceMessage(int Sequence, string Choice) : SequencedMessage(Sequence);
@@ -39,7 +40,7 @@ public sealed record LeaveMessage(int Sequence) : SequencedMessage(Sequence);
 /// <summary>Strict, bounded intent-only wire parser. Transport and gameplay validation are separate.</summary>
 public static class ClientProtocol
 {
-    public const int Version = 15;
+    public const int Version = 16;
     public const int MaxMessageBytes = 16384;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 8 };
 
@@ -102,6 +103,7 @@ public static class ClientProtocol
                                     or "editing"
                                     or "brake"
                                     or "cursorSteering"
+                                    or "fullThrottle"
                                 )
                         )
                         || !Sequence(root, out var sequence)
@@ -124,6 +126,12 @@ public static class ClientProtocol
                         && !Boolean(root, "cursorSteering", out cursorSteering)
                     )
                         return false;
+                    var fullThrottle = false;
+                    if (
+                        names.Contains("fullThrottle")
+                        && !Boolean(root, "fullThrottle", out fullThrottle)
+                    )
+                        return false;
                     message = new InputMessage(
                         sequence,
                         x,
@@ -133,7 +141,8 @@ public static class ClientProtocol
                         menu,
                         editing,
                         brake,
-                        cursorSteering
+                        cursorSteering,
+                        fullThrottle
                     );
                     return true;
                 case "choice":

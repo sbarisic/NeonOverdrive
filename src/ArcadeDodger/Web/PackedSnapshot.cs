@@ -89,7 +89,8 @@ internal sealed class PackedSnapshot(double[] data, string[] text)
                     CruiseTicks: Int(),
                     Braking: Bool(),
                     CruiseMultiplier: Float(),
-                    Inertia: Float()
+                    Inertia: Float(),
+                    FullThrottle: Bool()
                 )
         );
         var shots = List(

@@ -4,3 +4,4 @@ artifacts/
 TestResults/
 .vs/
 node_modules/
+.letta/

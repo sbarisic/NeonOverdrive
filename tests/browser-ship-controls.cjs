@@ -113,12 +113,15 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       assert(
         await page.evaluate(
           () =>
-            window.sent.at(-1).x === -1 && window.sent.at(-1).y === -1 && window.sent.at(-1).fire,
+            window.sent.at(-1).x === -1 &&
+            window.sent.at(-1).y === 0 &&
+            window.sent.at(-1).fullThrottle &&
+            window.sent.at(-1).fire,
         ),
       );
       await page.keyboard.up('w');
       await page.keyboard.up('a');
-      await page.keyboard.down('x');
+      await page.keyboard.down('s');
       await page.waitForTimeout(80);
       assert(
         await page.evaluate(
@@ -128,7 +131,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
             window.sent.at(-1).cursorSteering,
         ),
       );
-      await page.keyboard.up('x');
+      await page.keyboard.up('s');
       await page.keyboard.down('Space');
       await page.mouse.up({ button: 'left' });
       await page.waitForTimeout(60);
@@ -147,6 +150,60 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       assert(
         await page.evaluate(() => !window.sent.at(-1).fire && !window.sent.at(-1).cursorSteering),
       );
+      // Real key events exercise independent aliases, chords and cancellation.
+      const intent = async () => {
+        await page.waitForTimeout(80);
+        return page.evaluate(() => window.sent.at(-1));
+      };
+      await page.locator('#canvas').focus();
+      await page.keyboard.down('q');
+      assert.equal((await intent()).y, -1, 'Q increases saved throttle');
+      await page.keyboard.down('e');
+      assert.equal((await intent()).y, 0, 'opposing throttle keys cancel');
+      await page.keyboard.up('q');
+      assert.equal(
+        (await intent()).y,
+        1,
+        'E decreases saved throttle without service interception',
+      );
+      assert(await page.locator('#sector-console').isHidden());
+      await page.keyboard.up('e');
+      await page.keyboard.down('x');
+      assert.equal((await intent()).brake, false, 'X is no longer brake');
+      await page.keyboard.up('x');
+      await page.keyboard.down('w');
+      await page.keyboard.down('ArrowUp');
+      assert.equal((await intent()).fullThrottle, true);
+      assert.equal((await intent()).y, 0);
+      await page.keyboard.up('w');
+      assert.equal((await intent()).fullThrottle, true, 'Up survives W release');
+      await page.keyboard.down('ArrowDown');
+      assert.equal((await intent()).brake, true);
+      assert.equal(
+        (await intent()).fullThrottle,
+        true,
+        'brake and override intents remain independent',
+      );
+      await page.keyboard.up('ArrowDown');
+      await page.keyboard.up('ArrowUp');
+      assert.equal((await intent()).fullThrottle, false);
+      for (const cancellation of ['blur', 'menu']) {
+        await page.keyboard.down('w');
+        assert.equal((await intent()).fullThrottle, true);
+        if (cancellation === 'blur')
+          await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+        else await page.getByRole('button', { name: 'Menu [Esc]', exact: true }).click();
+        assert.equal((await intent()).fullThrottle, false);
+        if (cancellation === 'menu') await page.keyboard.press('Escape');
+        await page.locator('#canvas').focus();
+        await page.keyboard.down('w'); // Repeat must not revive a cleared hold.
+        assert.equal((await intent()).fullThrottle, false);
+        await page.keyboard.up('w');
+        await page.keyboard.down('w');
+        assert.equal((await intent()).fullThrottle, true);
+        await page.keyboard.up('w');
+        assert.equal((await intent()).fullThrottle, false);
+      }
       assert((await page.locator('#context-actions button').count()) > 0);
       await page.waitForFunction(
         () => document.querySelectorAll('#ship-contacts button').length > 0,
@@ -255,7 +312,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
       await page.close();
     }
     console.log(
-      'PASS: v14 cursor steering, click/hold intent, selection/list/minimap, radio lifecycle, menu layering, snapshot-safe controls at DPR 1/2.',
+      'PASS: v16 throttle override and cursor steering, click/hold intent, selection/list/minimap, radio lifecycle, menu layering, snapshot-safe controls at DPR 1/2.',
     );
   } finally {
     await browser.close();

@@ -44,6 +44,7 @@ export function startNetwork(host, canvas, status) {
     menuButton,
     radarControls,
     brakeButton,
+    throttleStatus,
     setWaypoint,
     rescueButton,
     setRescue,
@@ -86,7 +87,7 @@ export function startNetwork(host, canvas, status) {
     (action, target) => {
       if (!joined || dead || socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 4096)
         return;
-      socket.send(JSON.stringify({ v: 15, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 16, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (location) => sector.navigateTo(location),
@@ -102,7 +103,8 @@ export function startNetwork(host, canvas, status) {
     'KeyA',
     'KeyS',
     'KeyD',
-    'KeyX',
+    'KeyQ',
+    'KeyE',
     'ArrowUp',
     'ArrowDown',
     'ArrowLeft',
@@ -138,7 +140,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 15, type: 'choice', seq: ++seq, choice: id }));
+      socket.send(JSON.stringify({ v: 16, type: 'choice', seq: ++seq, choice: id }));
     },
     (open) => {
       if (open && sector?.open) sector.setOpen('');
@@ -161,7 +163,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 15, type: 'equipment', seq: ++seq, ...command }));
+      socket.send(JSON.stringify({ v: 16, type: 'equipment', seq: ++seq, ...command }));
       return seq;
     },
     (module) => {
@@ -171,7 +173,7 @@ export function startNetwork(host, canvas, status) {
         return;
       }
       sendInput();
-      socket.send(JSON.stringify({ v: 15, type: 'buy', seq: ++seq, module }));
+      socket.send(JSON.stringify({ v: 16, type: 'buy', seq: ++seq, module }));
       return seq;
     },
     (open) => {
@@ -194,7 +196,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 15, type: 'friend', seq: ++seq, name, action }));
+      socket.send(JSON.stringify({ v: 16, type: 'friend', seq: ++seq, name, action }));
       return seq;
     },
     (open) => {
@@ -217,7 +219,7 @@ export function startNetwork(host, canvas, status) {
         socket.close();
         return;
       }
-      socket.send(JSON.stringify({ v: 15, type: 'sector', seq: ++seq, action, target }));
+      socket.send(JSON.stringify({ v: 16, type: 'sector', seq: ++seq, action, target }));
       return seq;
     },
     (open) => {
@@ -295,10 +297,11 @@ export function startNetwork(host, canvas, status) {
     }
     const intent = {
       x: blocked ? 0 : held('KeyD', 'ArrowRight') - held('KeyA', 'ArrowLeft'),
-      y: blocked ? 0 : held('KeyS', 'ArrowDown') - held('KeyW', 'ArrowUp'),
+      y: blocked ? 0 : held('KeyE') - held('KeyQ'),
       aim,
-      brake: !blocked && (buttonBrake || !!held('KeyX')),
+      brake: !blocked && (buttonBrake || !!held('KeyS', 'ArrowDown')),
       cursorSteering: !blocked && mouseSteer,
+      fullThrottle: !blocked && !!held('KeyW', 'ArrowUp'),
       fire: !blocked && ((mouseFire && performance.now() - fireStarted >= 180) || !!held('Space')),
       menu:
         living.trading ||
@@ -317,7 +320,12 @@ export function startNetwork(host, canvas, status) {
       intent.menu,
       intent.brake,
       intent.cursorSteering,
+      intent.fullThrottle,
     );
+    throttleStatus.hidden = !intent.fullThrottle || intent.brake;
+    throttleStatus.textContent = throttleStatus.hidden
+      ? ''
+      : `W: 100% · saved ${Math.round((currentPilot?.throttle || 0) * 100)}%`;
     brakeButton.hidden = !joined || dead || !!activeMenu();
     brakeButton.setAttribute('aria-pressed', String(intent.brake));
     brakeButton.dataset.variant = intent.brake ? 'primary' : 'secondary';
@@ -330,7 +338,7 @@ export function startNetwork(host, canvas, status) {
       return;
     }
     const intent = localInput();
-    socket.send(JSON.stringify({ v: 15, type: 'input', seq: ++seq, ...intent }));
+    socket.send(JSON.stringify({ v: 16, type: 'input', seq: ++seq, ...intent }));
     host.ArenaSentInput(seq);
   }
   // Movement presentation runs at display cadence, independent of 30 Hz transport.
@@ -449,7 +457,7 @@ export function startNetwork(host, canvas, status) {
     leave.disabled = true;
     resume.disabled = true;
     connection.textContent = 'Ending run…';
-    socket.send(JSON.stringify({ v: 15, type: 'leave', seq: pendingLeave }));
+    socket.send(JSON.stringify({ v: 16, type: 'leave', seq: pendingLeave }));
     const leaving = socket;
     leaveTimeout = setTimeout(() => {
       if (socket === leaving && pendingLeave)
@@ -465,7 +473,7 @@ export function startNetwork(host, canvas, status) {
     clearInput();
     retry.disabled = true;
     retry.textContent = 'Respawning…';
-    socket.send(JSON.stringify({ v: 15, type: 'respawn', seq: ++seq }));
+    socket.send(JSON.stringify({ v: 16, type: 'respawn', seq: ++seq }));
     canvas.focus();
   });
   window.addEventListener('keydown', (e) => {
@@ -678,7 +686,7 @@ export function startNetwork(host, canvas, status) {
     current.addEventListener('open', () => {
       if (socket === current)
         current.send(
-          JSON.stringify({ v: 15, type: 'join', name: name.value, room: params.get('room') || '' }),
+          JSON.stringify({ v: 16, type: 'join', name: name.value, room: params.get('room') || '' }),
         );
     });
     current.addEventListener('message', (e) => {
@@ -687,7 +695,7 @@ export function startNetwork(host, canvas, status) {
         if (typeof e.data !== 'string' || e.data.length > 524288)
           throw new Error('Invalid server payload');
         const message = JSON.parse(e.data);
-        if (message.v !== 15) throw new Error('Protocol mismatch');
+        if (message.v !== 16) throw new Error('Protocol mismatch');
         if (message.type === 'welcome') {
           lastCredit = 0;
           lastCreditLife = -1;
@@ -799,7 +807,7 @@ export function startNetwork(host, canvas, status) {
             receiptAcknowledged = receiptKey;
             socket.send(
               JSON.stringify({
-                v: 15,
+                v: 16,
                 type: 'sector',
                 seq: ++seq,
                 action: 'receipts_ack',

@@ -1,4 +1,5 @@
 // Real server equipment persistence, dormant mods, whole-weapon swaps, recovery and sales.
+const { interact } = require('./browser-service-actions.cjs');
 const assert = require('node:assert/strict');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
@@ -20,7 +21,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
         return { self: f.players.find((p) => p.id === +el.dataset.player), profile: f.workshop };
       });
     await page.locator('#canvas').focus();
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page

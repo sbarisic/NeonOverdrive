@@ -152,7 +152,7 @@ public class WorkshopEconomyTests
         var json = JsonSerializer.Serialize(
             new
             {
-                v = 15,
+                v = 16,
                 type = "equipment",
                 seq = 1,
                 action = "apply",
@@ -171,7 +171,7 @@ public class WorkshopEconomyTests
                 json.Replace("\"enabled\":true", "\"enabled\":true,\"enabled\":true"),
                 json.Replace("\"enabled\":true", "\"enabled\":1"),
                 json.Replace("[6,0,0,0,0,0,0,0]", "[6]"),
-                json.Replace("\"v\":15", "\"v\":8"),
+                json.Replace("\"v\":16", "\"v\":8"),
             }
         )
             Assert.False(ClientProtocol.TryParse(Encoding.UTF8.GetBytes(invalid), out _));

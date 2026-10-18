@@ -24,7 +24,8 @@ internal sealed partial class BrowserArenaWorld
         var radius = MathF.Max(20, ChassisCatalog.Get(p.Chassis).Radius);
         if (p.Editing)
             color = Raylib.Fade(color, .35f);
-        DrawChassis(p.Chassis, position, p.Heading, p.Aim, p.Throttle, p.ActiveBays, color, low);
+        var thrust = p.FullThrottle ? 1 : p.Throttle;
+        DrawChassis(p.Chassis, position, p.Heading, p.Aim, thrust, p.ActiveBays, color, low);
         // Travel direction stays independent of hull/weapon orientation, even with reduced FX.
         var velocity = new Vector2(p.VelocityX, p.VelocityY);
         if (p.Id == ownId && velocity.LengthSquared() > 1)
@@ -50,7 +51,7 @@ internal sealed partial class BrowserArenaWorld
                 Raylib.DrawLineEx(tip - pull * 8 + side * 5, tip, 2, Gold);
                 Raylib.DrawLineEx(tip - pull * 8 - side * 5, tip, 2, Gold);
                 BrowserText.DrawText(
-                    p.Throttle > 0 ? "GRAVITY ASSIST" : "GRAVITY",
+                    thrust > 0 ? "GRAVITY ASSIST" : "GRAVITY",
                     (int)p.X - 24,
                     (int)(p.Y + radius + 25),
                     10,

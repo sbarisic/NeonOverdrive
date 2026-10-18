@@ -90,6 +90,7 @@ export function presentSnapshot(host, f) {
       +!!p.braking,
       p.cruiseMultiplier ?? 1,
       p.inertia ?? 1,
+      +!!p.fullThrottle,
     ),
   );
   list(f.shots, (s) => {

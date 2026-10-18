@@ -86,7 +86,8 @@ public sealed class LocalPrediction
         float Aim,
         bool Menu,
         bool Brake,
-        bool CursorSteering
+        bool CursorSteering,
+        bool FullThrottle
     );
 
     private readonly record struct Sent(int Sequence, double At);
@@ -120,7 +121,8 @@ public sealed class LocalPrediction
         bool menu,
         double seconds,
         bool brake = false,
-        bool cursorSteering = false
+        bool cursorSteering = false,
+        bool fullThrottle = false
     )
     {
         if (
@@ -145,12 +147,15 @@ public sealed class LocalPrediction
             && prior.Menu == menu
             && prior.Brake == brake
             && prior.CursorSteering == cursorSteering
+            && prior.FullThrottle == fullThrottle
             && (!cursorSteering || prior.Aim == aim)
             && seconds < prior.RefreshedAt + InputTimeoutSeconds
         )
             history[^1] = prior with { RefreshedAt = seconds, Aim = aim };
         else
-            history.Add(new(seconds, seconds, direction, aim, menu, brake, cursorSteering));
+            history.Add(
+                new(seconds, seconds, direction, aim, menu, brake, cursorSteering, fullThrottle)
+            );
         Trim(seconds);
     }
 
@@ -292,7 +297,8 @@ public sealed class LocalPrediction
                 p.TurnRate * (cancelledActiveCruise ? 2 : 1),
                 ChassisCatalog.Get(p.Chassis).Radius,
                 held && intent.Brake,
-                held && intent.CursorSteering ? intent.Aim : null
+                held && intent.CursorSteering ? intent.Aim : null,
+                held && intent.FullThrottle
             );
             if (!p.Menu && !(held && intent.Menu))
             {
@@ -353,6 +359,13 @@ public sealed class LocalPrediction
             VelocityY = velocity.Y,
             Heading = heading,
             Throttle = throttle,
+            FullThrottle =
+                index >= 0
+                && time < history[index].RefreshedAt + InputTimeoutSeconds
+                && history[index].FullThrottle
+                && !history[index].Brake
+                && !p.Menu
+                && !history[index].Menu,
             Braking =
                 index >= 0
                 && time < history[index].RefreshedAt + InputTimeoutSeconds

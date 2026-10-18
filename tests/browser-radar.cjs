@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { interact } = require('./browser-service-actions.cjs');
 const { chromium } = require('../artifacts/browser-check/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -25,7 +26,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.getByRole('button', { name: 'Join arena', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('#network-info')?.dataset.snapshot);
     await page.locator('#canvas').focus();
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page
@@ -36,7 +37,7 @@ const { chromium } = require('../artifacts/browser-check/node_modules/playwright
     await page.waitForFunction(
       () => document.querySelector('#radar-controls').dataset.waypoint === 'Orbital Survey 1',
     );
-    await page.keyboard.press('e');
+    await interact(page);
     if (await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).isVisible())
       await page.getByRole('button', { name: 'Dock at Arrival Port', exact: true }).click();
     await page.locator('#sector-console').waitFor({ state: 'hidden' });

@@ -226,6 +226,7 @@ public sealed partial class Room
 
     private void AddActionAvailability(Player p, List<ServiceAvailability> output)
     {
+        output.Add(new(0, "repair", ActionReason(p, "repair", 0) ?? ""));
         foreach (
             var stock in civilians
                 .Where(c => c.Ship.Id == Living(p).Conversation)

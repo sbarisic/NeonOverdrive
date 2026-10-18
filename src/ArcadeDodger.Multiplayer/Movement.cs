@@ -6,7 +6,7 @@ namespace ArcadeDodger.Multiplayer;
 public static class Movement
 {
     public const float BrakeDeceleration = 300;
-    public const int ModelVersion = 5;
+    public const int ModelVersion = 6;
 
     public static float AssistedAcceleration(float acceleration, Vector2 gravity) =>
         acceleration + 2 * gravity.Length();
@@ -27,10 +27,12 @@ public static class Movement
         float turnRate = MathF.Tau / 3,
         float radius = Room.Radius,
         bool brake = false,
-        float? cursorHeading = null
+        float? cursorHeading = null,
+        bool fullThrottle = false
     )
     {
         brake &= inputAvailable && !immobilized;
+        fullThrottle &= inputAvailable && !immobilized && !brake;
         if (immobilized || !inputAvailable || brake)
             throttle = 0;
         if (immobilized)
@@ -40,7 +42,8 @@ public static class Movement
         }
         // Stationary pilots still turn, but need no repeated obstacle sweeps.
         if (
-            throttle == 0
+            !fullThrottle
+            && throttle == 0
             && velocity == Vector2.Zero
             && (!inputAvailable || controls.Y >= 0)
             && (geometry?.GravityAt(position) ?? Vector2.Zero) == Vector2.Zero
@@ -59,13 +62,13 @@ public static class Movement
             if (!immobilized && inputAvailable)
             {
                 heading = Turn(heading, controls.X, cursorHeading, turnRate * slice);
-                if (!brake)
+                if (!brake && !fullThrottle)
                     throttle = Math.Clamp(throttle - controls.Y * .5f * slice, 0, 1);
             }
             collided |= Step(
                 ref position,
                 ref velocity,
-                new Vector2(MathF.Cos(heading), MathF.Sin(heading)) * throttle,
+                new Vector2(MathF.Cos(heading), MathF.Sin(heading)) * (fullThrottle ? 1 : throttle),
                 slice,
                 speed,
                 acceleration,

@@ -151,8 +151,9 @@ internal static partial class BrowserArenaHud
         p = groups[5];
         Text($"PLAYTHROUGH {self?.Playthrough ?? 1}", (int)p.X, (int)p.Y + 10, 12, Ink);
         p = groups[6];
-        Text($"THROTTLE {(self?.Throttle ?? 0):P0}", (int)p.X, (int)p.Y, 12, Cyan);
-        Meter((int)p.X, (int)p.Y + 28, 110, 4, self?.Throttle ?? 0, Cyan);
+        var thrust = self?.FullThrottle == true ? 1 : self?.Throttle ?? 0;
+        Text($"THROTTLE {thrust:P0}", (int)p.X, (int)p.Y, 12, Cyan);
+        Meter((int)p.X, (int)p.Y + 28, 110, 4, thrust, Cyan);
         p = groups[7];
         var speed = new Vector2(self?.VelocityX ?? 0, self?.VelocityY ?? 0).Length();
         var overspeed = speed > (self?.MoveSpeed ?? 220) + 1;

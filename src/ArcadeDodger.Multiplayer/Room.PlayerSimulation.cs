@@ -68,7 +68,8 @@ public sealed partial class Room
             TurnRateFor(p),
             ChassisCatalog.Get(p.Chassis).Radius,
             input?.Brake == true,
-            input?.CursorSteering == true ? input.Aim : null
+            input?.CursorSteering == true ? input.Aim : null,
+            input?.FullThrottle == true
         );
         if (collided)
         {

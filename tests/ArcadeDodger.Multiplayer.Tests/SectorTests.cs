@@ -107,6 +107,33 @@ public class SectorTests
     }
 
     [Fact]
+    public void RepairAvailabilityTracksWalletAndOtherPendingTransactions()
+    {
+        var store = new ProfileStore();
+        var r = World(store: store);
+        string Reason() =>
+            Assert
+                .Single(r.SectorSnapshot(1)!.Services!.Availability!, a => a.Action == "repair")
+                .Reason;
+
+        Assert.Equal("not_docked", Reason());
+        Set(Player(r), "Hull", 1);
+        Assert.True(r.SectorAction(1, new(1, "dock", 10)));
+        Assert.Equal("", Reason());
+        Assert.Equal("ok", store.Debit("SectorPilot", 100));
+        Assert.Equal("insufficient_credits", Reason());
+        Assert.False(r.SectorAction(1, new(2, "repair")));
+        Assert.Equal(1, r.Snapshot().Players[0].Hull);
+        Assert.Equal("ok", store.Credit("SectorPilot", 20));
+        Set(Player(r), "EconomyPending", true);
+        Assert.Equal("busy", Reason());
+        Set(Player(r), "EconomyPending", false);
+        Assert.Equal("", Reason());
+        Assert.True(r.SectorAction(1, new(3, "repair")));
+        Assert.Equal("already_repaired", Reason());
+    }
+
+    [Fact]
     public void RepairIsPaidOnceAndFailedPersistenceCannotHeal()
     {
         var r = World();
@@ -437,7 +464,7 @@ public class SectorTests
         Assert.True(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":15,"type":"sector","seq":1,"action":"dock","target":10}"""
+                    """{"v":16,"type":"sector","seq":1,"action":"dock","target":10}"""
                 ),
                 out _
             )
@@ -445,7 +472,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":15,"type":"sector","seq":1,"action":"teleport","target":10}"""
+                    """{"v":16,"type":"sector","seq":1,"action":"teleport","target":10}"""
                 ),
                 out _
             )
@@ -453,7 +480,7 @@ public class SectorTests
         Assert.False(
             ClientProtocol.TryParse(
                 Encoding.UTF8.GetBytes(
-                    """{"v":15,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
+                    """{"v":16,"type":"sector","seq":1,"action":"claim","target":10,"credits":100}"""
                 ),
                 out _
             )

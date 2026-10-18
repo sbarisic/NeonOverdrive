@@ -179,14 +179,14 @@ public class ShipControlContactTests
         foreach (var value in new[] { "true", "false", "1", "null", "\"yes\"" })
         {
             var json =
-                $$"""{"v":15,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"cursorSteering":{{value}}}""";
+                $$"""{"v":16,"type":"input","seq":1,"x":0,"y":0,"aim":0,"fire":false,"menu":false,"cursorSteering":{{value}}}""";
             Assert.Equal(
                 value is "true" or "false",
                 ClientProtocol.TryParse(Encoding.UTF8.GetBytes(json), out _)
             );
             Assert.False(
                 ClientProtocol.TryParse(
-                    Encoding.UTF8.GetBytes(json.Replace("\"v\":15", "\"v\":12")),
+                    Encoding.UTF8.GetBytes(json.Replace("\"v\":16", "\"v\":12")),
                     out _
                 )
             );
